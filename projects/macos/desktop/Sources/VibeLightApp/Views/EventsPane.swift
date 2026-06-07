@@ -58,17 +58,19 @@ struct EventsPane: View {
 
 private struct EventRow: View {
     var event: VibeHookEvent
+    @State private var showsRawPayload = false
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             Image(systemName: "circle.fill")
                 .font(.system(size: 9))
                 .foregroundStyle(tint)
                 .frame(width: 16)
+                .padding(.top, 6)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text(event.kind.rawValue)
+                    Text(primaryTitle)
                         .font(.headline)
                     Text(event.source.displayName)
                         .foregroundStyle(.secondary)
@@ -80,9 +82,45 @@ private struct EventRow: View {
                 Text(event.displayDetail)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+
+                if let message = event.message, message != event.displayDetail {
+                    Text(message)
+                        .font(.system(.callout, design: .monospaced))
+                        .foregroundStyle(.primary)
+                        .lineLimit(3)
+                        .textSelection(.enabled)
+                }
+
+                HStack(spacing: 8) {
+                    if let workspace = event.workspace {
+                        Label(workspace, systemImage: "folder")
+                    }
+                    Text(event.displayState.title)
+                }
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+
+                if let rawPayload = event.rawPayload {
+                    DisclosureGroup("原始 Payload", isExpanded: $showsRawPayload) {
+                        Text(rawPayload)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .padding(.top, 4)
+                    }
+                    .font(.caption)
+                }
             }
         }
         .padding(.vertical, 6)
+    }
+
+    private var primaryTitle: String {
+        if let toolName = event.toolName {
+            "\(event.kind.rawValue) · \(toolName)"
+        } else {
+            event.kind.rawValue
+        }
     }
 
     private var tint: Color {

@@ -63,6 +63,7 @@ import Testing
     #expect(event.source == .codex)
     #expect(event.kind == .permissionRequest)
     #expect(event.detail == "approve shell command")
+    #expect(event.summary == "approve shell command")
 }
 
 @Test func hookPayloadDecoderUsesDefaultSourceWhenPayloadOmitsSource() throws {
@@ -74,6 +75,51 @@ import Testing
 
     #expect(event.source == .claude)
     #expect(event.kind == .stop)
+}
+
+@Test func hookPayloadDecoderExtractsCodexToolDetails() throws {
+    let data = """
+    {
+      "hook_event_name": "PreToolUse",
+      "cwd": "/Users/miclle/github/miclle/vibe-light",
+      "tool_name": "Bash",
+      "tool_input": {
+        "command": "swift test --package-path projects/macos/desktop",
+        "description": "Run macOS tests"
+      }
+    }
+    """.data(using: .utf8)!
+
+    let event = try HookPayloadDecoder(defaultSource: .codex).decode(data)
+
+    #expect(event.kind == .preToolUse)
+    #expect(event.toolName == "Bash")
+    #expect(event.workspace == "vibe-light")
+    #expect(event.summary == "Run macOS tests")
+    #expect(event.message == "swift test --package-path projects/macos/desktop")
+    #expect(event.rawPayload?.contains("\"tool_name\"") == true)
+}
+
+@Test func hookPayloadDecoderExtractsClaudePermissionDetails() throws {
+    let data = """
+    {
+      "hook_event_name": "PermissionRequest",
+      "cwd": "/Users/miclle/github/miclle/vibe-light",
+      "tool_name": "Edit",
+      "message": "Claude wants to edit README.md",
+      "tool_input": {
+        "file_path": "/Users/miclle/github/miclle/vibe-light/README.md"
+      }
+    }
+    """.data(using: .utf8)!
+
+    let event = try HookPayloadDecoder(defaultSource: .claude).decode(data)
+
+    #expect(event.kind == .permissionRequest)
+    #expect(event.toolName == "Edit")
+    #expect(event.workspace == "vibe-light")
+    #expect(event.summary == "Claude wants to edit README.md")
+    #expect(event.message == "/Users/miclle/github/miclle/vibe-light/README.md")
 }
 
 @Test func eventLogAppendsAndReadsNewestFirst() throws {

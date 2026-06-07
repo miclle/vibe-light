@@ -16,11 +16,84 @@ public struct HookPayloadDecoder: Sendable {
 
     public func decode(_ data: Data) throws -> VibeHookEvent {
         let payload = try JSONDecoder().decode(Payload.self, from: data)
+        let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
+        let rawPayload = String(data: normalizedJSONData(from: object) ?? data, encoding: .utf8)
+        let kind = payload.event ?? payload.kind ?? hookEventKind(from: object) ?? .userPromptSubmit
+        let detail = payload.detail ?? stringValue(for: ["detail"], in: object) ?? ""
+        let toolInput = object["tool_input"] as? [String: Any]
+        let cwd = stringValue(for: ["cwd"], in: object)
+        let message = extractedMessage(from: object, toolInput: toolInput)
+        let summary = extractedSummary(
+            detail: detail,
+            object: object,
+            toolInput: toolInput,
+            message: message,
+            kind: kind
+        )
+
         return VibeHookEvent(
             source: payload.source ?? defaultSource,
-            kind: payload.event ?? payload.kind ?? .userPromptSubmit,
-            detail: payload.detail ?? ""
+            kind: kind,
+            detail: detail,
+            summary: summary,
+            message: message,
+            toolName: stringValue(for: ["tool_name", "toolName"], in: object),
+            workspace: cwd.map { URL(fileURLWithPath: $0).lastPathComponent },
+            rawPayload: rawPayload
         )
+    }
+
+    private func hookEventKind(from object: [String: Any]) -> HookEventKind? {
+        stringValue(for: ["hook_event_name", "hookEventName"], in: object)
+            .flatMap(HookEventKind.init(rawValue:))
+    }
+
+    private func extractedSummary(
+        detail: String,
+        object: [String: Any],
+        toolInput: [String: Any]?,
+        message: String?,
+        kind: HookEventKind
+    ) -> String? {
+        firstNonEmpty([
+            detail,
+            stringValue(for: ["message", "title", "last_assistant_message", "error", "error_details", "prompt"], in: object),
+            stringValue(for: ["description"], in: toolInput ?? [:]),
+            message,
+            kind.rawValue,
+        ])
+    }
+
+    private func extractedMessage(from object: [String: Any], toolInput: [String: Any]?) -> String? {
+        firstNonEmpty([
+            stringValue(for: ["command"], in: toolInput ?? [:]),
+            stringValue(for: ["file_path", "path"], in: toolInput ?? [:]),
+            stringValue(for: ["message", "last_assistant_message", "error", "error_details", "prompt"], in: object),
+        ])
+    }
+
+    private func stringValue(for keys: [String], in object: [String: Any]) -> String? {
+        for key in keys {
+            if let value = object[key] as? String,
+               !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private func firstNonEmpty(_ values: [String?]) -> String? {
+        values.compactMap { value in
+            let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed?.isEmpty == false ? trimmed : nil
+        }.first
+    }
+
+    private func normalizedJSONData(from object: [String: Any]) -> Data? {
+        guard JSONSerialization.isValidJSONObject(object) else {
+            return nil
+        }
+        return try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
     }
 }
 

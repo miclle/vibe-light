@@ -85,19 +85,34 @@ public struct VibeHookEvent: Codable, Equatable, Identifiable, Sendable {
     public var kind: HookEventKind
     public var detail: String
     public var timestamp: Date
+    public var summary: String?
+    public var message: String?
+    public var toolName: String?
+    public var workspace: String?
+    public var rawPayload: String?
 
     public init(
         id: UUID = UUID(),
         source: VibeSource,
         kind: HookEventKind,
         detail: String = "",
-        timestamp: Date = Date()
+        timestamp: Date = Date(),
+        summary: String? = nil,
+        message: String? = nil,
+        toolName: String? = nil,
+        workspace: String? = nil,
+        rawPayload: String? = nil
     ) {
         self.id = id
         self.source = source
         self.kind = kind
         self.detail = detail
         self.timestamp = timestamp
+        self.summary = summary
+        self.message = message
+        self.toolName = toolName
+        self.workspace = workspace
+        self.rawPayload = rawPayload
     }
 
     public var displayState: DisplayState {
@@ -105,7 +120,7 @@ public struct VibeHookEvent: Codable, Equatable, Identifiable, Sendable {
     }
 
     public var displayDetail: String {
-        detail.isEmpty ? kind.rawValue : detail
+        summary ?? (detail.isEmpty ? kind.rawValue : detail)
     }
 }
 
