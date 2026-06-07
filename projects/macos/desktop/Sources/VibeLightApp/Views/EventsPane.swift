@@ -58,7 +58,7 @@ struct EventsPane: View {
 
 private struct EventRow: View {
     var event: VibeHookEvent
-    @State private var showsRawPayload = false
+    @State private var isExpanded = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -79,6 +79,7 @@ private struct EventRow: View {
                         .foregroundStyle(.secondary)
                         .font(.callout)
                 }
+
                 Text(event.displayDetail)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
@@ -101,18 +102,33 @@ private struct EventRow: View {
                 .foregroundStyle(.tertiary)
 
                 if let rawPayload = event.rawPayload {
-                    DisclosureGroup("原始 Payload", isExpanded: $showsRawPayload) {
-                        Text(rawPayload)
-                            .font(.system(.caption, design: .monospaced))
+                    HStack(spacing: 4) {
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Text("Payload")
+                            .font(.caption)
                             .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-                            .padding(.top, 4)
+                        Text("\(rawPayload.count) bytes")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
                     }
-                    .font(.caption)
+
+                    if isExpanded {
+                        PayloadCodeBlock(rawPayload: rawPayload)
+                            .padding(.top, 2)
+                    }
                 }
             }
         }
         .padding(.vertical, 6)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard event.rawPayload != nil else { return }
+            withAnimation(.snappy(duration: 0.16)) {
+                isExpanded.toggle()
+            }
+        }
     }
 
     private var primaryTitle: String {
@@ -132,5 +148,102 @@ private struct EventRow: View {
         case .error: .red
         case .offline: .orange
         }
+    }
+}
+
+private struct PayloadCodeBlock: View {
+    var rawPayload: String
+    private var displayPayload: String {
+        PayloadFormatter.prettyPrintedJSON(rawPayload) ?? rawPayload
+    }
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: true) {
+            highlightedJSON(displayPayload)
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+        }
+        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 6))
+        .overlay {
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(.separator.opacity(0.55), lineWidth: 1)
+        }
+        .frame(maxHeight: 220)
+    }
+
+    private func highlightedJSON(_ value: String) -> Text {
+        var index = value.startIndex
+        var result = Text("")
+
+        while index < value.endIndex {
+            let character = value[index]
+
+            if character == "\"" {
+                let start = index
+                index = value.index(after: index)
+                var isEscaped = false
+
+                while index < value.endIndex {
+                    let current = value[index]
+                    if current == "\"" && !isEscaped {
+                        index = value.index(after: index)
+                        break
+                    }
+                    isEscaped = current == "\\" && !isEscaped
+                    if current != "\\" {
+                        isEscaped = false
+                    }
+                    index = value.index(after: index)
+                }
+
+                let token = String(value[start..<index])
+                result = result + Text(token).foregroundColor(isObjectKey(after: index, in: value) ? .blue : .green)
+                continue
+            }
+
+            if character.isNumber || character == "-" {
+                let start = index
+                index = value.index(after: index)
+                while index < value.endIndex, value[index].isNumber || value[index] == "." {
+                    index = value.index(after: index)
+                }
+                result = result + Text(String(value[start..<index])).foregroundColor(.purple)
+                continue
+            }
+
+            if let literal = literalToken(startingAt: index, in: value) {
+                result = result + Text(literal).foregroundColor(.orange)
+                index = value.index(index, offsetBy: literal.count)
+                continue
+            }
+
+            let token = String(character)
+            let color: Color = "{}[]:,".contains(character) ? .secondary : .primary
+            result = result + Text(token).foregroundColor(color)
+            index = value.index(after: index)
+        }
+
+        return result
+    }
+
+    private func isObjectKey(after index: String.Index, in value: String) -> Bool {
+        var cursor = index
+        while cursor < value.endIndex, value[cursor].isWhitespace {
+            cursor = value.index(after: cursor)
+        }
+        return cursor < value.endIndex && value[cursor] == ":"
+    }
+
+    private func literalToken(startingAt index: String.Index, in value: String) -> String? {
+        for literal in ["true", "false", "null"] {
+            guard let end = value.index(index, offsetBy: literal.count, limitedBy: value.endIndex),
+                  String(value[index..<end]) == literal else {
+                continue
+            }
+            return literal
+        }
+        return nil
     }
 }

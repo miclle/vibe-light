@@ -17,7 +17,7 @@ public struct HookPayloadDecoder: Sendable {
     public func decode(_ data: Data) throws -> VibeHookEvent {
         let payload = try JSONDecoder().decode(Payload.self, from: data)
         let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
-        let rawPayload = String(data: normalizedJSONData(from: object) ?? data, encoding: .utf8)
+        let rawPayload = String(data: data, encoding: .utf8)
         let kind = payload.event ?? payload.kind ?? hookEventKind(from: object) ?? .userPromptSubmit
         let detail = payload.detail ?? stringValue(for: ["detail"], in: object) ?? ""
         let toolInput = object["tool_input"] as? [String: Any]
@@ -89,11 +89,21 @@ public struct HookPayloadDecoder: Sendable {
         }.first
     }
 
-    private func normalizedJSONData(from object: [String: Any]) -> Data? {
-        guard JSONSerialization.isValidJSONObject(object) else {
+}
+
+public enum PayloadFormatter {
+    public static func prettyPrintedJSON(_ rawPayload: String) -> String? {
+        guard let data = rawPayload.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              JSONSerialization.isValidJSONObject(object),
+              let formattedData = try? JSONSerialization.data(
+                withJSONObject: object,
+                options: [.prettyPrinted, .sortedKeys]
+              ) else {
             return nil
         }
-        return try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+
+        return String(data: formattedData, encoding: .utf8)
     }
 }
 

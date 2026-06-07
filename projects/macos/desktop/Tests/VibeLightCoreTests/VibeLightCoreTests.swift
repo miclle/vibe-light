@@ -97,7 +97,9 @@ import Testing
     #expect(event.workspace == "vibe-light")
     #expect(event.summary == "Run macOS tests")
     #expect(event.message == "swift test --package-path projects/macos/desktop")
-    #expect(event.rawPayload?.contains("\"tool_name\"") == true)
+    #expect(event.rawPayload == String(data: data, encoding: .utf8))
+    #expect(PayloadFormatter.prettyPrintedJSON(event.rawPayload ?? "")?.contains("\n") == true)
+    #expect(PayloadFormatter.prettyPrintedJSON(event.rawPayload ?? "")?.contains("  \"tool_name\"") == true)
 }
 
 @Test func hookPayloadDecoderExtractsClaudePermissionDetails() throws {
