@@ -147,6 +147,22 @@ import Testing
     #expect(event.taskID == "codex:session-123")
 }
 
+@Test func hookPayloadDecoderLeavesFallbackIdentityToTaskTracker() throws {
+    let data = """
+    {
+      "hook_event_name": "PreToolUse",
+      "cwd": "/Users/miclle/github/miclle/vibe-light"
+    }
+    """.data(using: .utf8)!
+
+    let event = try HookPayloadDecoder(defaultSource: .codex).decode(data)
+    let snapshot = TaskTracker().snapshot(from: [event])
+
+    #expect(event.taskID == nil)
+    #expect(snapshot.tasks.first?.identityKind == .workspace)
+    #expect(snapshot.tasks.first?.inclusionReason == "active busy task from workspace fallback")
+}
+
 @Test func setupChecklistReportsReadyOnlyAfterRequiredSteps() {
     var checklist = SetupChecklist()
 

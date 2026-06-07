@@ -32,7 +32,7 @@ public struct HookPayloadDecoder: Sendable {
         )
 
         return VibeHookEvent(
-            taskID: taskID(from: object, source: payload.source ?? defaultSource, cwd: cwd),
+            taskID: explicitTaskID(from: object, source: payload.source ?? defaultSource),
             source: payload.source ?? defaultSource,
             kind: kind,
             detail: detail,
@@ -49,7 +49,7 @@ public struct HookPayloadDecoder: Sendable {
             .flatMap(HookEventKind.init(rawValue:))
     }
 
-    private func taskID(from object: [String: Any], source: VibeSource, cwd: String?) -> String {
+    private func explicitTaskID(from object: [String: Any], source: VibeSource) -> String? {
         if let explicitID = stringValue(
             for: ["task_id", "taskId", "session_id", "sessionId", "conversation_id", "conversationId", "thread_id", "threadId"],
             in: object
@@ -57,15 +57,7 @@ public struct HookPayloadDecoder: Sendable {
             return "\(source.rawValue):\(explicitID)"
         }
 
-        if let transcriptPath = stringValue(for: ["transcript_path", "transcriptPath"], in: object) {
-            return "\(source.rawValue):\(URL(fileURLWithPath: transcriptPath).lastPathComponent)"
-        }
-
-        if let cwd {
-            return "\(source.rawValue):\(URL(fileURLWithPath: cwd).lastPathComponent)"
-        }
-
-        return source.rawValue
+        return nil
     }
 
     private func extractedSummary(
