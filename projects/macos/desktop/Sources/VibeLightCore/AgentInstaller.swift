@@ -64,6 +64,28 @@ public struct AgentInstaller {
         }
     }
 
+    public func prepareHookExecutable(from sourceURL: URL) throws -> URL {
+        let destinationURL = stableHookExecutableURL()
+
+        try fileManager.createDirectory(
+            at: destinationURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        if sourceURL.standardizedFileURL.path != destinationURL.standardizedFileURL.path {
+            if fileManager.fileExists(atPath: destinationURL.path) {
+                try fileManager.removeItem(at: destinationURL)
+            }
+            try fileManager.copyItem(at: sourceURL, to: destinationURL)
+        }
+
+        try fileManager.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o755))],
+            ofItemAtPath: destinationURL.path
+        )
+        return destinationURL
+    }
+
     public func uninstall(_ agent: AgentKind) throws {
         let url = primaryConfigURL(for: agent)
         guard let data = try? Data(contentsOf: url) else {
@@ -95,6 +117,12 @@ public struct AgentInstaller {
 
     public func codexConfigURL() -> URL {
         homeDirectory.appendingPathComponent(".codex/config.toml")
+    }
+
+    public func stableHookExecutableURL() -> URL {
+        homeDirectory
+            .appendingPathComponent("Library/Application Support/VibeLight/bin", isDirectory: true)
+            .appendingPathComponent("vibe-light-hook")
     }
 
     private func installCodex(hookExecutableURL: URL) throws {
@@ -162,12 +190,14 @@ public struct AgentInstaller {
                 return trimmed.hasPrefix("[") && trimmed.hasSuffix("]")
             } ?? lines.count
 
+            let featureKey = codexHooksFeatureKey(in: lines[(featuresIndex + 1)..<nextSectionIndex])
+
             if let hooksIndex = lines[(featuresIndex + 1)..<nextSectionIndex].firstIndex(where: { line in
-                line.trimmingCharacters(in: .whitespaces).hasPrefix("hooks")
+                featureAssignmentKey(in: line) == featureKey
             }) {
-                lines[hooksIndex] = "hooks = true"
+                lines[hooksIndex] = "\(featureKey) = true"
             } else {
-                lines.insert("hooks = true", at: nextSectionIndex)
+                lines.insert("\(featureKey) = true", at: nextSectionIndex)
             }
             return lines.joined(separator: "\n")
         }
@@ -178,6 +208,26 @@ public struct AgentInstaller {
         lines.append("[features]")
         lines.append("hooks = true")
         return lines.joined(separator: "\n")
+    }
+
+    private func codexHooksFeatureKey(in featureLines: ArraySlice<String>) -> String {
+        let keys = featureLines.compactMap(featureAssignmentKey)
+        if keys.contains("hooks") {
+            return "hooks"
+        }
+        if keys.contains("codex_hooks") {
+            return "codex_hooks"
+        }
+        return "hooks"
+    }
+
+    private func featureAssignmentKey(in line: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.hasPrefix("#"),
+              let equalsIndex = trimmed.firstIndex(of: "=") else {
+            return nil
+        }
+        return String(trimmed[..<equalsIndex]).trimmingCharacters(in: .whitespaces)
     }
 
     private func existingRootObject(at url: URL) throws -> [String: Any] {

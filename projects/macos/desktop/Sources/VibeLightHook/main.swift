@@ -14,10 +14,6 @@ let source: VibeSource = {
 do {
     let event = try HookPayloadDecoder(defaultSource: source).decode(input)
     try EventLog().append(event)
-
-    let packet = StatusPacket(event: event)
-    FileHandle.standardOutput.write(try packet.encodedJSON())
-    FileHandle.standardOutput.write(Data("\n".utf8))
 } catch {
     FileHandle.standardError.write(Data("vibe-light-hook: \(error)\n".utf8))
     exit(0)

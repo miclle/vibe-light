@@ -97,7 +97,8 @@ final class VibeLightAppModel: ObservableObject {
         }
 
         do {
-            try agentInstaller.install(agent, hookExecutableURL: hookURL)
+            let installedHookURL = try agentInstaller.prepareHookExecutable(from: hookURL)
+            try agentInstaller.install(agent, hookExecutableURL: installedHookURL)
             agentInstallMessage = "\(agent.displayName) hook 已安装。"
         } catch {
             agentInstallMessage = "\(agent.displayName) 安装失败：\(error.localizedDescription)"

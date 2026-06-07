@@ -23,7 +23,7 @@ struct AgentInstallPane: View {
             }
 
             Section("配置说明") {
-                Text("Codex 会写入 ~/.codex/hooks.json，并确保 ~/.codex/config.toml 开启 [features].hooks。Claude 会写入 ~/.claude/settings.json。卸载只移除 Vibe Light 管理的 hook。")
+                Text("Codex 会写入 ~/.codex/hooks.json，并确保 ~/.codex/config.toml 开启 hooks 功能。Claude 会写入 ~/.claude/settings.json。卸载只移除 Vibe Light 管理的 hook。")
                     .foregroundStyle(.secondary)
             }
         }

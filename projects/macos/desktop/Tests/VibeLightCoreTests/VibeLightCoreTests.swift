@@ -158,6 +158,52 @@ import Testing
     #expect(config.contains("hooks = true"))
 }
 
+@Test func agentInstallerCopiesHookToStableApplicationSupportPath() throws {
+    let home = temporaryDirectory()
+    let sourceDirectory = home.appendingPathComponent("build", isDirectory: true)
+    try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
+    let sourceURL = sourceDirectory.appendingPathComponent("vibe-light-hook")
+    try Data("hook".utf8).write(to: sourceURL)
+
+    let installer = AgentInstaller(homeDirectory: home)
+    let installedURL = try installer.prepareHookExecutable(from: sourceURL)
+
+    #expect(installedURL == installer.stableHookExecutableURL())
+    #expect(FileManager.default.fileExists(atPath: installedURL.path))
+
+    try installer.install(.codex, hookExecutableURL: installedURL)
+
+    let hooksData = try Data(contentsOf: home.appendingPathComponent(".codex/hooks.json"))
+    let hooksRoot = try #require(JSONSerialization.jsonObject(with: hooksData) as? [String: Any])
+    let hooks = try #require(hooksRoot["hooks"] as? [String: Any])
+    let groups = try #require(hooks["SessionStart"] as? [[String: Any]])
+    let entries = try #require(groups.first?["hooks"] as? [[String: Any]])
+    let command = try #require(entries.first?["command"] as? String)
+
+    #expect(command.contains(installedURL.path))
+    #expect(!command.contains(sourceURL.path))
+}
+
+@Test func agentInstallerPreservesLegacyCodexHooksFeatureKey() throws {
+    let home = temporaryDirectory()
+    let codexDirectory = home.appendingPathComponent(".codex", isDirectory: true)
+    try FileManager.default.createDirectory(at: codexDirectory, withIntermediateDirectories: true)
+    try """
+    [features]
+    codex_hooks = false
+    """.write(to: codexDirectory.appendingPathComponent("config.toml"), atomically: true, encoding: .utf8)
+
+    let installer = AgentInstaller(homeDirectory: home)
+    let hookURL = home.appendingPathComponent("bin/vibe-light-hook")
+
+    try installer.install(.codex, hookExecutableURL: hookURL)
+
+    let config = try String(contentsOf: codexDirectory.appendingPathComponent("config.toml"), encoding: .utf8)
+    let configLines = config.components(separatedBy: "\n")
+    #expect(configLines.contains("codex_hooks = true"))
+    #expect(!configLines.contains("hooks = true"))
+}
+
 @Test func agentInstallerPreservesOtherClaudeHooksWhenUninstalling() throws {
     let home = temporaryDirectory()
     let claudeDirectory = home.appendingPathComponent(".claude", isDirectory: true)
