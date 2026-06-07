@@ -29,16 +29,6 @@ struct ContentView: View {
                     EventsPane(model: model)
                 }
             }
-            .toolbar {
-                ToolbarItemGroup {
-                    Button {
-                        model.refreshEvents()
-                    } label: {
-                        Label("刷新事件", systemImage: "arrow.clockwise")
-                    }
-                    .help("刷新事件")
-                }
-            }
         }
         .task {
             await model.pollEvents()

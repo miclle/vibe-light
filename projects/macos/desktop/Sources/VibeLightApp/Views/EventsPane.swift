@@ -26,6 +26,14 @@ struct EventsPane: View {
             }
         }
         .navigationTitle("事件")
+        .toolbar {
+            Button {
+                model.refreshEvents()
+            } label: {
+                Label("刷新事件", systemImage: "arrow.clockwise")
+            }
+            .help("刷新事件")
+        }
     }
 
     private var eventSummary: some View {
