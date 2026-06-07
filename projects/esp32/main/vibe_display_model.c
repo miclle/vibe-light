@@ -156,6 +156,61 @@ void vibe_display_animation_frame(int tick, int active_count, vibe_display_anima
     }
 }
 
+void vibe_display_animation_actor_shape(const vibe_display_animation_frame_t *frame, vibe_display_animation_actor_t *actor)
+{
+    if (frame == NULL || actor == NULL) {
+        return;
+    }
+
+    const int reach = 19;
+    const int open = frame->mouth_open ? 10 : 4;
+    memset(actor, 0, sizeof(*actor));
+
+    switch (frame->direction) {
+    case VIBE_DISPLAY_DIRECTION_RIGHT:
+        actor->mouth_tip_x = frame->x + reach;
+        actor->mouth_tip_y = frame->y;
+        actor->mouth_a_x = frame->x;
+        actor->mouth_a_y = frame->y - open;
+        actor->mouth_b_x = frame->x;
+        actor->mouth_b_y = frame->y + open;
+        actor->eye_x = frame->x + 5;
+        actor->eye_y = frame->y - 7;
+        break;
+    case VIBE_DISPLAY_DIRECTION_DOWN:
+        actor->mouth_tip_x = frame->x;
+        actor->mouth_tip_y = frame->y + reach;
+        actor->mouth_a_x = frame->x - open;
+        actor->mouth_a_y = frame->y;
+        actor->mouth_b_x = frame->x + open;
+        actor->mouth_b_y = frame->y;
+        actor->eye_x = frame->x + 7;
+        actor->eye_y = frame->y + 5;
+        break;
+    case VIBE_DISPLAY_DIRECTION_LEFT:
+        actor->mouth_tip_x = frame->x - reach;
+        actor->mouth_tip_y = frame->y;
+        actor->mouth_a_x = frame->x;
+        actor->mouth_a_y = frame->y - open;
+        actor->mouth_b_x = frame->x;
+        actor->mouth_b_y = frame->y + open;
+        actor->eye_x = frame->x - 5;
+        actor->eye_y = frame->y - 7;
+        break;
+    case VIBE_DISPLAY_DIRECTION_UP:
+    default:
+        actor->mouth_tip_x = frame->x;
+        actor->mouth_tip_y = frame->y - reach;
+        actor->mouth_a_x = frame->x - open;
+        actor->mouth_a_y = frame->y;
+        actor->mouth_b_x = frame->x + open;
+        actor->mouth_b_y = frame->y;
+        actor->eye_x = frame->x + 7;
+        actor->eye_y = frame->y - 5;
+        break;
+    }
+}
+
 static uint32_t fnv1a_update(uint32_t hash, const void *data, size_t length)
 {
     const unsigned char *bytes = (const unsigned char *)data;

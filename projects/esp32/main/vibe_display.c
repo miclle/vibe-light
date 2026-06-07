@@ -144,6 +144,7 @@ static void render_codex_actor(const vibe_display_animation_frame_t *frame);
 static void fill_screen(uint16_t color);
 static void fill_rect(int x, int y, int w, int h, uint16_t color);
 static void fill_circle(int cx, int cy, int radius, uint16_t color);
+static void fill_triangle(int ax, int ay, int bx, int by, int cx, int cy, uint16_t color);
 static void draw_text(int x, int y, const char *text, int scale, uint16_t color);
 static void draw_char(int x, int y, char c, int scale, uint16_t color);
 static uint8_t glyph_row(char c, int row);
@@ -387,41 +388,15 @@ static void render_animation_dots(const vibe_display_animation_frame_t *frame)
 
 static void render_codex_actor(const vibe_display_animation_frame_t *frame)
 {
+    vibe_display_animation_actor_t actor;
+    vibe_display_animation_actor_shape(frame, &actor);
+
     fill_circle(frame->x, frame->y, ANIMATION_CODEX_RADIUS, RGB565_WHITE);
-
-    int gap_x = 0;
-    int gap_y = 0;
-    int gap_w = 14;
-    int gap_h = 14;
-    switch (frame->direction) {
-    case VIBE_DISPLAY_DIRECTION_RIGHT:
-        gap_x = frame->x + 4;
-        gap_y = frame->y - (frame->mouth_open ? 7 : 3);
-        gap_w = 18;
-        gap_h = frame->mouth_open ? 14 : 6;
-        break;
-    case VIBE_DISPLAY_DIRECTION_DOWN:
-        gap_x = frame->x - (frame->mouth_open ? 7 : 3);
-        gap_y = frame->y + 4;
-        gap_w = frame->mouth_open ? 14 : 6;
-        gap_h = 18;
-        break;
-    case VIBE_DISPLAY_DIRECTION_LEFT:
-        gap_x = frame->x - 22;
-        gap_y = frame->y - (frame->mouth_open ? 7 : 3);
-        gap_w = 18;
-        gap_h = frame->mouth_open ? 14 : 6;
-        break;
-    case VIBE_DISPLAY_DIRECTION_UP:
-        gap_x = frame->x - (frame->mouth_open ? 7 : 3);
-        gap_y = frame->y - 22;
-        gap_w = frame->mouth_open ? 14 : 6;
-        gap_h = 18;
-        break;
-    }
-
-    fill_rect(gap_x, gap_y, gap_w, gap_h, RGB565_BLACK);
-    fill_circle(frame->x - 4, frame->y - 5, 2, RGB565_BLUE);
+    fill_triangle(actor.mouth_tip_x, actor.mouth_tip_y,
+                  actor.mouth_a_x, actor.mouth_a_y,
+                  actor.mouth_b_x, actor.mouth_b_y,
+                  RGB565_BLACK);
+    fill_circle(actor.eye_x, actor.eye_y, 2, RGB565_BLACK);
 }
 
 static void fill_screen(uint16_t color)
@@ -466,6 +441,34 @@ static void fill_circle(int cx, int cy, int radius, uint16_t color)
         for (int x = -radius; x <= radius; x++) {
             if (x * x + y * y <= radius_squared) {
                 fill_rect(cx + x, cy + y, 1, 1, color);
+            }
+        }
+    }
+}
+
+static void fill_triangle(int ax, int ay, int bx, int by, int cx, int cy, uint16_t color)
+{
+    int min_x = ax < bx ? ax : bx;
+    min_x = min_x < cx ? min_x : cx;
+    int max_x = ax > bx ? ax : bx;
+    max_x = max_x > cx ? max_x : cx;
+    int min_y = ay < by ? ay : by;
+    min_y = min_y < cy ? min_y : cy;
+    int max_y = ay > by ? ay : by;
+    max_y = max_y > cy ? max_y : cy;
+
+    int area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+    if (area == 0) {
+        return;
+    }
+
+    for (int y = min_y; y <= max_y; y++) {
+        for (int x = min_x; x <= max_x; x++) {
+            int w0 = (bx - ax) * (y - ay) - (by - ay) * (x - ax);
+            int w1 = (cx - bx) * (y - by) - (cy - by) * (x - bx);
+            int w2 = (ax - cx) * (y - cy) - (ay - cy) * (x - cx);
+            if ((w0 >= 0 && w1 >= 0 && w2 >= 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0)) {
+                fill_rect(x, y, 1, 1, color);
             }
         }
     }

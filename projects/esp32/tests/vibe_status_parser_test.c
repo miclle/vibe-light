@@ -183,6 +183,39 @@ static void test_display_model_animation_speed_scales_with_active_tasks(void)
     assert(vibe_display_animation_step(5) == 3);
 }
 
+static void test_display_model_actor_shape_faces_travel_direction(void)
+{
+    vibe_display_animation_frame_t right = {
+        .x = 120,
+        .y = 140,
+        .direction = VIBE_DISPLAY_DIRECTION_RIGHT,
+        .mouth_open = true,
+    };
+    vibe_display_animation_frame_t left = {
+        .x = 120,
+        .y = 140,
+        .direction = VIBE_DISPLAY_DIRECTION_LEFT,
+        .mouth_open = true,
+    };
+    vibe_display_animation_actor_t right_actor;
+    vibe_display_animation_actor_t left_actor;
+
+    vibe_display_animation_actor_shape(&right, &right_actor);
+    vibe_display_animation_actor_shape(&left, &left_actor);
+
+    assert(right_actor.mouth_tip_x > right.x);
+    assert(right_actor.mouth_a_x == right.x);
+    assert(right_actor.mouth_b_x == right.x);
+    assert(right_actor.eye_x > right.x);
+    assert(right_actor.eye_y < right.y);
+
+    assert(left_actor.mouth_tip_x < left.x);
+    assert(left_actor.mouth_a_x == left.x);
+    assert(left_actor.mouth_b_x == left.x);
+    assert(left_actor.eye_x < left.x);
+    assert(left_actor.eye_y < left.y);
+}
+
 int main(void)
 {
     test_v1_status_packet();
@@ -193,6 +226,7 @@ int main(void)
     test_display_model_formats_task_rows();
     test_display_model_animates_busy_edge_path();
     test_display_model_animation_speed_scales_with_active_tasks();
+    test_display_model_actor_shape_faces_travel_direction();
 
     puts("vibe_status_parser_test: ok");
     return 0;
