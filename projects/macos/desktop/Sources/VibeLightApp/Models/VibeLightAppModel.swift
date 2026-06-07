@@ -65,6 +65,9 @@ final class VibeLightAppModel: ObservableObject {
             },
             latestPacketData: { [weak self] maximumWriteLength in
                 try? self?.latestPacket?.encodedJSON(maximumWriteLength: maximumWriteLength)
+            },
+            autoConnectEnabled: { [weak self] in
+                self?.autoConnectDevice ?? false
             }
         )
     }

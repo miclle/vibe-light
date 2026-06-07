@@ -14,23 +14,27 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
     private var connectedPeripheral: CBPeripheral?
     private var shouldScanWhenPoweredOn = false
     private var shouldAutoConnectFirstDevice = false
+    private var isManualDisconnectInProgress = false
     private let store = HardwareDeviceStore()
 
     private let onDevicesChanged: ([HardwareDevice]) -> Void
     private let onStateChanged: (HardwareConnectionState, Bool, String) -> Void
     private let onHealthChanged: (HealthPacket?) -> Void
     private let latestPacketData: (Int) -> Data?
+    private let autoConnectEnabled: () -> Bool
 
     init(
         onDevicesChanged: @escaping ([HardwareDevice]) -> Void,
         onStateChanged: @escaping (HardwareConnectionState, Bool, String) -> Void,
         onHealthChanged: @escaping (HealthPacket?) -> Void,
-        latestPacketData: @escaping (Int) -> Data?
+        latestPacketData: @escaping (Int) -> Data?,
+        autoConnectEnabled: @escaping () -> Bool
     ) {
         self.onDevicesChanged = onDevicesChanged
         self.onStateChanged = onStateChanged
         self.onHealthChanged = onHealthChanged
         self.latestPacketData = latestPacketData
+        self.autoConnectEnabled = autoConnectEnabled
         super.init()
         central = CBCentralManager(delegate: self, queue: .main)
     }
@@ -80,6 +84,7 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
     }
 
     func disconnect() {
+        isManualDisconnectInProgress = true
         if let connectedPeripheral {
             central?.cancelPeripheralConnection(connectedPeripheral)
         }
@@ -181,6 +186,7 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
         onHealthChanged(nil)
         store.fail(error?.localizedDescription ?? "连接失败")
         publish()
+        recoverConnectionIfNeeded(after: .connectFailure)
     }
 
     func centralManager(
@@ -193,7 +199,16 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
         healthCharacteristic = nil
         onHealthChanged(nil)
         store.disconnect()
-        publish(error?.localizedDescription ?? "设备已断开。")
+
+        let event: HardwareReconnectPolicy.Event = isManualDisconnectInProgress ? .manualDisconnect : .unexpectedDisconnect
+        isManualDisconnectInProgress = false
+
+        if event == .manualDisconnect {
+            publish("设备已断开。")
+        } else {
+            publish(error?.localizedDescription ?? "设备已断开，正在准备重新连接。")
+        }
+        recoverConnectionIfNeeded(after: event)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
@@ -280,6 +295,15 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
             store.isScanning,
             message ?? store.connectionState.title
         )
+    }
+
+    private func recoverConnectionIfNeeded(after event: HardwareReconnectPolicy.Event) {
+        let policy = HardwareReconnectPolicy(autoConnectEnabled: autoConnectEnabled())
+        guard policy.action(after: event) == .scanAndAutoConnectFirstDevice else {
+            return
+        }
+
+        startScan(autoConnectFirstDevice: true)
     }
 }
 

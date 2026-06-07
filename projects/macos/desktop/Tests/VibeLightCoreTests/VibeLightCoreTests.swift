@@ -481,6 +481,22 @@ import Testing
     #expect(!HardwareConnectionState.scanning.isConnecting)
 }
 
+@Test func hardwareReconnectPolicyRestartsAutoConnectAfterUnexpectedDisconnect() {
+    let policy = HardwareReconnectPolicy(autoConnectEnabled: true)
+
+    #expect(policy.action(after: .unexpectedDisconnect) == .scanAndAutoConnectFirstDevice)
+    #expect(policy.action(after: .connectFailure) == .scanAndAutoConnectFirstDevice)
+}
+
+@Test func hardwareReconnectPolicyDoesNotRecoverManualDisconnectsOrDisabledAutoConnect() {
+    let enabled = HardwareReconnectPolicy(autoConnectEnabled: true)
+    let disabled = HardwareReconnectPolicy(autoConnectEnabled: false)
+
+    #expect(enabled.action(after: .manualDisconnect) == .none)
+    #expect(disabled.action(after: .unexpectedDisconnect) == .none)
+    #expect(disabled.action(after: .connectFailure) == .none)
+}
+
 @Test func vibeLightPreferencesPersistHardwareDefaults() throws {
     let suiteName = "VibeLightPreferencesTests.\(UUID().uuidString)"
     let defaults = try #require(UserDefaults(suiteName: suiteName))
