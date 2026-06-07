@@ -1,12 +1,21 @@
 idf_component_register(
     SRCS
         "main.c"
+        "lcd/io_additions/esp_io_expander.c"
+        "lcd/io_additions/esp_lcd_panel_io_3wire_spi.c"
+        "lcd/st7701/esp_lcd_st7701.c"
+        "lcd/st7701/esp_lcd_st7701_rgb.c"
         "vibe_ble.c"
         "vibe_display.c"
         "vibe_status.c"
-    INCLUDE_DIRS "."
+    INCLUDE_DIRS
+        "."
+        "lcd/io_additions"
+        "lcd/st7701"
     REQUIRES
         bt
+        driver
+        esp_lcd
         esp_timer
         json
         nvs_flash

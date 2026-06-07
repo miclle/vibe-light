@@ -24,7 +24,9 @@
 - 健康读取 characteristic：`7d8f0003-7b9a-4f0b-9e8a-8b4c2c7f1000`
 - 状态包格式：UTF-8 JSON `StatusPacket`
 
-屏幕驱动当前通过 `main/vibe_display.c` 保留组件边界，并先把显示内容输出到串口日志。下一步应从 Waveshare 官方 `ESP32-S3-LCD-3.16` LVGL 示例迁移 LCD、背光和 LVGL 初始化，再把 `vibe_display_show_status` 改为真实屏幕绘制。
+屏幕驱动当前已接入 Waveshare `ESP32-S3-LCD-3.16` 的 ST7701 RGB LCD 初始化、背光 PWM 和基础 RGB565 绘制。`vibe_display_show_status` 会把 `source`、`state`、`detail` 和时间戳显示到屏幕，同时保留串口日志用于联调。
+
+当前没有引入完整 LVGL，先用轻量 framebuffer 绘制确认 LCD 链路稳定。后续如果需要更复杂的布局、动画或中文字体，再在这个基础上接入 LVGL。
 
 ## 构建
 
@@ -52,7 +54,7 @@ idf.py -p /dev/tty.usbmodemXXXX flash monitor
 2. 启动 macOS app。
 3. 在“硬件设备”中扫描并连接 `VibeLight-S3`。
 4. 点击发送最近状态包。
-5. 串口应输出类似内容：
+5. LCD 应显示最新 `source`、`state`、`detail`，串口也会输出类似内容：
 
    ```text
    Vibe Light | source=codex state=busy detail=running shell ts=...
