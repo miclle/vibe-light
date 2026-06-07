@@ -32,6 +32,12 @@ playground.xcworkspace
 .build/
 dist/
 
+# ESP-IDF
+projects/esp32/build/
+projects/esp32/managed_components/
+projects/esp32/sdkconfig
+projects/esp32/sdkconfig.old
+
 # CocoaPods
 #
 # We recommend against adding the Pods directory to your .gitignore. However

@@ -42,6 +42,49 @@
 - LCD、LVGL、SD、RTC、IMU 等模块后续可以按需逐步启用。
 - 项目最终需要稳定固件行为，而不是仅运行示例程序。
 
+## 起步路线
+
+第一版目标是打通从 macOS 桌面应用到 ESP32-S3 屏幕的最小可见闭环，而不是一次性完成所有板载外设。推荐按以下阶段推进：
+
+1. **验证官方硬件示例**
+   - 先烧录 Waveshare 官方 `09_FactoryProgram` 或 `07_LVGL_V8_Test` / `08_LVGL_V9_Test`。
+   - 确认 USB 下载、PSRAM、LCD、背光和基础板级初始化都正常。
+   - 这个阶段不接入 Vibe Light 协议，只确认硬件和官方示例链路可用。
+
+2. **打通 BLE Peripheral**
+   - ESP32-S3 广播 `VibeLight-S3`。
+   - 暴露 Vibe Light GATT service 和状态写入 characteristic。
+   - macOS app 能扫描、连接，并写入 `StatusPacket` JSON。
+   - ESP32-S3 收到坏包时保持运行，不重启、不阻塞 BLE 回调。
+
+3. **显示最小事件信息**
+   - 屏幕先只显示 `Vibe Light`、状态、来源和 `detail`。
+   - 第一版 UI 以可读和稳定为主，不做动画、触摸、设置页或复杂布局。
+   - 典型显示内容：
+
+     ```text
+     Vibe Light
+     Codex
+     运行中
+
+     running shell
+     ```
+
+4. **补健康状态回读**
+   - 通过健康状态 characteristic 回传协议版本、设备名、运行时长、连接状态和最近状态。
+   - macOS app 后续再订阅或读取该 characteristic，用于诊断连接质量。
+
+5. **再做产品化增强**
+   - 视觉主题、状态动画、屏幕亮度、电池信息、RTC、IMU、SD 卡日志和 Wi-Fi 配网都放在闭环稳定之后。
+
+第一版固件的验收标准：
+
+- macOS app 能发现 `VibeLight-S3`。
+- macOS app 能连接设备。
+- macOS app 点击发送最近状态包后，ESP32-S3 能收到并解析 JSON。
+- LCD 能展示 `source`、`state`、`detail`。
+- 未知状态或格式错误的 JSON 不会导致固件崩溃。
+
 如果先验证屏幕和板载资源，可使用官方示例工程：
 
 - `01_ADC_Test`：读取系统电压。
