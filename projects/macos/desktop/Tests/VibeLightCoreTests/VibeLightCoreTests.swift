@@ -69,6 +69,52 @@ import Testing
     #expect(store.latestPacket?.source == .claude)
 }
 
+@Test func taskTrackerKeepsBusyWhenAnotherTaskStopsLater() {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(taskID: "codex:task-b", source: .codex, kind: .stop, timestamp: base.addingTimeInterval(3), workspace: "api-specs"),
+        .init(taskID: "codex:task-b", source: .codex, kind: .preToolUse, timestamp: base.addingTimeInterval(2), workspace: "api-specs"),
+        .init(taskID: "codex:task-a", source: .codex, kind: .preToolUse, timestamp: base.addingTimeInterval(1), workspace: "vibe-light"),
+    ]
+
+    let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(4))
+
+    #expect(snapshot.state == .busy)
+    #expect(snapshot.source == .codex)
+    #expect(snapshot.detail == "1 running")
+    #expect(snapshot.statusPacket.state == .busy)
+}
+
+@Test func taskTrackerPrioritizesWaitingOverBusy() {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(taskID: "codex:task-b", source: .codex, kind: .permissionRequest, timestamp: base.addingTimeInterval(3), workspace: "slideo"),
+        .init(taskID: "codex:task-a", source: .codex, kind: .preToolUse, timestamp: base.addingTimeInterval(2), workspace: "vibe-light"),
+    ]
+
+    let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(4))
+
+    #expect(snapshot.state == .waiting)
+    #expect(snapshot.detail == "1 running · 1 waiting")
+    #expect(snapshot.tasks.map(\.title).prefix(2) == ["slideo", "vibe-light"])
+}
+
+@Test func hookPayloadDecoderExtractsStableTaskIdentity() throws {
+    let data = """
+    {
+      "hook_event_name": "PreToolUse",
+      "session_id": "session-123",
+      "cwd": "/Users/miclle/github/miclle/vibe-light"
+    }
+    """.data(using: .utf8)!
+
+    let event = try HookPayloadDecoder(defaultSource: .codex).decode(data)
+
+    #expect(event.taskID == "codex:session-123")
+}
+
 @Test func setupChecklistReportsReadyOnlyAfterRequiredSteps() {
     var checklist = SetupChecklist()
 

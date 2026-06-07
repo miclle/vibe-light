@@ -81,6 +81,7 @@ public enum HookEventKind: String, Codable, CaseIterable, Identifiable, Sendable
 
 public struct VibeHookEvent: Codable, Equatable, Identifiable, Sendable {
     public var id: UUID
+    public var taskID: String?
     public var source: VibeSource
     public var kind: HookEventKind
     public var detail: String
@@ -93,6 +94,7 @@ public struct VibeHookEvent: Codable, Equatable, Identifiable, Sendable {
 
     public init(
         id: UUID = UUID(),
+        taskID: String? = nil,
         source: VibeSource,
         kind: HookEventKind,
         detail: String = "",
@@ -104,6 +106,7 @@ public struct VibeHookEvent: Codable, Equatable, Identifiable, Sendable {
         rawPayload: String? = nil
     ) {
         self.id = id
+        self.taskID = taskID
         self.source = source
         self.kind = kind
         self.detail = detail
