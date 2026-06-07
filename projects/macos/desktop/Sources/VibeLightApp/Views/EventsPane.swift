@@ -10,6 +10,12 @@ struct EventsPane: View {
                 .padding(.horizontal, 24)
                 .padding(.vertical, 16)
 
+            if let snapshot = model.displaySnapshot, !snapshot.tasks.isEmpty {
+                TaskSnapshotSummary(snapshot: snapshot)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 14)
+            }
+
             Divider()
 
             List(model.events) { event in
@@ -48,8 +54,63 @@ struct EventsPane: View {
             Text("\(model.events.count) 条最近事件")
                 .foregroundStyle(.secondary)
 
+            if let detail = model.latestPacket?.detail {
+                Divider()
+                    .frame(height: 22)
+
+                Text(detail)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
             Spacer()
         }
+    }
+
+    private func tint(for state: DisplayState) -> Color {
+        switch state {
+        case .idle: .secondary
+        case .busy: .blue
+        case .waiting: .purple
+        case .success: .green
+        case .error: .red
+        case .offline: .orange
+        }
+    }
+}
+
+private struct TaskSnapshotSummary: View {
+    var snapshot: DisplaySnapshot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("任务聚合")
+                    .font(.headline)
+                Spacer()
+                Text("\(snapshot.tasks.count) 个任务")
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach(snapshot.tasks) { task in
+                HStack(spacing: 10) {
+                    Text(task.state.rawValue.uppercased())
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(tint(for: task.state))
+                        .frame(width: 62, alignment: .leading)
+
+                    Text(task.title)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    Text(task.lastUpdated, style: .time)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .font(.callout)
     }
 
     private func tint(for state: DisplayState) -> Color {
