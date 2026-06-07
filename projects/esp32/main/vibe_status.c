@@ -1,5 +1,6 @@
 #include "vibe_status.h"
 
+#include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -85,56 +86,62 @@ bool vibe_status_parse_json(const uint8_t *data, size_t length, vibe_status_pack
         return false;
     }
 
-    vibe_status_packet_t parsed;
-    vibe_status_default(&parsed);
+    vibe_status_packet_t *parsed = calloc(1, sizeof(vibe_status_packet_t));
+    if (parsed == NULL) {
+        cJSON_Delete(root);
+        return false;
+    }
+    vibe_status_default(parsed);
 
     cJSON *version = cJSON_GetObjectItemCaseSensitive(root, "v");
     if (cJSON_IsNumber(version)) {
-        parsed.version = version->valueint;
+        parsed->version = version->valueint;
     }
 
-    copy_json_string(root, "source", parsed.source, sizeof(parsed.source));
-    copy_json_string(root, "detail", parsed.detail, sizeof(parsed.detail));
-    parsed.active_count = json_int(root, "activeCount");
-    parsed.waiting_count = json_int(root, "waitingCount");
-    parsed.error_count = json_int(root, "errorCount");
+    copy_json_string(root, "source", parsed->source, sizeof(parsed->source));
+    copy_json_string(root, "detail", parsed->detail, sizeof(parsed->detail));
+    parsed->active_count = json_int(root, "activeCount");
+    parsed->waiting_count = json_int(root, "waitingCount");
+    parsed->error_count = json_int(root, "errorCount");
 
     cJSON *timestamp = cJSON_GetObjectItemCaseSensitive(root, "ts");
     if (cJSON_IsNumber(timestamp)) {
-        parsed.timestamp_ms = (int64_t)timestamp->valuedouble;
+        parsed->timestamp_ms = (int64_t)timestamp->valuedouble;
     }
 
     cJSON *state = cJSON_GetObjectItemCaseSensitive(root, "state");
     if (!cJSON_IsString(state) || state->valuestring == NULL) {
+        free(parsed);
         cJSON_Delete(root);
         return false;
     }
 
     bool known = false;
-    parsed.state = vibe_display_state_from_string(state->valuestring, &known);
-    copy_text(parsed.state_text, sizeof(parsed.state_text), state->valuestring);
+    parsed->state = vibe_display_state_from_string(state->valuestring, &known);
+    copy_text(parsed->state_text, sizeof(parsed->state_text), state->valuestring);
     if (!known) {
-        parsed.state = VIBE_DISPLAY_IDLE;
-        copy_text(parsed.state_text, sizeof(parsed.state_text), "idle");
+        parsed->state = VIBE_DISPLAY_IDLE;
+        copy_text(parsed->state_text, sizeof(parsed->state_text), "idle");
     }
 
     cJSON *tasks = cJSON_GetObjectItemCaseSensitive(root, "tasks");
     if (cJSON_IsArray(tasks)) {
         cJSON *item = NULL;
         cJSON_ArrayForEach(item, tasks) {
-            if (parsed.task_count >= VIBE_STATUS_MAX_TASKS) {
+            if (parsed->task_count >= VIBE_STATUS_MAX_TASKS) {
                 break;
             }
             if (!cJSON_IsObject(item)) {
                 continue;
             }
 
-            parse_task(item, &parsed.tasks[parsed.task_count]);
-            parsed.task_count++;
+            parse_task(item, &parsed->tasks[parsed->task_count]);
+            parsed->task_count++;
         }
     }
 
-    *packet = parsed;
+    *packet = *parsed;
+    free(parsed);
     cJSON_Delete(root);
     return true;
 }

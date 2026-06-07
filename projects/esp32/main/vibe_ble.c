@@ -1,6 +1,7 @@
 #include "vibe_ble.h"
 
 #include <assert.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -40,31 +41,38 @@ static int handle_status_write(uint16_t conn_handle, uint16_t attr_handle, struc
     (void)attr_handle;
     (void)arg;
 
-    uint8_t buffer[1024];
     uint16_t length = OS_MBUF_PKTLEN(ctxt->om);
-    if (length >= sizeof(buffer)) {
+    if (length >= 1024) {
         ESP_LOGW(TAG, "status packet too large: %u bytes", length);
         vibe_display_show_error("packet too large");
         return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
     }
 
-    int rc = ble_hs_mbuf_to_flat(ctxt->om, buffer, sizeof(buffer) - 1, &length);
+    uint8_t *buffer = malloc(length + 1);
+    if (buffer == NULL) {
+        ESP_LOGW(TAG, "failed to allocate status packet buffer: %u bytes", length + 1);
+        vibe_display_show_error("no memory");
+        return BLE_ATT_ERR_INSUFFICIENT_RES;
+    }
+
+    int rc = ble_hs_mbuf_to_flat(ctxt->om, buffer, length, &length);
     if (rc != 0) {
         ESP_LOGW(TAG, "failed to read status packet: %d", rc);
         vibe_display_show_error("read failed");
+        free(buffer);
         return BLE_ATT_ERR_UNLIKELY;
     }
     buffer[length] = '\0';
 
-    vibe_status_packet_t parsed;
-    if (!vibe_status_parse_json(buffer, length, &parsed)) {
+    if (!vibe_status_parse_json(buffer, length, &current_status)) {
         ESP_LOGW(TAG, "invalid status packet: %s", (char *)buffer);
         vibe_display_show_error("invalid JSON");
+        free(buffer);
         return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
     }
 
-    current_status = parsed;
     ESP_LOGI(TAG, "status write accepted: %s", (char *)buffer);
+    free(buffer);
     vibe_display_show_status(&current_status);
     return 0;
 }
