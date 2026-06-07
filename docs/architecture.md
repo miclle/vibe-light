@@ -53,7 +53,7 @@ sequenceDiagram
     participant Display as 硬件显示
 
     Tool->>Hook: 触发 hook，传入运行事件
-    Hook->>App: 转发 HookEvent
+    Hook->>App: 写入本地 events.jsonl
     App->>App: 归一化为统一状态
     App->>BLE: 写入 StatusPacket
     BLE->>ESP: GATT Write
@@ -94,8 +94,8 @@ sequenceDiagram
 | 模块 | 职责 |
 | --- | --- |
 | SwiftUI UI | 展示连接状态、当前硬件显示状态和手动控制入口。 |
-| Hook CLI | 供 Codex / Claude hook 调用，读取 stdin JSON 并转发到本地应用。 |
-| Local Bridge | macOS 应用内的本地 Unix socket 服务，接收 Hook CLI 事件。 |
+| Hook CLI | 供 Codex / Claude hook 调用，读取 stdin JSON 并追加到本地事件日志。 |
+| Event Log Bridge | 使用 Application Support 下的 `events.jsonl` 作为 fail-open 事件桥，应用轮询最近事件。 |
 | 状态归一化 | 把不同工具的 hook 事件映射成统一状态。 |
 | App State | 保存当前状态、设备连接状态和最近一次事件。 |
 | BLE Client | 使用 CoreBluetooth 扫描、连接 ESP32-S3，启动时可自动连接第一台发现的 VibeLight 设备，并写入状态包。 |
@@ -131,7 +131,7 @@ sequenceDiagram
 ### 设计原则
 
 - **Hook first**：优先使用 Codex / Claude hooks 获取真实状态。
-- **Fail open**：Hook CLI 无法连接本地应用时直接退出，不影响 Codex / Claude 原工作流。
+- **Fail open**：Hook CLI 只追加本地事件日志；写入失败时记录到 stderr 后退出，不影响 Codex / Claude 原工作流。
 - **状态收敛**：系统应用层负责把复杂事件收敛为少量硬件状态。
 - **硬件无感知**：ESP32-S3 不需要知道事件来自 Codex、Claude 还是手动控制。
 
