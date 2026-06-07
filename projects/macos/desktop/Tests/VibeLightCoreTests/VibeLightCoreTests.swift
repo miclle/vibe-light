@@ -278,6 +278,26 @@ import Testing
     #expect(events.map(\.detail) == ["event-4", "event-3", "event-2"])
 }
 
+@Test func eventLogSerializesConcurrentAppends() async throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let log = EventLog(directory: directory, retentionLimit: 60)
+
+    try await withThrowingTaskGroup(of: Void.self) { group in
+        for index in 0..<40 {
+            group.addTask {
+                try log.append(.init(source: .codex, kind: .preToolUse, detail: "event-\(index)"))
+            }
+        }
+        try await group.waitForAll()
+    }
+
+    let events = try log.readRecent(limit: 100)
+
+    #expect(events.count == 40)
+    #expect(Set(events.map(\.detail)).count == 40)
+}
+
 @Test func agentInstallerInstallsCodexHooksAndFeatureFlag() throws {
     let home = temporaryDirectory()
     let installer = AgentInstaller(homeDirectory: home)

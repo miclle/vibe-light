@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#endif
 
 public struct HookPayloadDecoder: Sendable {
     private struct Payload: Decodable {
@@ -141,6 +144,17 @@ public struct EventLog: Sendable {
             withIntermediateDirectories: true
         )
 
+        EventLogProcessLock.lock.lock()
+        defer { EventLogProcessLock.lock.unlock() }
+
+        if !FileManager.default.fileExists(atPath: lockURL.path) {
+            FileManager.default.createFile(atPath: lockURL.path, contents: nil)
+        }
+        let lockHandle = try FileHandle(forWritingTo: lockURL)
+        defer { try? lockHandle.close() }
+        try lock(handle: lockHandle)
+        defer { unlock(handle: lockHandle) }
+
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(event)
@@ -190,6 +204,24 @@ public struct EventLog: Sendable {
         return base.appendingPathComponent("VibeLight", isDirectory: true)
     }
 
+    private var lockURL: URL {
+        directory.appendingPathComponent("events.lock", isDirectory: false)
+    }
+
+    private func lock(handle: FileHandle) throws {
+        #if canImport(Darwin)
+        if flock(handle.fileDescriptor, LOCK_EX) != 0 {
+            throw CocoaError(.fileLocking)
+        }
+        #endif
+    }
+
+    private func unlock(handle: FileHandle) {
+        #if canImport(Darwin)
+        _ = flock(handle.fileDescriptor, LOCK_UN)
+        #endif
+    }
+
     private func pruneIfNeeded() throws {
         let data = try Data(contentsOf: fileURL)
         guard let text = String(data: data, encoding: .utf8) else {
@@ -204,4 +236,8 @@ public struct EventLog: Sendable {
         let retained = lines.suffix(retentionLimit).joined(separator: "\n") + "\n"
         try Data(retained.utf8).write(to: fileURL, options: .atomic)
     }
+}
+
+private enum EventLogProcessLock {
+    static let lock = NSLock()
 }
