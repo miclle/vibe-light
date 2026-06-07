@@ -54,7 +54,8 @@ static const char *TAG = "vibe_display";
 #define LCD_RGB_B4_GPIO 47
 
 #define LCD_BACKLIGHT_GPIO 6
-#define LCD_BACKLIGHT_DUTY 220
+// The ESP32-S3-LCD-3.16 backlight PWM is active-low: 0 is full brightness.
+#define LCD_BACKLIGHT_DUTY 0
 
 #define RGB565_BLACK 0x0000
 #define RGB565_WHITE 0xffff
