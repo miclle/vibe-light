@@ -21,6 +21,20 @@ swift test --package-path projects/macos/desktop
 
 `./script/build_and_run.sh` 会构建 SwiftPM GUI app，生成本地 `dist/VibeLightApp.app`，再以正常 macOS app bundle 方式启动。Codex 桌面端也已配置 Run action 指向这个脚本。
 
+## 验证
+
+提交涉及 macOS app、BLE 协议或 ESP32 固件的变更前，优先运行统一验证入口：
+
+```bash
+./script/verify.sh
+```
+
+完整验证会依次运行 Swift 测试、ESP32 状态解析 host-side 测试、ESP32 固件构建和 Git whitespace 检查。只想快速验证协议解析和 desktop 逻辑时，可运行：
+
+```bash
+./script/verify.sh --quick
+```
+
 ## Hook CLI
 
 `vibe-light-hook` 从 stdin 读取 JSON，把事件写入 `~/Library/Application Support/VibeLight/events.jsonl`，并输出将要发送给硬件的 `StatusPacket` JSON。
