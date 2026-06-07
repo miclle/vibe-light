@@ -1,4 +1,5 @@
 #include "vibe_status.h"
+#include "vibe_display_model.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -105,12 +106,62 @@ static void test_invalid_packets_are_rejected_without_mutation(void)
     assert(packet.state == VIBE_DISPLAY_ERROR);
 }
 
+static void test_display_model_detects_duplicate_packets(void)
+{
+    const char *json =
+        "{"
+        "\"activeCount\":3,"
+        "\"detail\":\"2 running / 1 waiting\","
+        "\"source\":\"codex\","
+        "\"state\":\"waiting\","
+        "\"tasks\":["
+        "{\"detail\":\"needs confirm\",\"source\":\"codex\",\"state\":\"waiting\",\"title\":\"approval\"},"
+        "{\"detail\":\"sync BLE\",\"source\":\"codex\",\"state\":\"busy\",\"title\":\"desktop\"}"
+        "],"
+        "\"ts\":1780300800000,"
+        "\"v\":2,"
+        "\"waitingCount\":1"
+        "}";
+
+    vibe_status_packet_t packet;
+    vibe_status_default(&packet);
+    assert(parse(json, &packet));
+
+    vibe_display_signature_t signature;
+    vibe_display_signature_reset(&signature);
+    assert(vibe_display_should_render(&signature, &packet));
+    assert(!vibe_display_should_render(&signature, &packet));
+
+    packet.waiting_count = 2;
+    assert(vibe_display_should_render(&signature, &packet));
+}
+
+static void test_display_model_formats_task_rows(void)
+{
+    vibe_status_task_t task = {
+        .title = "approval",
+        .source = "codex",
+        .state = VIBE_DISPLAY_WAITING,
+        .state_text = "waiting",
+        .detail = "needs confirm",
+    };
+    vibe_display_task_row_t row;
+
+    vibe_display_format_task_row(&task, 0, &row);
+
+    assert(strcmp(row.badge, "WAIT") == 0);
+    assert(strcmp(row.title, "approval") == 0);
+    assert(strcmp(row.subtitle, "codex / needs confirm") == 0);
+}
+
 int main(void)
 {
     test_v1_status_packet();
     test_v2_task_list_packet();
     test_unknown_states_fall_back_to_idle();
     test_invalid_packets_are_rejected_without_mutation();
+    test_display_model_detects_duplicate_packets();
+    test_display_model_formats_task_rows();
 
     puts("vibe_status_parser_test: ok");
     return 0;

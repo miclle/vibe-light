@@ -7,6 +7,7 @@ idf_component_register(
         "lcd/st7701/esp_lcd_st7701_rgb.c"
         "vibe_ble.c"
         "vibe_display.c"
+        "vibe_display_model.c"
         "vibe_status.c"
     INCLUDE_DIRS
         "."

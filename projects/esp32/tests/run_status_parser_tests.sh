@@ -21,6 +21,7 @@ clang \
   -I "$ROOT_DIR/main" \
   -I "$CJSON_DIR" \
   "$ROOT_DIR/tests/vibe_status_parser_test.c" \
+  "$ROOT_DIR/main/vibe_display_model.c" \
   "$ROOT_DIR/main/vibe_status.c" \
   "$CJSON_DIR/cJSON.c" \
   -o "$BINARY"
