@@ -15,12 +15,21 @@ final class VibeLightAppModel: ObservableObject {
     @Published private(set) var hardwareMessage = "未扫描设备。"
     @Published private(set) var isHardwareScanning = false
     @Published var launchAtLogin = false
-    @Published var autoConnectDevice = true
-    @Published var selectedManualState: DisplayState = .idle
+    @Published var autoConnectDevice: Bool {
+        didSet {
+            preferences.autoConnectDevice = autoConnectDevice
+        }
+    }
+    @Published var selectedManualState: DisplayState {
+        didSet {
+            preferences.selectedManualState = selectedManualState
+        }
+    }
     @Published var bridgeMessage = "等待 hook 事件..."
 
     private let eventLog: EventLog
     private let agentInstaller: AgentInstaller
+    private let preferences: VibeLightPreferences
     private var bluetoothManager: BluetoothHardwareManager?
     private var latestPacketData: Data?
     private var lastForwardedPacketData: Data?
@@ -28,10 +37,14 @@ final class VibeLightAppModel: ObservableObject {
 
     init(
         eventLog: EventLog = EventLog(),
-        agentInstaller: AgentInstaller = AgentInstaller()
+        agentInstaller: AgentInstaller = AgentInstaller(),
+        preferences: VibeLightPreferences = VibeLightPreferences()
     ) {
         self.eventLog = eventLog
         self.agentInstaller = agentInstaller
+        self.preferences = preferences
+        self.autoConnectDevice = preferences.autoConnectDevice
+        self.selectedManualState = preferences.selectedManualState
         refreshEvents()
         refreshAgentStatuses()
         bluetoothManager = BluetoothHardwareManager(

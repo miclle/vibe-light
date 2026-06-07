@@ -295,6 +295,25 @@ import Testing
     #expect(!HardwareConnectionState.scanning.isConnecting)
 }
 
+@Test func vibeLightPreferencesPersistHardwareDefaults() throws {
+    let suiteName = "VibeLightPreferencesTests.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defer {
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    let preferences = VibeLightPreferences(defaults: defaults)
+    #expect(preferences.autoConnectDevice)
+    #expect(preferences.selectedManualState == .idle)
+
+    preferences.autoConnectDevice = false
+    preferences.selectedManualState = .waiting
+
+    let reloaded = VibeLightPreferences(defaults: defaults)
+    #expect(!reloaded.autoConnectDevice)
+    #expect(reloaded.selectedManualState == .waiting)
+}
+
 private func temporaryDirectory() -> URL {
     URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
