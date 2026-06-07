@@ -286,6 +286,15 @@ import Testing
     #expect(store.connectionState == .connected(device.id))
 }
 
+@Test func hardwareConnectionStateReportsActionAvailability() {
+    #expect(HardwareConnectionState.connected("esp32").isConnected)
+    #expect(!HardwareConnectionState.connected("esp32").isConnecting)
+    #expect(HardwareConnectionState.connecting("esp32").isConnecting)
+    #expect(!HardwareConnectionState.connecting("esp32").isConnected)
+    #expect(!HardwareConnectionState.disconnected.isConnected)
+    #expect(!HardwareConnectionState.scanning.isConnecting)
+}
+
 private func temporaryDirectory() -> URL {
     URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent(UUID().uuidString, isDirectory: true)

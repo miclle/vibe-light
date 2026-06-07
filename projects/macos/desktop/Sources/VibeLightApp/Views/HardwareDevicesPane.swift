@@ -31,18 +31,21 @@ struct HardwareDevicesPane: View {
                         } label: {
                             Label("断开", systemImage: "xmark.circle")
                         }
+                        .disabled(!model.hardwareConnectionState.isConnected)
 
                         Button {
                             model.sendLatestPacketToHardware()
                         } label: {
                             Label("发送当前状态", systemImage: "paperplane")
                         }
+                        .disabled(!model.hardwareConnectionState.isConnected)
 
                         Button {
                             model.refreshHardwareHealth()
                         } label: {
                             Label("读取健康状态", systemImage: "heart.text.square")
                         }
+                        .disabled(!model.hardwareConnectionState.isConnected)
                     }
                 }
 
@@ -64,7 +67,7 @@ struct HardwareDevicesPane: View {
             Divider()
 
             List(model.hardwareDevices) { device in
-                HardwareDeviceRow(device: device) {
+                HardwareDeviceRow(device: device, connectionState: model.hardwareConnectionState) {
                     model.connectHardwareDevice(device)
                 }
             }
@@ -91,6 +94,7 @@ struct HardwareDevicesPane: View {
 
 private struct HardwareDeviceRow: View {
     var device: HardwareDevice
+    var connectionState: HardwareConnectionState
     var connect: () -> Void
 
     var body: some View {
@@ -110,6 +114,7 @@ private struct HardwareDeviceRow: View {
             Spacer()
 
             Button("连接", action: connect)
+                .disabled(connectionState.isConnected || connectionState.isConnecting)
         }
         .padding(.vertical, 6)
     }

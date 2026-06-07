@@ -30,6 +30,20 @@ public enum HardwareConnectionState: Equatable, Sendable {
         case .failed: "连接失败"
         }
     }
+
+    public var isConnected: Bool {
+        if case .connected = self {
+            return true
+        }
+        return false
+    }
+
+    public var isConnecting: Bool {
+        if case .connecting = self {
+            return true
+        }
+        return false
+    }
 }
 
 public final class HardwareDeviceStore {
