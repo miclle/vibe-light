@@ -99,6 +99,7 @@ sequenceDiagram
 | 状态归一化 | 把不同工具的 hook 事件映射成统一状态。 |
 | App State | 保存当前状态、设备连接状态和最近一次事件。 |
 | BLE Client | 使用 CoreBluetooth 扫描、连接 ESP32-S3，启动时可自动连接第一台发现的 VibeLight 设备，异常断开或连接失败后按偏好恢复扫描，并在设备就绪后写入最新状态包。 |
+| 硬件演示包 | 在“硬件设备”页提供固定 v2 `StatusPacket` 场景，用来调试屏幕任务列表；演示包直接写入 BLE，不写入 hook 事件日志。 |
 
 ### 状态模型
 

@@ -99,20 +99,43 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
 
     @discardableResult
     func sendLatestPacket() -> Bool {
+        sendPacketData(
+            messageWhenMissing: "没有可写入的设备或状态包。",
+            successMessage: "已同步最近状态包。"
+        ) { [latestPacketData] maximumWriteLength in
+            latestPacketData(maximumWriteLength)
+        }
+    }
+
+    @discardableResult
+    func sendPacket(_ packet: StatusPacket) -> Bool {
+        sendPacketData(
+            messageWhenMissing: "没有可写入的设备。",
+            successMessage: "已发送演示包。"
+        ) { maximumWriteLength in
+            try? packet.encodedJSON(maximumWriteLength: maximumWriteLength)
+        }
+    }
+
+    private func sendPacketData(
+        messageWhenMissing: String,
+        successMessage: String,
+        dataProvider: (Int) -> Data?
+    ) -> Bool {
         guard let connectedPeripheral,
               let statusCharacteristic else {
-            publish("没有可写入的设备或状态包。")
+            publish(messageWhenMissing)
             return false
         }
 
         let maximumWriteLength = connectedPeripheral.maximumWriteValueLength(for: .withResponse)
-        guard let data = latestPacketData(maximumWriteLength) else {
+        guard let data = dataProvider(maximumWriteLength) else {
             publish("没有可写入的状态包。")
             return false
         }
 
         connectedPeripheral.writeValue(data, for: statusCharacteristic, type: .withResponse)
-        publish("已同步最近状态包。")
+        publish(successMessage)
         return true
     }
 

@@ -185,6 +185,10 @@ final class VibeLightAppModel: ObservableObject {
         }
     }
 
+    func sendHardwareDemoPacket(_ scenario: HardwareDemoPacketScenario) {
+        _ = bluetoothManager?.sendPacket(scenario.packet())
+    }
+
     func refreshHardwareHealth() {
         bluetoothManager?.readHealthPacket()
     }

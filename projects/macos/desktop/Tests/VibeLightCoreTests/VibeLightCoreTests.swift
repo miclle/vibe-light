@@ -160,6 +160,40 @@ import Testing
     #expect(object["activeCount"] == nil)
 }
 
+@Test func hardwareDemoPacketsProvideBoundedV2TaskScenarios() throws {
+    let scenarios = HardwareDemoPacketScenario.allCases
+
+    #expect(scenarios.map(\.id) == ["one-running", "mixed-waiting", "error-busy", "five-tasks", "idle"])
+
+    for scenario in scenarios {
+        let packet = scenario.packet(timestamp: Date(timeIntervalSince1970: 1_780_300_800))
+        let data = try packet.encodedJSON(maximumWriteLength: 512)
+
+        #expect(packet.v == 2)
+        #expect((packet.tasks ?? []).count <= 5)
+        #expect(data.count <= 512)
+    }
+}
+
+@Test func hardwareDemoPacketsExposeUsefulScreenStates() {
+    let mixed = HardwareDemoPacketScenario.mixedWaiting.packet(timestamp: Date(timeIntervalSince1970: 1_780_300_800))
+    let error = HardwareDemoPacketScenario.errorBusy.packet(timestamp: Date(timeIntervalSince1970: 1_780_300_800))
+    let idle = HardwareDemoPacketScenario.idle.packet(timestamp: Date(timeIntervalSince1970: 1_780_300_800))
+
+    #expect(mixed.state == .waiting)
+    #expect(mixed.activeCount == 3)
+    #expect(mixed.waitingCount == 1)
+    #expect(mixed.tasks?.map(\.state) == [.waiting, .busy, .busy])
+
+    #expect(error.state == .error)
+    #expect(error.errorCount == 1)
+    #expect(error.tasks?.map(\.state) == [.error, .busy])
+
+    #expect(idle.state == .idle)
+    #expect(idle.activeCount == 0)
+    #expect(idle.tasks?.isEmpty == true)
+}
+
 @Test func taskTrackerIgnoresCodexMemoryWritingAgent() {
     let base = Date(timeIntervalSince1970: 1_780_300_800)
     let tracker = TaskTracker()

@@ -60,9 +60,24 @@ struct HardwareDevicesPane: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                Section("演示包") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(HardwareDemoPacketScenario.allCases) { scenario in
+                            Button {
+                                model.sendHardwareDemoPacket(scenario)
+                            } label: {
+                                Label(scenario.title, systemImage: icon(for: scenario))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .disabled(!model.hardwareConnectionState.isConnected)
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                }
             }
             .formStyle(.grouped)
-            .frame(maxHeight: 310)
+            .frame(maxHeight: 430)
 
             Divider()
 
@@ -89,6 +104,16 @@ struct HardwareDevicesPane: View {
         let minutes = totalSeconds / 60
         let seconds = totalSeconds % 60
         return "\(minutes) 分 \(seconds) 秒"
+    }
+
+    private func icon(for scenario: HardwareDemoPacketScenario) -> String {
+        switch scenario {
+        case .oneRunning: "play.circle"
+        case .mixedWaiting: "person.crop.circle.badge.questionmark"
+        case .errorBusy: "exclamationmark.triangle"
+        case .fiveTasks: "list.bullet.rectangle"
+        case .idle: "moon"
+        }
     }
 }
 
