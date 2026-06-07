@@ -88,7 +88,7 @@ private struct TaskSnapshotSummary: View {
                 Text("任务聚合")
                     .font(.headline)
                 Spacer()
-                Text("\(snapshot.tasks.count) 个任务")
+                Text("\(snapshot.tasks.count) 个任务 · \(formatDuration(snapshot.staleAfter)) 过期")
                     .foregroundStyle(.secondary)
             }
 
@@ -110,7 +110,7 @@ private struct TaskSnapshotSummary: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Text("\(task.identityKind.title) · \(shortTaskID(task.id)) · \(task.inclusionReason)")
+                    Text("\(task.identityKind.title) · \(shortTaskID(task.id)) · \(relativeAge(since: task.lastUpdated)) · \(task.inclusionReason)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -126,6 +126,25 @@ private struct TaskSnapshotSummary: View {
         }
 
         return String(value.suffix(18))
+    }
+
+    private func relativeAge(since date: Date) -> String {
+        let seconds = max(0, Int(Date().timeIntervalSince(date)))
+        if seconds < 60 {
+            return "\(seconds)s ago"
+        }
+
+        let minutes = seconds / 60
+        if minutes < 60 {
+            return "\(minutes)m ago"
+        }
+
+        return "\(minutes / 60)h ago"
+    }
+
+    private func formatDuration(_ interval: TimeInterval) -> String {
+        let minutes = max(1, Int(interval / 60))
+        return "\(minutes)m"
     }
 
     private func tint(for state: DisplayState) -> Color {

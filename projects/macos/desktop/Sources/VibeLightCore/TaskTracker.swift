@@ -54,19 +54,22 @@ public struct DisplaySnapshot: Equatable, Sendable {
     public var detail: String
     public var timestamp: Date
     public var tasks: [TrackedTask]
+    public var staleAfter: TimeInterval
 
     public init(
         source: VibeSource,
         state: DisplayState,
         detail: String,
         timestamp: Date,
-        tasks: [TrackedTask]
+        tasks: [TrackedTask],
+        staleAfter: TimeInterval
     ) {
         self.source = source
         self.state = state
         self.detail = detail
         self.timestamp = timestamp
         self.tasks = tasks
+        self.staleAfter = staleAfter
     }
 
     public var statusPacket: StatusPacket {
@@ -117,7 +120,8 @@ public struct TaskTracker: Sendable {
                 state: .idle,
                 detail: "no active tasks",
                 timestamp: now,
-                tasks: []
+                tasks: [],
+                staleAfter: staleAfter
             )
         }
 
@@ -130,7 +134,8 @@ public struct TaskTracker: Sendable {
             state: state,
             detail: detail(for: tasks, state: state, primary: primary),
             timestamp: primary.lastUpdated,
-            tasks: Array(visibleTasks.prefix(5))
+            tasks: Array(visibleTasks.prefix(5)),
+            staleAfter: staleAfter
         )
     }
 
