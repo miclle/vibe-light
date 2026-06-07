@@ -83,6 +83,7 @@ import Testing
     #expect(snapshot.state == .busy)
     #expect(snapshot.source == .codex)
     #expect(snapshot.detail == "1 running")
+    #expect(snapshot.tasks.map(\.title) == ["vibe-light"])
     #expect(snapshot.statusPacket.state == .busy)
 }
 

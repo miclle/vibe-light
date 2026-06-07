@@ -105,7 +105,7 @@ public struct TaskTracker: Sendable {
             state: state,
             detail: detail(for: tasks, state: state, primary: primary),
             timestamp: primary.lastUpdated,
-            tasks: Array(tasks.prefix(5))
+            tasks: Array(visibleTasks.prefix(5))
         )
     }
 
