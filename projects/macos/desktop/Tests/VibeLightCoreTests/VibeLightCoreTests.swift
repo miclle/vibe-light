@@ -129,6 +129,37 @@ import Testing
     #expect(data.count < 768)
 }
 
+@Test func statusPacketFallsBackToV1WhenV2ExceedsBleWriteLength() throws {
+    let packet = StatusPacket(
+        v: 2,
+        source: .codex,
+        state: .busy,
+        detail: "5 running",
+        timestamp: Date(timeIntervalSince1970: 1_780_300_800),
+        activeCount: 5,
+        waitingCount: 0,
+        errorCount: 0,
+        tasks: (0..<5).map { index in
+            StatusTask(
+                title: "workspace-\(index)-with-long-name",
+                state: .busy,
+                source: .codex,
+                detail: "running task \(index) with extra detail"
+            )
+        }
+    )
+
+    let fullData = try packet.encodedJSON()
+    let constrainedData = try packet.encodedJSON(maximumWriteLength: 180)
+    let object = try #require(JSONSerialization.jsonObject(with: constrainedData) as? [String: Any])
+
+    #expect(fullData.count > 180)
+    #expect(constrainedData.count <= 180)
+    #expect(object["v"] as? Int == 1)
+    #expect(object["tasks"] == nil)
+    #expect(object["activeCount"] == nil)
+}
+
 @Test func taskTrackerIgnoresCodexMemoryWritingAgent() {
     let base = Date(timeIntervalSince1970: 1_780_300_800)
     let tracker = TaskTracker()

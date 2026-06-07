@@ -179,6 +179,21 @@ public struct StatusPacket: Codable, Equatable, Sendable {
         return try encoder.encode(self)
     }
 
+    public func encodedJSON(maximumWriteLength: Int) throws -> Data {
+        let data = try encodedJSON()
+        guard data.count > maximumWriteLength, v >= 2 else {
+            return data
+        }
+
+        var fallback = self
+        fallback.v = 1
+        fallback.activeCount = nil
+        fallback.waitingCount = nil
+        fallback.errorCount = nil
+        fallback.tasks = nil
+        return try fallback.encodedJSON()
+    }
+
     private static func truncatedDetail(_ value: String) -> String {
         truncated(value, maxUTF8Bytes: maxDetailUTF8Bytes)
     }

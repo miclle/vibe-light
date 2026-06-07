@@ -63,8 +63,8 @@ final class VibeLightAppModel: ObservableObject {
             onHealthChanged: { [weak self] health in
                 self?.hardwareHealthPacket = health
             },
-            latestPacketData: { [weak self] in
-                self?.latestPacketData
+            latestPacketData: { [weak self] maximumWriteLength in
+                try? self?.latestPacket?.encodedJSON(maximumWriteLength: maximumWriteLength)
             }
         )
     }
@@ -81,7 +81,7 @@ final class VibeLightAppModel: ObservableObject {
 
             displaySnapshot = snapshot
             currentState = snapshot.state
-            latestPacket = packet
+            self.latestPacket = packet
             latestPacketData = packetData
             bridgeMessage = bridgeMessage(for: snapshot, eventCount: loadedEvents.count)
 
@@ -159,7 +159,9 @@ final class VibeLightAppModel: ObservableObject {
         }
 
         didStartHardwareAutoConnect = true
-        bluetoothManager?.startScan(autoConnectFirstDevice: true)
+        DispatchQueue.main.async { [weak self] in
+            self?.bluetoothManager?.startScan(autoConnectFirstDevice: true)
+        }
     }
 
     func stopHardwareScan() {

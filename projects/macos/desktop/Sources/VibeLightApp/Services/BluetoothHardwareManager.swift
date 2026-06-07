@@ -19,13 +19,13 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
     private let onDevicesChanged: ([HardwareDevice]) -> Void
     private let onStateChanged: (HardwareConnectionState, Bool, String) -> Void
     private let onHealthChanged: (HealthPacket?) -> Void
-    private let latestPacketData: () -> Data?
+    private let latestPacketData: (Int) -> Data?
 
     init(
         onDevicesChanged: @escaping ([HardwareDevice]) -> Void,
         onStateChanged: @escaping (HardwareConnectionState, Bool, String) -> Void,
         onHealthChanged: @escaping (HealthPacket?) -> Void,
-        latestPacketData: @escaping () -> Data?
+        latestPacketData: @escaping (Int) -> Data?
     ) {
         self.onDevicesChanged = onDevicesChanged
         self.onStateChanged = onStateChanged
@@ -94,10 +94,15 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
 
     @discardableResult
     func sendLatestPacket() -> Bool {
-        guard let data = latestPacketData(),
-              let connectedPeripheral,
+        guard let connectedPeripheral,
               let statusCharacteristic else {
             publish("没有可写入的设备或状态包。")
+            return false
+        }
+
+        let maximumWriteLength = connectedPeripheral.maximumWriteValueLength(for: .withResponse)
+        guard let data = latestPacketData(maximumWriteLength) else {
+            publish("没有可写入的状态包。")
             return false
         }
 
@@ -168,6 +173,12 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
         didFailToConnect peripheral: CBPeripheral,
         error: Error?
     ) {
+        if connectedPeripheral?.identifier == peripheral.identifier {
+            connectedPeripheral = nil
+        }
+        statusCharacteristic = nil
+        healthCharacteristic = nil
+        onHealthChanged(nil)
         store.fail(error?.localizedDescription ?? "连接失败")
         publish()
     }
