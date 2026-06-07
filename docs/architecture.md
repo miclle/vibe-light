@@ -128,6 +128,20 @@ sequenceDiagram
 | `SessionEnd` | `success` | 会话结束。 |
 | `PostToolUseFailure` / `StopFailure` / `PermissionDenied` | `error` | 工具失败、轮次失败或权限被拒绝。 |
 
+### 多任务聚合
+
+Codex / Claude 可能同时运行多个任务，事件到达顺序也可能穿插。macOS 应用负责维护任务聚合状态，ESP32-S3 不直接理解任务生命周期。
+
+聚合规则：
+
+1. 任一任务处于 `waiting` 时，整体显示 `waiting`。
+2. 否则任一任务处于 `busy` 时，整体显示 `busy`。
+3. 否则最近任务存在 `error` 时，整体显示 `error`。
+4. 否则最近任务存在 `success` 时，整体显示 `success`。
+5. 没有活跃任务时，整体显示 `idle`。
+
+第一版 BLE 状态包仍使用 `v: 1`，`detail` 字段写入聚合摘要，例如 `2 running · 1 waiting`。后续 `v: 2` 再考虑加入 `activeCount`、`waitingCount` 和 `tasks[]`，让 ESP32 屏幕显示多任务列表。
+
 ### 设计原则
 
 - **Hook first**：优先使用 Codex / Claude hooks 获取真实状态。
@@ -180,6 +194,8 @@ macOS 应用向状态写入特征写入 UTF-8 JSON。
 | `ts` | number | 是 | macOS 应用生成的 Unix 毫秒时间戳。 |
 
 状态写入包必须保持小于 256 字节，以匹配 ESP32-S3 固件当前的 GATT 写入缓冲区。macOS 端只发送已经归一化的短文本，不把完整 hook payload 写入硬件。
+
+当前 `v: 1` 状态包表示 macOS 聚合后的整体显示状态，不表示单个 hook 事件的原始状态。
 
 ### 健康状态包
 
