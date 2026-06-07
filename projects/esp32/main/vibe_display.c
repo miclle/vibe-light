@@ -11,6 +11,7 @@
 #include "esp_heap_caps.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_panel_rgb.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -67,12 +68,22 @@ static const char *TAG = "vibe_display";
 #define RGB565_RED 0xf800
 #define RGB565_AMBER 0xfd20
 #define RGB565_PANEL 0x18e3
+#define RGB565_DOT 0xffe0
+
+#define ANIMATION_PERIOD_MS 180
+#define ANIMATION_DOT_COUNT 36
+#define ANIMATION_DOT_RADIUS 3
+#define ANIMATION_CODEX_RADIUS 15
 
 static esp_lcd_panel_handle_t panel_handle;
 static uint16_t *framebuffer;
 static SemaphoreHandle_t display_mutex;
 static bool display_ready;
 static vibe_display_signature_t last_render_signature;
+static vibe_status_packet_t last_render_packet;
+static esp_timer_handle_t animation_timer;
+static int animation_tick;
+static bool animation_running;
 
 static const st7701_lcd_init_cmd_t lcd_init_cmds[] = {
     {0xFF, (uint8_t[]){0x77, 0x01, 0x00, 0x00, 0x13}, 5, 0},
@@ -125,14 +136,20 @@ static const st7701_lcd_init_cmd_t lcd_init_cmds[] = {
 
 static esp_err_t init_backlight(void);
 static esp_err_t init_lcd_panel(void);
-static void render_status(const vibe_status_packet_t *packet);
+static void render_status(const vibe_status_packet_t *packet, int animation_phase);
 static void render_task_rows(const vibe_status_packet_t *packet);
+static void render_codex_animation(const vibe_status_packet_t *packet, int animation_phase);
+static void render_animation_dots(const vibe_display_animation_frame_t *frame);
+static void render_codex_actor(const vibe_display_animation_frame_t *frame);
 static void fill_screen(uint16_t color);
 static void fill_rect(int x, int y, int w, int h, uint16_t color);
+static void fill_circle(int cx, int cy, int radius, uint16_t color);
 static void draw_text(int x, int y, const char *text, int scale, uint16_t color);
 static void draw_char(int x, int y, char c, int scale, uint16_t color);
 static uint8_t glyph_row(char c, int row);
 static uint16_t color_for_state(vibe_display_state_t state);
+static void animation_timer_callback(void *arg);
+static void update_animation_timer(vibe_display_state_t state);
 
 void vibe_display_init(void)
 {
@@ -151,6 +168,14 @@ void vibe_display_init(void)
     ESP_ERROR_CHECK_WITHOUT_ABORT(init_lcd_panel());
     ESP_ERROR_CHECK_WITHOUT_ABORT(init_backlight());
     vibe_display_signature_reset(&last_render_signature);
+    vibe_status_default(&last_render_packet);
+
+    const esp_timer_create_args_t timer_args = {
+        .callback = animation_timer_callback,
+        .name = "vibe_anim",
+    };
+    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_timer_create(&timer_args, &animation_timer));
+
     display_ready = panel_handle != NULL;
     ESP_LOGI(TAG, "%s", display_ready ? "LCD initialized" : "LCD initialization failed");
 }
@@ -172,11 +197,14 @@ void vibe_display_show_status(const vibe_status_packet_t *packet)
              (long long)packet->timestamp_ms);
 
     if (display_ready && xSemaphoreTake(display_mutex, pdMS_TO_TICKS(500)) == pdTRUE) {
+        last_render_packet = *packet;
         if (vibe_display_should_render(&last_render_signature, packet)) {
-            render_status(packet);
+            animation_tick = 0;
+            render_status(packet, animation_tick);
         }
         xSemaphoreGive(display_mutex);
     }
+    update_animation_timer(packet->state);
 }
 
 void vibe_display_show_error(const char *message)
@@ -277,7 +305,7 @@ static esp_err_t init_lcd_panel(void)
     return ESP_OK;
 }
 
-static void render_status(const vibe_status_packet_t *packet)
+static void render_status(const vibe_status_packet_t *packet, int animation_phase)
 {
     uint16_t accent = color_for_state(packet->state);
     fill_screen(RGB565_BLACK);
@@ -307,6 +335,10 @@ static void render_status(const vibe_status_packet_t *packet)
     snprintf(ts, sizeof(ts), "TS %lld", (long long)packet->timestamp_ms);
     draw_text(32, 746, ts, 2, RGB565_MUTED);
 
+    if (vibe_display_animation_enabled(packet->state)) {
+        render_codex_animation(packet, animation_phase);
+    }
+
     esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, LCD_H_RES, LCD_V_RES, framebuffer);
 }
 
@@ -327,6 +359,69 @@ static void render_task_rows(const vibe_status_packet_t *packet)
         draw_text(110, y - 8, row.title, 2, RGB565_WHITE);
         draw_text(110, y + 24, row.subtitle, 1, RGB565_MUTED);
     }
+}
+
+static void render_codex_animation(const vibe_status_packet_t *packet, int animation_phase)
+{
+    vibe_display_animation_frame_t frame;
+    vibe_display_animation_frame(animation_phase, packet->active_count, &frame);
+    render_animation_dots(&frame);
+    render_codex_actor(&frame);
+}
+
+static void render_animation_dots(const vibe_display_animation_frame_t *frame)
+{
+    for (int i = 0; i < ANIMATION_DOT_COUNT; i++) {
+        vibe_display_animation_frame_t dot;
+        vibe_display_animation_frame((i * VIBE_DISPLAY_ANIMATION_PATH_STEPS) / ANIMATION_DOT_COUNT, 1, &dot);
+
+        int dx = dot.x - frame->x;
+        int dy = dot.y - frame->y;
+        if (dx > -24 && dx < 24 && dy > -24 && dy < 24) {
+            continue;
+        }
+
+        fill_circle(dot.x, dot.y, ANIMATION_DOT_RADIUS, RGB565_DOT);
+    }
+}
+
+static void render_codex_actor(const vibe_display_animation_frame_t *frame)
+{
+    fill_circle(frame->x, frame->y, ANIMATION_CODEX_RADIUS, RGB565_WHITE);
+
+    int gap_x = 0;
+    int gap_y = 0;
+    int gap_w = 14;
+    int gap_h = 14;
+    switch (frame->direction) {
+    case VIBE_DISPLAY_DIRECTION_RIGHT:
+        gap_x = frame->x + 4;
+        gap_y = frame->y - (frame->mouth_open ? 7 : 3);
+        gap_w = 18;
+        gap_h = frame->mouth_open ? 14 : 6;
+        break;
+    case VIBE_DISPLAY_DIRECTION_DOWN:
+        gap_x = frame->x - (frame->mouth_open ? 7 : 3);
+        gap_y = frame->y + 4;
+        gap_w = frame->mouth_open ? 14 : 6;
+        gap_h = 18;
+        break;
+    case VIBE_DISPLAY_DIRECTION_LEFT:
+        gap_x = frame->x - 22;
+        gap_y = frame->y - (frame->mouth_open ? 7 : 3);
+        gap_w = 18;
+        gap_h = frame->mouth_open ? 14 : 6;
+        break;
+    case VIBE_DISPLAY_DIRECTION_UP:
+        gap_x = frame->x - (frame->mouth_open ? 7 : 3);
+        gap_y = frame->y - 22;
+        gap_w = frame->mouth_open ? 14 : 6;
+        gap_h = 18;
+        break;
+    }
+
+    fill_rect(gap_x, gap_y, gap_w, gap_h, RGB565_BLACK);
+    fill_circle(frame->x - 4, frame->y - 5, 2, RGB565_BLUE);
 }
 
 static void fill_screen(uint16_t color)
@@ -360,6 +455,18 @@ static void fill_rect(int x, int y, int w, int h, uint16_t color)
         uint16_t *line = framebuffer + row * LCD_H_RES + x;
         for (int col = 0; col < w; col++) {
             line[col] = color;
+        }
+    }
+}
+
+static void fill_circle(int cx, int cy, int radius, uint16_t color)
+{
+    int radius_squared = radius * radius;
+    for (int y = -radius; y <= radius; y++) {
+        for (int x = -radius; x <= radius; x++) {
+            if (x * x + y * y <= radius_squared) {
+                fill_rect(cx + x, cy + y, 1, 1, color);
+            }
         }
     }
 }
@@ -482,5 +589,42 @@ static uint16_t color_for_state(vibe_display_state_t state)
     case VIBE_DISPLAY_IDLE:
     default:
         return RGB565_WHITE;
+    }
+}
+
+static void animation_timer_callback(void *arg)
+{
+    (void)arg;
+
+    if (!display_ready || !animation_running || animation_timer == NULL) {
+        return;
+    }
+
+    if (xSemaphoreTake(display_mutex, 0) != pdTRUE) {
+        return;
+    }
+
+    if (vibe_display_animation_enabled(last_render_packet.state)) {
+        animation_tick++;
+        render_status(&last_render_packet, animation_tick);
+    }
+
+    xSemaphoreGive(display_mutex);
+}
+
+static void update_animation_timer(vibe_display_state_t state)
+{
+    bool should_run = display_ready && animation_timer != NULL && vibe_display_animation_enabled(state);
+    if (should_run && !animation_running) {
+        animation_tick = 0;
+        if (esp_timer_start_periodic(animation_timer, ANIMATION_PERIOD_MS * 1000) == ESP_OK) {
+            animation_running = true;
+        }
+        return;
+    }
+
+    if (!should_run && animation_running) {
+        esp_timer_stop(animation_timer);
+        animation_running = false;
     }
 }

@@ -94,6 +94,68 @@ void vibe_display_format_task_row(const vibe_status_task_t *task, int index, vib
     }
 }
 
+bool vibe_display_animation_enabled(vibe_display_state_t state)
+{
+    return state == VIBE_DISPLAY_BUSY;
+}
+
+int vibe_display_animation_step(int active_count)
+{
+    if (active_count >= 5) {
+        return 3;
+    }
+    if (active_count >= 2) {
+        return 2;
+    }
+    return 1;
+}
+
+void vibe_display_animation_frame(int tick, int active_count, vibe_display_animation_frame_t *frame)
+{
+    if (frame == NULL) {
+        return;
+    }
+
+    int step = vibe_display_animation_step(active_count);
+    int position = (tick * step) % VIBE_DISPLAY_ANIMATION_PATH_STEPS;
+    if (position < 0) {
+        position += VIBE_DISPLAY_ANIMATION_PATH_STEPS;
+    }
+
+    const int left = 18;
+    const int right = 302;
+    const int top = 92;
+    const int bottom = 788;
+    const int side_steps = VIBE_DISPLAY_ANIMATION_PATH_STEPS / 4;
+    int segment = position / side_steps;
+    int offset = position % side_steps;
+
+    frame->mouth_open = (tick % 2) == 0;
+
+    switch (segment) {
+    case 0:
+        frame->x = left + ((right - left) * offset) / side_steps;
+        frame->y = top;
+        frame->direction = VIBE_DISPLAY_DIRECTION_RIGHT;
+        break;
+    case 1:
+        frame->x = right;
+        frame->y = top + ((bottom - top) * offset) / side_steps;
+        frame->direction = VIBE_DISPLAY_DIRECTION_DOWN;
+        break;
+    case 2:
+        frame->x = right - ((right - left) * offset) / side_steps;
+        frame->y = bottom;
+        frame->direction = VIBE_DISPLAY_DIRECTION_LEFT;
+        break;
+    default:
+        frame->x = left;
+        frame->y = bottom - ((bottom - top) * offset) / side_steps;
+        frame->direction = VIBE_DISPLAY_DIRECTION_UP;
+        break;
+    }
+}
+
 static uint32_t fnv1a_update(uint32_t hash, const void *data, size_t length)
 {
     const unsigned char *bytes = (const unsigned char *)data;

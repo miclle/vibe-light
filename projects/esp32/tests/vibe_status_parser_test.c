@@ -154,6 +154,35 @@ static void test_display_model_formats_task_rows(void)
     assert(strcmp(row.subtitle, "codex / needs confirm") == 0);
 }
 
+static void test_display_model_animates_busy_edge_path(void)
+{
+    vibe_display_animation_frame_t frame0;
+    vibe_display_animation_frame_t frame1;
+    vibe_display_animation_frame_t wrapped;
+
+    assert(vibe_display_animation_enabled(VIBE_DISPLAY_BUSY));
+    assert(!vibe_display_animation_enabled(VIBE_DISPLAY_WAITING));
+    assert(!vibe_display_animation_enabled(VIBE_DISPLAY_IDLE));
+
+    vibe_display_animation_frame(0, 1, &frame0);
+    vibe_display_animation_frame(1, 1, &frame1);
+    vibe_display_animation_frame(VIBE_DISPLAY_ANIMATION_PATH_STEPS, 1, &wrapped);
+
+    assert(frame0.x == wrapped.x);
+    assert(frame0.y == wrapped.y);
+    assert(frame0.mouth_open);
+    assert(!frame1.mouth_open);
+    assert(frame0.x != frame1.x || frame0.y != frame1.y);
+}
+
+static void test_display_model_animation_speed_scales_with_active_tasks(void)
+{
+    assert(vibe_display_animation_step(0) == 1);
+    assert(vibe_display_animation_step(1) == 1);
+    assert(vibe_display_animation_step(2) == 2);
+    assert(vibe_display_animation_step(5) == 3);
+}
+
 int main(void)
 {
     test_v1_status_packet();
@@ -162,6 +191,8 @@ int main(void)
     test_invalid_packets_are_rejected_without_mutation();
     test_display_model_detects_duplicate_packets();
     test_display_model_formats_task_rows();
+    test_display_model_animates_busy_edge_path();
+    test_display_model_animation_speed_scales_with_active_tasks();
 
     puts("vibe_status_parser_test: ok");
     return 0;
