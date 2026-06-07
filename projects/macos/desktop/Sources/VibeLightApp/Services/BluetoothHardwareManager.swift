@@ -5,24 +5,29 @@ import VibeLightCore
 final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     private let serviceUUID = CBUUID(string: "7d8f0001-7b9a-4f0b-9e8a-8b4c2c7f1000")
     private let statusCharacteristicUUID = CBUUID(string: "7d8f0002-7b9a-4f0b-9e8a-8b4c2c7f1000")
+    private let healthCharacteristicUUID = CBUUID(string: "7d8f0003-7b9a-4f0b-9e8a-8b4c2c7f1000")
 
     private var central: CBCentralManager?
     private var peripheralsByID: [String: CBPeripheral] = [:]
     private var statusCharacteristic: CBCharacteristic?
+    private var healthCharacteristic: CBCharacteristic?
     private var connectedPeripheral: CBPeripheral?
     private let store = HardwareDeviceStore()
 
     private let onDevicesChanged: ([HardwareDevice]) -> Void
     private let onStateChanged: (HardwareConnectionState, Bool, String) -> Void
+    private let onHealthChanged: (HealthPacket?) -> Void
     private let latestPacketData: () -> Data?
 
     init(
         onDevicesChanged: @escaping ([HardwareDevice]) -> Void,
         onStateChanged: @escaping (HardwareConnectionState, Bool, String) -> Void,
+        onHealthChanged: @escaping (HealthPacket?) -> Void,
         latestPacketData: @escaping () -> Data?
     ) {
         self.onDevicesChanged = onDevicesChanged
         self.onStateChanged = onStateChanged
+        self.onHealthChanged = onHealthChanged
         self.latestPacketData = latestPacketData
         super.init()
         central = CBCentralManager(delegate: self, queue: .main)
@@ -72,6 +77,8 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
         }
         connectedPeripheral = nil
         statusCharacteristic = nil
+        healthCharacteristic = nil
+        onHealthChanged(nil)
         store.disconnect()
         publish("已断开设备。")
     }
@@ -88,6 +95,16 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
         connectedPeripheral.writeValue(data, for: statusCharacteristic, type: .withResponse)
         publish("已同步最近状态包。")
         return true
+    }
+
+    func readHealthPacket() {
+        guard let connectedPeripheral,
+              let healthCharacteristic else {
+            publish("没有可读取的健康状态特征。")
+            return
+        }
+
+        connectedPeripheral.readValue(for: healthCharacteristic)
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -141,6 +158,8 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
     ) {
         connectedPeripheral = nil
         statusCharacteristic = nil
+        healthCharacteristic = nil
+        onHealthChanged(nil)
         store.disconnect()
         publish(error?.localizedDescription ?? "设备已断开。")
     }
@@ -152,7 +171,7 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
             return
         }
         peripheral.services?.forEach { service in
-            peripheral.discoverCharacteristics([statusCharacteristicUUID], for: service)
+            peripheral.discoverCharacteristics([statusCharacteristicUUID, healthCharacteristicUUID], for: service)
         }
     }
 
@@ -167,9 +186,19 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
             return
         }
 
-        statusCharacteristic = service.characteristics?.first {
-            $0.uuid == statusCharacteristicUUID
+        service.characteristics?.forEach { characteristic in
+            if characteristic.uuid == statusCharacteristicUUID {
+                statusCharacteristic = characteristic
+            }
+            if characteristic.uuid == healthCharacteristicUUID {
+                healthCharacteristic = characteristic
+            }
         }
+
+        if healthCharacteristic != nil {
+            readHealthPacket()
+        }
+
         guard statusCharacteristic != nil else {
             publish("未找到状态写入特征。")
             return
@@ -177,6 +206,39 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
 
         publish("设备已就绪，可以写入状态。")
         sendLatestPacket()
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+        if let error {
+            publish("状态写入失败：\(error.localizedDescription)")
+            return
+        }
+
+        if characteristic.uuid == statusCharacteristicUUID {
+            readHealthPacket()
+        }
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+        guard characteristic.uuid == healthCharacteristicUUID else { return }
+
+        if let error {
+            publish("读取健康状态失败：\(error.localizedDescription)")
+            return
+        }
+
+        guard let data = characteristic.value else {
+            publish("健康状态为空。")
+            return
+        }
+
+        do {
+            let health = try JSONDecoder().decode(HealthPacket.self, from: data)
+            onHealthChanged(health)
+            publish("已读取设备健康状态。")
+        } catch {
+            publish("健康状态解析失败：\(error.localizedDescription)")
+        }
     }
 
     private func publish(_ message: String? = nil) {

@@ -37,11 +37,29 @@ struct HardwareDevicesPane: View {
                         } label: {
                             Label("发送当前状态", systemImage: "paperplane")
                         }
+
+                        Button {
+                            model.refreshHardwareHealth()
+                        } label: {
+                            Label("读取健康状态", systemImage: "heart.text.square")
+                        }
+                    }
+                }
+
+                Section("设备健康") {
+                    if let health = model.hardwareHealthPacket {
+                        LabeledContent("设备", value: health.device)
+                        LabeledContent("运行时间", value: formatUptime(health.uptimeMs))
+                        LabeledContent("连接", value: health.connected ? "已连接" : "未连接")
+                        LabeledContent("最近状态", value: health.lastState.title)
+                    } else {
+                        Text("连接设备后读取健康状态。")
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
             .formStyle(.grouped)
-            .frame(maxHeight: 190)
+            .frame(maxHeight: 310)
 
             Divider()
 
@@ -61,6 +79,13 @@ struct HardwareDevicesPane: View {
             }
         }
         .navigationTitle("硬件设备")
+    }
+
+    private func formatUptime(_ uptimeMs: Int64) -> String {
+        let totalSeconds = max(0, uptimeMs / 1_000)
+        let minutes = totalSeconds / 60
+        let seconds = totalSeconds % 60
+        return "\(minutes) 分 \(seconds) 秒"
     }
 }
 

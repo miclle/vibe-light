@@ -43,6 +43,20 @@ import Testing
     #expect(data.count < 256)
 }
 
+@Test func healthPacketDecodesFirmwareJson() throws {
+    let data = """
+    {"connected":true,"device":"VibeLight-S3","lastState":"busy","uptimeMs":12000,"v":1}
+    """.data(using: .utf8)!
+
+    let packet = try JSONDecoder().decode(HealthPacket.self, from: data)
+
+    #expect(packet.v == 1)
+    #expect(packet.device == "VibeLight-S3")
+    #expect(packet.uptimeMs == 12_000)
+    #expect(packet.connected)
+    #expect(packet.lastState == .busy)
+}
+
 @Test func eventStoreKeepsMostRecentEventsFirstAndUpdatesCurrentState() {
     let store = EventStore(limit: 2)
 

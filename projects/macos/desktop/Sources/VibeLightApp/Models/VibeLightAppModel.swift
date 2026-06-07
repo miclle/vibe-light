@@ -11,6 +11,7 @@ final class VibeLightAppModel: ObservableObject {
     @Published private(set) var agentInstallMessage = "检查智能体 hook 配置。"
     @Published private(set) var hardwareDevices: [HardwareDevice] = []
     @Published private(set) var hardwareConnectionState: HardwareConnectionState = .disconnected
+    @Published private(set) var hardwareHealthPacket: HealthPacket?
     @Published private(set) var hardwareMessage = "未扫描设备。"
     @Published private(set) var isHardwareScanning = false
     @Published var launchAtLogin = false
@@ -40,6 +41,9 @@ final class VibeLightAppModel: ObservableObject {
                 self?.hardwareConnectionState = state
                 self?.isHardwareScanning = isScanning
                 self?.hardwareMessage = message
+            },
+            onHealthChanged: { [weak self] health in
+                self?.hardwareHealthPacket = health
             },
             latestPacketData: { [weak self] in
                 self?.latestPacketData
@@ -147,6 +151,10 @@ final class VibeLightAppModel: ObservableObject {
         if bluetoothManager?.sendLatestPacket() == true {
             lastForwardedPacketData = latestPacketData
         }
+    }
+
+    func refreshHardwareHealth() {
+        bluetoothManager?.readHealthPacket()
     }
 
     func pollEvents() async {
