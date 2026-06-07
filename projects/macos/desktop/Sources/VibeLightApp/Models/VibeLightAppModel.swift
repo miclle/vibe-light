@@ -6,6 +6,7 @@ final class VibeLightAppModel: ObservableObject {
     @Published var selectedTab: AppTab = .general
     @Published private(set) var currentState: DisplayState = .offline
     @Published private(set) var events: [VibeHookEvent] = []
+    @Published private(set) var displaySnapshot: DisplaySnapshot?
     @Published private(set) var latestPacket: StatusPacket?
     @Published private(set) var agentStatuses: [AgentKind: AgentInstallationStatus] = [:]
     @Published private(set) var agentInstallMessage = "检查智能体 hook 配置。"
@@ -30,6 +31,7 @@ final class VibeLightAppModel: ObservableObject {
     private let eventLog: EventLog
     private let agentInstaller: AgentInstaller
     private let preferences: VibeLightPreferences
+    private let taskTracker: TaskTracker
     private var bluetoothManager: BluetoothHardwareManager?
     private var latestPacketData: Data?
     private var lastForwardedPacketData: Data?
@@ -38,11 +40,13 @@ final class VibeLightAppModel: ObservableObject {
     init(
         eventLog: EventLog = EventLog(),
         agentInstaller: AgentInstaller = AgentInstaller(),
-        preferences: VibeLightPreferences = VibeLightPreferences()
+        preferences: VibeLightPreferences = VibeLightPreferences(),
+        taskTracker: TaskTracker = TaskTracker()
     ) {
         self.eventLog = eventLog
         self.agentInstaller = agentInstaller
         self.preferences = preferences
+        self.taskTracker = taskTracker
         self.autoConnectDevice = preferences.autoConnectDevice
         self.selectedManualState = preferences.selectedManualState
         refreshEvents()
@@ -70,19 +74,19 @@ final class VibeLightAppModel: ObservableObject {
             let loadedEvents = try eventLog.readRecent(limit: 80)
             events = loadedEvents
 
-            if let event = loadedEvents.first {
-                let packet = StatusPacket(event: event)
-                let packetData = try? packet.encodedJSON()
-                let packetChanged = packetData != latestPacketData
+            let snapshot = taskTracker.snapshot(from: loadedEvents)
+            let packet = snapshot.statusPacket
+            let packetData = try? packet.encodedJSON()
+            let packetChanged = packetData != latestPacketData
 
-                currentState = event.displayState
-                latestPacket = packet
-                latestPacketData = packetData
-                bridgeMessage = "最近事件：\(event.source.displayName) / \(event.kind.rawValue)"
+            displaySnapshot = snapshot
+            currentState = snapshot.state
+            latestPacket = packet
+            latestPacketData = packetData
+            bridgeMessage = bridgeMessage(for: snapshot, eventCount: loadedEvents.count)
 
-                if packetChanged {
-                    forwardLatestPacketToHardwareIfNeeded()
-                }
+            if packetChanged {
+                forwardLatestPacketToHardwareIfNeeded()
             }
         } catch {
             bridgeMessage = "读取事件失败：\(error.localizedDescription)"
@@ -206,6 +210,15 @@ final class VibeLightAppModel: ObservableObject {
         if bluetoothManager?.sendLatestPacket() == true {
             lastForwardedPacketData = latestPacketData
         }
+    }
+
+    private func bridgeMessage(for snapshot: DisplaySnapshot, eventCount: Int) -> String {
+        let taskCount = snapshot.tasks.count
+        guard eventCount > 0 else {
+            return "等待 hook 事件..."
+        }
+
+        return "聚合状态：\(snapshot.state.title) / \(taskCount) 个任务"
     }
 }
 

@@ -11,6 +11,9 @@ struct GeneralPane: View {
                 LabeledContent("事件桥接", value: model.bridgeMessage)
                 if let packet = model.latestPacket {
                     LabeledContent("最近来源", value: packet.source.displayName)
+                    if let detail = packet.detail {
+                        LabeledContent("聚合摘要", value: detail)
+                    }
                     LabeledContent("协议版本", value: "\(packet.v)")
                 }
             }
