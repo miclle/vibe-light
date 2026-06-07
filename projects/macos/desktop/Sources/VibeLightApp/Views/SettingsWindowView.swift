@@ -12,7 +12,8 @@ struct SettingsWindowView: View {
 
             Section("事件") {
                 LabeledContent("轮询间隔", value: "1.5 秒")
-                LabeledContent("事件保留", value: "最近 80 条")
+                LabeledContent("界面显示", value: "最近 80 条")
+                LabeledContent("本地日志", value: "最近 500 条")
             }
         }
         .formStyle(.grouped)
