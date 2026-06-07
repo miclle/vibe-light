@@ -19,11 +19,14 @@ pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
 swift build --package-path "$PROJECT_DIR"
 BUILD_BINARY="$(swift build --package-path "$PROJECT_DIR" --show-bin-path)/$APP_NAME"
+HOOK_BINARY="$(swift build --package-path "$PROJECT_DIR" --show-bin-path)/vibe-light-hook"
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS"
 cp "$BUILD_BINARY" "$APP_BINARY"
+cp "$HOOK_BINARY" "$APP_MACOS/vibe-light-hook"
 chmod +x "$APP_BINARY"
+chmod +x "$APP_MACOS/vibe-light-hook"
 
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -42,6 +45,10 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$MIN_SYSTEM_VERSION</string>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
+  <key>NSBluetoothAlwaysUsageDescription</key>
+  <string>Vibe Light scans for ESP32 devices and sends status packets over BLE.</string>
+  <key>NSBluetoothPeripheralUsageDescription</key>
+  <string>Vibe Light scans for ESP32 devices and sends status packets over BLE.</string>
 </dict>
 </plist>
 PLIST

@@ -7,17 +7,42 @@ final class VibeLightAppModel: ObservableObject {
     @Published private(set) var currentState: DisplayState = .offline
     @Published private(set) var events: [VibeHookEvent] = []
     @Published private(set) var latestPacket: StatusPacket?
-    @Published var checklist = SetupChecklist()
+    @Published private(set) var agentStatuses: [AgentKind: AgentInstallationStatus] = [:]
+    @Published private(set) var agentInstallMessage = "检查智能体 hook 配置。"
+    @Published private(set) var hardwareDevices: [HardwareDevice] = []
+    @Published private(set) var hardwareConnectionState: HardwareConnectionState = .disconnected
+    @Published private(set) var hardwareMessage = "未扫描设备。"
+    @Published private(set) var isHardwareScanning = false
     @Published var launchAtLogin = false
     @Published var autoConnectDevice = true
     @Published var selectedManualState: DisplayState = .idle
     @Published var bridgeMessage = "等待 hook 事件..."
 
     private let eventLog: EventLog
+    private let agentInstaller: AgentInstaller
+    private var bluetoothManager: BluetoothHardwareManager?
 
-    init(eventLog: EventLog = EventLog()) {
+    init(
+        eventLog: EventLog = EventLog(),
+        agentInstaller: AgentInstaller = AgentInstaller()
+    ) {
         self.eventLog = eventLog
+        self.agentInstaller = agentInstaller
         refreshEvents()
+        refreshAgentStatuses()
+        bluetoothManager = BluetoothHardwareManager(
+            onDevicesChanged: { [weak self] devices in
+                self?.hardwareDevices = devices
+            },
+            onStateChanged: { [weak self] state, isScanning, message in
+                self?.hardwareConnectionState = state
+                self?.isHardwareScanning = isScanning
+                self?.hardwareMessage = message
+            },
+            latestPacketData: { [weak self] in
+                try? self?.latestPacket?.encodedJSON()
+            }
+        )
     }
 
     func refreshEvents() {
@@ -49,8 +74,65 @@ final class VibeLightAppModel: ObservableObject {
         }
     }
 
-    func markSetupStep(_ step: SetupStep, complete: Bool) {
-        checklist.mark(step, as: complete ? .complete : .pending)
+    func refreshAgentStatuses() {
+        for agent in AgentKind.allCases {
+            do {
+                agentStatuses[agent] = try agentInstaller.status(agent)
+            } catch {
+                agentStatuses[agent] = AgentInstallationStatus(
+                    agent: agent,
+                    isInstalled: false,
+                    configURL: agentInstaller.primaryConfigURL(for: agent),
+                    message: "读取失败：\(error.localizedDescription)"
+                )
+            }
+        }
+    }
+
+    func installAgent(_ agent: AgentKind) {
+        guard let hookURL = bundledHookURL() else {
+            agentInstallMessage = "找不到 vibe-light-hook。请通过 ./script/build_and_run.sh 启动应用。"
+            refreshAgentStatuses()
+            return
+        }
+
+        do {
+            try agentInstaller.install(agent, hookExecutableURL: hookURL)
+            agentInstallMessage = "\(agent.displayName) hook 已安装。"
+        } catch {
+            agentInstallMessage = "\(agent.displayName) 安装失败：\(error.localizedDescription)"
+        }
+        refreshAgentStatuses()
+    }
+
+    func uninstallAgent(_ agent: AgentKind) {
+        do {
+            try agentInstaller.uninstall(agent)
+            agentInstallMessage = "\(agent.displayName) hook 已卸载。"
+        } catch {
+            agentInstallMessage = "\(agent.displayName) 卸载失败：\(error.localizedDescription)"
+        }
+        refreshAgentStatuses()
+    }
+
+    func startHardwareScan() {
+        bluetoothManager?.startScan()
+    }
+
+    func stopHardwareScan() {
+        bluetoothManager?.stopScan()
+    }
+
+    func connectHardwareDevice(_ device: HardwareDevice) {
+        bluetoothManager?.connect(deviceID: device.id)
+    }
+
+    func disconnectHardwareDevice() {
+        bluetoothManager?.disconnect()
+    }
+
+    func sendLatestPacketToHardware() {
+        bluetoothManager?.sendLatestPacket()
     }
 
     func pollEvents() async {
@@ -59,11 +141,21 @@ final class VibeLightAppModel: ObservableObject {
             try? await Task.sleep(for: .milliseconds(1_500))
         }
     }
+
+    private func bundledHookURL() -> URL? {
+        guard let executableDirectory = Bundle.main.executableURL?.deletingLastPathComponent() else {
+            return nil
+        }
+
+        let url = executableDirectory.appendingPathComponent("vibe-light-hook")
+        return FileManager.default.isExecutableFile(atPath: url.path) ? url : nil
+    }
 }
 
 enum AppTab: String, CaseIterable, Identifiable {
     case general
-    case setup
+    case agents
+    case hardware
     case events
 
     var id: String { rawValue }
@@ -71,7 +163,8 @@ enum AppTab: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .general: "通用"
-        case .setup: "安装向导"
+        case .agents: "智能体安装"
+        case .hardware: "硬件设备"
         case .events: "事件"
         }
     }
@@ -79,7 +172,8 @@ enum AppTab: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .general: "gearshape"
-        case .setup: "wand.and.stars"
+        case .agents: "terminal"
+        case .hardware: "dot.radiowaves.left.and.right"
         case .events: "waveform.path.ecg"
         }
     }

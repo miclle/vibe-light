@@ -8,12 +8,16 @@ public struct HookPayloadDecoder: Sendable {
         var detail: String?
     }
 
-    public init() {}
+    public var defaultSource: VibeSource
+
+    public init(defaultSource: VibeSource = .other) {
+        self.defaultSource = defaultSource
+    }
 
     public func decode(_ data: Data) throws -> VibeHookEvent {
         let payload = try JSONDecoder().decode(Payload.self, from: data)
         return VibeHookEvent(
-            source: payload.source ?? .other,
+            source: payload.source ?? defaultSource,
             kind: payload.event ?? payload.kind ?? .userPromptSubmit,
             detail: payload.detail ?? ""
         )

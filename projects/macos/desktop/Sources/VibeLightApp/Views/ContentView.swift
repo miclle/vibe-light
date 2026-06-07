@@ -21,8 +21,10 @@ struct ContentView: View {
                 switch model.selectedTab {
                 case .general:
                     GeneralPane(model: model)
-                case .setup:
-                    SetupPane(model: model)
+                case .agents:
+                    AgentInstallPane(model: model)
+                case .hardware:
+                    HardwareDevicesPane(model: model)
                 case .events:
                     EventsPane(model: model)
                 }
