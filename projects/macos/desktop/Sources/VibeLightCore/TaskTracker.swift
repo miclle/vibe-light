@@ -61,7 +61,7 @@ public struct TaskTracker: Sendable {
     public func snapshot(from newestFirstEvents: [VibeHookEvent], now: Date = Date()) -> DisplaySnapshot {
         var tasksByID: [String: TrackedTask] = [:]
 
-        for event in newestFirstEvents.reversed() {
+        for event in newestFirstEvents.reversed() where shouldTrack(event) {
             let taskID = resolvedTaskID(for: event)
             tasksByID[taskID] = TrackedTask(
                 id: taskID,
@@ -107,6 +107,16 @@ public struct TaskTracker: Sendable {
             timestamp: primary.lastUpdated,
             tasks: Array(visibleTasks.prefix(5))
         )
+    }
+
+    private func shouldTrack(_ event: VibeHookEvent) -> Bool {
+        if event.source == .codex,
+           event.workspace == "memories",
+           event.displayDetail.contains("Memory Writing Agent") {
+            return false
+        }
+
+        return true
     }
 
     private func resolvedTaskID(for event: VibeHookEvent) -> String {

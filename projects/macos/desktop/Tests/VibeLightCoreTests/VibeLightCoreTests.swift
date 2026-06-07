@@ -102,6 +102,34 @@ import Testing
     #expect(snapshot.tasks.map(\.title).prefix(2) == ["slideo", "vibe-light"])
 }
 
+@Test func taskTrackerIgnoresCodexMemoryWritingAgent() {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(
+            taskID: "codex:memory",
+            source: .codex,
+            kind: .userPromptSubmit,
+            timestamp: base.addingTimeInterval(2),
+            summary: "## Memory Writing Agent: Phase 2 (Consolidation)",
+            workspace: "memories"
+        ),
+        .init(
+            taskID: "codex:vibe-light",
+            source: .codex,
+            kind: .userPromptSubmit,
+            timestamp: base.addingTimeInterval(1),
+            summary: "fix task counts",
+            workspace: "vibe-light"
+        ),
+    ]
+
+    let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(3))
+
+    #expect(snapshot.detail == "1 running")
+    #expect(snapshot.tasks.map(\.title) == ["vibe-light"])
+}
+
 @Test func hookPayloadDecoderExtractsStableTaskIdentity() throws {
     let data = """
     {
