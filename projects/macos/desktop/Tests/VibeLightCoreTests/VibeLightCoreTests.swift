@@ -105,6 +105,30 @@ import Testing
     #expect(snapshot.tasks.first?.identityKind == .explicit)
 }
 
+@Test func displaySnapshotBuildsV2StatusPacketWithTaskList() throws {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(taskID: "codex:task-c", source: .codex, kind: .stopFailure, timestamp: base.addingTimeInterval(3), summary: "build failed", workspace: "firmware"),
+        .init(taskID: "claude:task-b", source: .claude, kind: .permissionRequest, timestamp: base.addingTimeInterval(2), summary: "approve edit", workspace: "docs"),
+        .init(taskID: "codex:task-a", source: .codex, kind: .preToolUse, timestamp: base.addingTimeInterval(1), summary: "implement v2", workspace: "vibe-light"),
+    ]
+
+    let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(4))
+    let packet = snapshot.statusPacket
+    let data = try packet.encodedJSON()
+    let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let tasks = try #require(object["tasks"] as? [[String: Any]])
+
+    #expect(packet.v == 2)
+    #expect(object["activeCount"] as? Int == 2)
+    #expect(object["waitingCount"] as? Int == 1)
+    #expect(object["errorCount"] as? Int == 1)
+    #expect(tasks.map { $0["title"] as? String } == ["docs", "vibe-light"])
+    #expect(tasks.map { $0["state"] as? String } == ["waiting", "busy"])
+    #expect(data.count < 768)
+}
+
 @Test func taskTrackerIgnoresCodexMemoryWritingAgent() {
     let base = Date(timeIntervalSince1970: 1_780_300_800)
     let tracker = TaskTracker()

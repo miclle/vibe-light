@@ -129,25 +129,39 @@ public struct VibeHookEvent: Codable, Equatable, Identifiable, Sendable {
 
 public struct StatusPacket: Codable, Equatable, Sendable {
     public static let maxDetailUTF8Bytes = 80
+    public static let maxTaskTitleUTF8Bytes = 32
+    public static let maxTaskDetailUTF8Bytes = 40
 
     public var v: Int
     public var source: VibeSource
     public var state: DisplayState
     public var detail: String?
     public var ts: Int64
+    public var activeCount: Int?
+    public var waitingCount: Int?
+    public var errorCount: Int?
+    public var tasks: [StatusTask]?
 
     public init(
         v: Int = 1,
         source: VibeSource,
         state: DisplayState,
         detail: String? = nil,
-        timestamp: Date = Date()
+        timestamp: Date = Date(),
+        activeCount: Int? = nil,
+        waitingCount: Int? = nil,
+        errorCount: Int? = nil,
+        tasks: [StatusTask]? = nil
     ) {
         self.v = v
         self.source = source
         self.state = state
         self.detail = detail.map { Self.truncatedDetail($0) }
         self.ts = Int64((timestamp.timeIntervalSince1970 * 1_000).rounded())
+        self.activeCount = activeCount
+        self.waitingCount = waitingCount
+        self.errorCount = errorCount
+        self.tasks = tasks
     }
 
     public init(event: VibeHookEvent) {
@@ -166,12 +180,24 @@ public struct StatusPacket: Codable, Equatable, Sendable {
     }
 
     private static func truncatedDetail(_ value: String) -> String {
+        truncated(value, maxUTF8Bytes: maxDetailUTF8Bytes)
+    }
+
+    static func truncatedTaskTitle(_ value: String) -> String {
+        truncated(value, maxUTF8Bytes: maxTaskTitleUTF8Bytes)
+    }
+
+    static func truncatedTaskDetail(_ value: String) -> String {
+        truncated(value, maxUTF8Bytes: maxTaskDetailUTF8Bytes)
+    }
+
+    private static func truncated(_ value: String, maxUTF8Bytes: Int) -> String {
         var result = ""
         var usedBytes = 0
 
         for character in value {
             let byteCount = character.utf8.count
-            if usedBytes + byteCount > maxDetailUTF8Bytes {
+            if usedBytes + byteCount > maxUTF8Bytes {
                 break
             }
 
@@ -180,6 +206,20 @@ public struct StatusPacket: Codable, Equatable, Sendable {
         }
 
         return result
+    }
+}
+
+public struct StatusTask: Codable, Equatable, Sendable {
+    public var title: String
+    public var state: DisplayState
+    public var source: VibeSource
+    public var detail: String?
+
+    public init(title: String, state: DisplayState, source: VibeSource, detail: String? = nil) {
+        self.title = StatusPacket.truncatedTaskTitle(title)
+        self.state = state
+        self.source = source
+        self.detail = detail.map { StatusPacket.truncatedTaskDetail($0) }
     }
 }
 

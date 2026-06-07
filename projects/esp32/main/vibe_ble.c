@@ -40,7 +40,7 @@ static int handle_status_write(uint16_t conn_handle, uint16_t attr_handle, struc
     (void)attr_handle;
     (void)arg;
 
-    uint8_t buffer[256];
+    uint8_t buffer[1024];
     uint16_t length = OS_MBUF_PKTLEN(ctxt->om);
     if (length >= sizeof(buffer)) {
         ESP_LOGW(TAG, "status packet too large: %u bytes", length);
@@ -142,7 +142,8 @@ static int gap_event(struct ble_gap_event *event, void *arg)
 
 static void show_connection_status(bool connected)
 {
-    current_status.version = 1;
+    vibe_status_default(&current_status);
+    current_status.version = 2;
     snprintf(current_status.source, sizeof(current_status.source), "%s", "other");
     current_status.state = connected ? VIBE_DISPLAY_IDLE : VIBE_DISPLAY_OFFLINE;
     snprintf(current_status.state_text, sizeof(current_status.state_text), "%s", connected ? "idle" : "offline");

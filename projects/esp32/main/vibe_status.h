@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 #define VIBE_STATUS_TEXT_MAX 96
+#define VIBE_STATUS_MAX_TASKS 5
 
 typedef enum {
     VIBE_DISPLAY_IDLE = 0,
@@ -20,12 +21,25 @@ typedef enum {
 } vibe_display_state_t;
 
 typedef struct {
+    char title[VIBE_STATUS_TEXT_MAX];
+    char source[VIBE_STATUS_TEXT_MAX];
+    vibe_display_state_t state;
+    char state_text[VIBE_STATUS_TEXT_MAX];
+    char detail[VIBE_STATUS_TEXT_MAX];
+} vibe_status_task_t;
+
+typedef struct {
     int version;
     char source[VIBE_STATUS_TEXT_MAX];
     vibe_display_state_t state;
     char state_text[VIBE_STATUS_TEXT_MAX];
     char detail[VIBE_STATUS_TEXT_MAX];
     int64_t timestamp_ms;
+    int active_count;
+    int waiting_count;
+    int error_count;
+    int task_count;
+    vibe_status_task_t tasks[VIBE_STATUS_MAX_TASKS];
 } vibe_status_packet_t;
 
 void vibe_status_default(vibe_status_packet_t *packet);

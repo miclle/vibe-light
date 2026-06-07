@@ -55,6 +55,9 @@ public struct DisplaySnapshot: Equatable, Sendable {
     public var timestamp: Date
     public var tasks: [TrackedTask]
     public var staleAfter: TimeInterval
+    public var activeCount: Int
+    public var waitingCount: Int
+    public var errorCount: Int
 
     public init(
         source: VibeSource,
@@ -62,7 +65,10 @@ public struct DisplaySnapshot: Equatable, Sendable {
         detail: String,
         timestamp: Date,
         tasks: [TrackedTask],
-        staleAfter: TimeInterval
+        staleAfter: TimeInterval,
+        activeCount: Int = 0,
+        waitingCount: Int = 0,
+        errorCount: Int = 0
     ) {
         self.source = source
         self.state = state
@@ -70,10 +76,25 @@ public struct DisplaySnapshot: Equatable, Sendable {
         self.timestamp = timestamp
         self.tasks = tasks
         self.staleAfter = staleAfter
+        self.activeCount = activeCount
+        self.waitingCount = waitingCount
+        self.errorCount = errorCount
     }
 
     public var statusPacket: StatusPacket {
-        StatusPacket(source: source, state: state, detail: detail, timestamp: timestamp)
+        StatusPacket(
+            v: 2,
+            source: source,
+            state: state,
+            detail: detail,
+            timestamp: timestamp,
+            activeCount: activeCount,
+            waitingCount: waitingCount,
+            errorCount: errorCount,
+            tasks: tasks.map {
+                StatusTask(title: $0.title, state: $0.state, source: $0.source, detail: $0.lastDetail)
+            }
+        )
     }
 }
 
@@ -128,6 +149,9 @@ public struct TaskTracker: Sendable {
         let activeTasks = tasks.filter { $0.state == .busy || $0.state == .waiting }
         let visibleTasks = activeTasks.isEmpty ? [primary] : activeTasks
         let state = aggregateState(for: tasks)
+        let waitingCount = tasks.filter { $0.state == .waiting }.count
+        let busyCount = tasks.filter { $0.state == .busy }.count
+        let errorCount = tasks.filter { $0.state == .error }.count
 
         return DisplaySnapshot(
             source: aggregateSource(for: visibleTasks),
@@ -135,7 +159,10 @@ public struct TaskTracker: Sendable {
             detail: detail(for: tasks, state: state, primary: primary),
             timestamp: primary.lastUpdated,
             tasks: Array(visibleTasks.prefix(5)),
-            staleAfter: staleAfter
+            staleAfter: staleAfter,
+            activeCount: busyCount + waitingCount,
+            waitingCount: waitingCount,
+            errorCount: errorCount
         )
     }
 

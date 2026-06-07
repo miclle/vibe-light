@@ -124,6 +124,7 @@ static const st7701_lcd_init_cmd_t lcd_init_cmds[] = {
 static esp_err_t init_backlight(void);
 static esp_err_t init_lcd_panel(void);
 static void render_status(const vibe_status_packet_t *packet);
+static void render_task_rows(const vibe_status_packet_t *packet);
 static void fill_screen(uint16_t color);
 static void fill_rect(int x, int y, int w, int h, uint16_t color);
 static void draw_text(int x, int y, const char *text, int scale, uint16_t color);
@@ -157,10 +158,14 @@ void vibe_display_show_status(const vibe_status_packet_t *packet)
         return;
     }
 
-    ESP_LOGI(TAG, "Vibe Light | source=%s state=%s detail=%s ts=%lld",
+    ESP_LOGI(TAG, "Vibe Light | source=%s state=%s detail=%s active=%d waiting=%d error=%d tasks=%d ts=%lld",
              packet->source,
              vibe_display_state_to_string(packet->state),
              packet->detail,
+             packet->active_count,
+             packet->waiting_count,
+             packet->error_count,
+             packet->task_count,
              (long long)packet->timestamp_ms);
 
     if (display_ready && xSemaphoreTake(display_mutex, pdMS_TO_TICKS(500)) == pdTRUE) {
@@ -271,21 +276,47 @@ static void render_status(const vibe_status_packet_t *packet)
 {
     uint16_t accent = color_for_state(packet->state);
     fill_screen(RGB565_BLACK);
-    fill_rect(0, 0, LCD_H_RES, 90, accent);
-    fill_rect(18, 122, LCD_H_RES - 36, 214, RGB565_PANEL);
-    fill_rect(18, 362, LCD_H_RES - 36, 210, RGB565_PANEL);
+    fill_rect(0, 0, LCD_H_RES, 82, accent);
+    fill_rect(18, 110, LCD_H_RES - 36, 178, RGB565_PANEL);
+    fill_rect(18, 316, LCD_H_RES - 36, 388, RGB565_PANEL);
 
-    draw_text(24, 24, "VIBE LIGHT", 3, RGB565_WHITE);
-    draw_text(32, 146, packet->source, 3, RGB565_WHITE);
-    draw_text(32, 208, vibe_display_state_to_title(packet->state), 5, accent);
-    draw_text(32, 388, "DETAIL", 2, RGB565_MUTED);
-    draw_text(32, 430, packet->detail, 3, RGB565_WHITE);
+    draw_text(24, 22, "VIBE LIGHT", 3, RGB565_WHITE);
+    draw_text(32, 132, packet->source, 2, RGB565_WHITE);
+    draw_text(32, 178, vibe_display_state_to_title(packet->state), 4, accent);
+    draw_text(32, 248, packet->detail, 2, RGB565_MUTED);
+
+    if (packet->task_count > 0) {
+        char counts[56];
+        snprintf(counts, sizeof(counts), "ACTIVE %d  WAIT %d  ERR %d",
+                 packet->active_count,
+                 packet->waiting_count,
+                 packet->error_count);
+        draw_text(32, 330, counts, 2, RGB565_MUTED);
+        render_task_rows(packet);
+    } else {
+        draw_text(32, 330, "DETAIL", 2, RGB565_MUTED);
+        draw_text(32, 382, packet->detail, 3, RGB565_WHITE);
+    }
 
     char ts[48];
     snprintf(ts, sizeof(ts), "TS %lld", (long long)packet->timestamp_ms);
-    draw_text(32, 610, ts, 2, RGB565_MUTED);
+    draw_text(32, 736, ts, 2, RGB565_MUTED);
 
     esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, LCD_H_RES, LCD_V_RES, framebuffer);
+}
+
+static void render_task_rows(const vibe_status_packet_t *packet)
+{
+    int rows = packet->task_count > VIBE_STATUS_MAX_TASKS ? VIBE_STATUS_MAX_TASKS : packet->task_count;
+    for (int i = 0; i < rows; i++) {
+        const vibe_status_task_t *task = &packet->tasks[i];
+        int y = 370 + i * 64;
+        uint16_t task_color = color_for_state(task->state);
+
+        fill_rect(30, y - 12, 4, 44, task_color);
+        draw_text(46, y - 10, vibe_display_state_to_string(task->state), 2, task_color);
+        draw_text(46, y + 20, task->title, 2, RGB565_WHITE);
+    }
 }
 
 static void fill_screen(uint16_t color)
