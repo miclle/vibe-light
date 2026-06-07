@@ -27,6 +27,22 @@ import Testing
     #expect(object["ts"] as? Int64 == 1_780_300_800_000)
 }
 
+@Test func statusPacketKeepsDetailShortForBleWrite() throws {
+    let packet = StatusPacket(
+        source: .codex,
+        state: .busy,
+        detail: String(repeating: "正在执行命令", count: 30),
+        timestamp: Date(timeIntervalSince1970: 1_780_300_800)
+    )
+
+    let detail = try #require(packet.detail)
+    let data = try packet.encodedJSON()
+
+    #expect(detail.utf8.count <= StatusPacket.maxDetailUTF8Bytes)
+    #expect(String(data: Data(detail.utf8), encoding: .utf8) == detail)
+    #expect(data.count < 256)
+}
+
 @Test func eventStoreKeepsMostRecentEventsFirstAndUpdatesCurrentState() {
     let store = EventStore(limit: 2)
 

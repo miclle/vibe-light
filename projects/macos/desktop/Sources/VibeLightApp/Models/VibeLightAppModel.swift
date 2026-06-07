@@ -21,6 +21,8 @@ final class VibeLightAppModel: ObservableObject {
     private let eventLog: EventLog
     private let agentInstaller: AgentInstaller
     private var bluetoothManager: BluetoothHardwareManager?
+    private var latestPacketData: Data?
+    private var lastForwardedPacketData: Data?
 
     init(
         eventLog: EventLog = EventLog(),
@@ -40,7 +42,7 @@ final class VibeLightAppModel: ObservableObject {
                 self?.hardwareMessage = message
             },
             latestPacketData: { [weak self] in
-                try? self?.latestPacket?.encodedJSON()
+                self?.latestPacketData
             }
         )
     }
@@ -51,9 +53,18 @@ final class VibeLightAppModel: ObservableObject {
             events = loadedEvents
 
             if let event = loadedEvents.first {
+                let packet = StatusPacket(event: event)
+                let packetData = try? packet.encodedJSON()
+                let packetChanged = packetData != latestPacketData
+
                 currentState = event.displayState
-                latestPacket = StatusPacket(event: event)
+                latestPacket = packet
+                latestPacketData = packetData
                 bridgeMessage = "最近事件：\(event.source.displayName) / \(event.kind.rawValue)"
+
+                if packetChanged {
+                    forwardLatestPacketToHardwareIfNeeded()
+                }
             }
         } catch {
             bridgeMessage = "读取事件失败：\(error.localizedDescription)"
@@ -133,7 +144,9 @@ final class VibeLightAppModel: ObservableObject {
     }
 
     func sendLatestPacketToHardware() {
-        bluetoothManager?.sendLatestPacket()
+        if bluetoothManager?.sendLatestPacket() == true {
+            lastForwardedPacketData = latestPacketData
+        }
     }
 
     func pollEvents() async {
@@ -150,6 +163,18 @@ final class VibeLightAppModel: ObservableObject {
 
         let url = executableDirectory.appendingPathComponent("vibe-light-hook")
         return FileManager.default.isExecutableFile(atPath: url.path) ? url : nil
+    }
+
+    private func forwardLatestPacketToHardwareIfNeeded() {
+        guard let latestPacketData,
+              bluetoothManager?.canWriteStatus == true,
+              latestPacketData != lastForwardedPacketData else {
+            return
+        }
+
+        if bluetoothManager?.sendLatestPacket() == true {
+            lastForwardedPacketData = latestPacketData
+        }
     }
 }
 

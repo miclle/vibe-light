@@ -28,6 +28,10 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
         central = CBCentralManager(delegate: self, queue: .main)
     }
 
+    var canWriteStatus: Bool {
+        connectedPeripheral != nil && statusCharacteristic != nil
+    }
+
     func startScan() {
         guard let central else { return }
         guard central.state == .poweredOn else {
@@ -72,16 +76,18 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
         publish("已断开设备。")
     }
 
-    func sendLatestPacket() {
+    @discardableResult
+    func sendLatestPacket() -> Bool {
         guard let data = latestPacketData(),
               let connectedPeripheral,
               let statusCharacteristic else {
             publish("没有可写入的设备或状态包。")
-            return
+            return false
         }
 
         connectedPeripheral.writeValue(data, for: statusCharacteristic, type: .withResponse)
-        publish("已发送最近状态包。")
+        publish("已同步最近状态包。")
+        return true
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -164,7 +170,13 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
         statusCharacteristic = service.characteristics?.first {
             $0.uuid == statusCharacteristicUUID
         }
-        publish(statusCharacteristic == nil ? "未找到状态写入特征。" : "设备已就绪，可以写入状态。")
+        guard statusCharacteristic != nil else {
+            publish("未找到状态写入特征。")
+            return
+        }
+
+        publish("设备已就绪，可以写入状态。")
+        sendLatestPacket()
     }
 
     private func publish(_ message: String? = nil) {

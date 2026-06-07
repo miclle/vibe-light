@@ -125,6 +125,8 @@ public struct VibeHookEvent: Codable, Equatable, Identifiable, Sendable {
 }
 
 public struct StatusPacket: Codable, Equatable, Sendable {
+    public static let maxDetailUTF8Bytes = 80
+
     public var v: Int
     public var source: VibeSource
     public var state: DisplayState
@@ -141,7 +143,7 @@ public struct StatusPacket: Codable, Equatable, Sendable {
         self.v = v
         self.source = source
         self.state = state
-        self.detail = detail
+        self.detail = detail.map { Self.truncatedDetail($0) }
         self.ts = Int64((timestamp.timeIntervalSince1970 * 1_000).rounded())
     }
 
@@ -158,6 +160,23 @@ public struct StatusPacket: Codable, Equatable, Sendable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         return try encoder.encode(self)
+    }
+
+    private static func truncatedDetail(_ value: String) -> String {
+        var result = ""
+        var usedBytes = 0
+
+        for character in value {
+            let byteCount = character.utf8.count
+            if usedBytes + byteCount > maxDetailUTF8Bytes {
+                break
+            }
+
+            result.append(character)
+            usedBytes += byteCount
+        }
+
+        return result
     }
 }
 
