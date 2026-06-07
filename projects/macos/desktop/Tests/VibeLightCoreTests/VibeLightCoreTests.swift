@@ -167,6 +167,23 @@ import Testing
     #expect(events.map(\.detail) == ["done", "started"])
 }
 
+@Test func eventLogPrunesOldEntriesAfterAppend() throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let log = EventLog(directory: directory, retentionLimit: 3)
+
+    for index in 0..<5 {
+        try log.append(.init(source: .codex, kind: .preToolUse, detail: "event-\(index)"))
+    }
+
+    let text = try String(contentsOf: log.fileURL, encoding: .utf8)
+    let lines = text.split(separator: "\n")
+    let events = try log.readRecent(limit: 10)
+
+    #expect(lines.count == 3)
+    #expect(events.map(\.detail) == ["event-4", "event-3", "event-2"])
+}
+
 @Test func agentInstallerInstallsCodexHooksAndFeatureFlag() throws {
     let home = temporaryDirectory()
     let installer = AgentInstaller(homeDirectory: home)

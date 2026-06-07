@@ -109,9 +109,14 @@ public enum PayloadFormatter {
 
 public struct EventLog: Sendable {
     public var directory: URL
+    public var retentionLimit: Int
 
-    public init(directory: URL = EventLog.defaultDirectory()) {
+    public init(
+        directory: URL = EventLog.defaultDirectory(),
+        retentionLimit: Int = 500
+    ) {
         self.directory = directory
+        self.retentionLimit = max(1, retentionLimit)
     }
 
     public var fileURL: URL {
@@ -138,6 +143,8 @@ public struct EventLog: Sendable {
         } else {
             try line.write(to: fileURL, options: .atomic)
         }
+
+        try pruneIfNeeded()
     }
 
     public func readRecent(limit: Int = 50) throws -> [VibeHookEvent] {
@@ -169,5 +176,20 @@ public struct EventLog: Sendable {
         ).first ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
 
         return base.appendingPathComponent("VibeLight", isDirectory: true)
+    }
+
+    private func pruneIfNeeded() throws {
+        let data = try Data(contentsOf: fileURL)
+        guard let text = String(data: data, encoding: .utf8) else {
+            return
+        }
+
+        let lines = text.split(separator: "\n")
+        guard lines.count > retentionLimit else {
+            return
+        }
+
+        let retained = lines.suffix(retentionLimit).joined(separator: "\n") + "\n"
+        try Data(retained.utf8).write(to: fileURL, options: .atomic)
     }
 }
