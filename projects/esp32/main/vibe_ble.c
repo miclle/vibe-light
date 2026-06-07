@@ -32,6 +32,7 @@ static uint8_t own_address_type;
 static vibe_status_packet_t current_status;
 
 static void advertise(void);
+static void show_connection_status(bool connected);
 
 static int handle_status_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
@@ -119,6 +120,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
         if (event->connect.status == 0) {
             current_connection_handle = event->connect.conn_handle;
             ESP_LOGI(TAG, "central connected");
+            show_connection_status(true);
         } else {
             ESP_LOGW(TAG, "connect failed: %d", event->connect.status);
             advertise();
@@ -127,6 +129,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
     case BLE_GAP_EVENT_DISCONNECT:
         ESP_LOGI(TAG, "central disconnected: %d", event->disconnect.reason);
         current_connection_handle = BLE_HS_CONN_HANDLE_NONE;
+        show_connection_status(false);
         advertise();
         return 0;
     case BLE_GAP_EVENT_ADV_COMPLETE:
@@ -135,6 +138,18 @@ static int gap_event(struct ble_gap_event *event, void *arg)
     default:
         return 0;
     }
+}
+
+static void show_connection_status(bool connected)
+{
+    current_status.version = 1;
+    snprintf(current_status.source, sizeof(current_status.source), "%s", "other");
+    current_status.state = connected ? VIBE_DISPLAY_IDLE : VIBE_DISPLAY_OFFLINE;
+    snprintf(current_status.state_text, sizeof(current_status.state_text), "%s", connected ? "idle" : "offline");
+    snprintf(current_status.detail, sizeof(current_status.detail), "%s", connected ? "desktop connected" : "desktop disconnected");
+    current_status.timestamp_ms = 0;
+
+    vibe_display_show_status(&current_status);
 }
 
 static void advertise(void)
