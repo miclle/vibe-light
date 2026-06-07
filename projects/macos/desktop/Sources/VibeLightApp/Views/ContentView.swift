@@ -31,6 +31,7 @@ struct ContentView: View {
             }
         }
         .task {
+            model.startHardwareAutoConnectIfNeeded()
             await model.pollEvents()
         }
     }

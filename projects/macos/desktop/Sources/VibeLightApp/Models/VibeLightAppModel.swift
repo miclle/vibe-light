@@ -24,6 +24,7 @@ final class VibeLightAppModel: ObservableObject {
     private var bluetoothManager: BluetoothHardwareManager?
     private var latestPacketData: Data?
     private var lastForwardedPacketData: Data?
+    private var didStartHardwareAutoConnect = false
 
     init(
         eventLog: EventLog = EventLog(),
@@ -133,6 +134,15 @@ final class VibeLightAppModel: ObservableObject {
 
     func startHardwareScan() {
         bluetoothManager?.startScan()
+    }
+
+    func startHardwareAutoConnectIfNeeded() {
+        guard autoConnectDevice, !didStartHardwareAutoConnect else {
+            return
+        }
+
+        didStartHardwareAutoConnect = true
+        bluetoothManager?.startScan(autoConnectFirstDevice: true)
     }
 
     func stopHardwareScan() {

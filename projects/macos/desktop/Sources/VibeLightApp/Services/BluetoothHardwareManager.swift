@@ -12,6 +12,8 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
     private var statusCharacteristic: CBCharacteristic?
     private var healthCharacteristic: CBCharacteristic?
     private var connectedPeripheral: CBPeripheral?
+    private var shouldScanWhenPoweredOn = false
+    private var shouldAutoConnectFirstDevice = false
     private let store = HardwareDeviceStore()
 
     private let onDevicesChanged: ([HardwareDevice]) -> Void
@@ -37,14 +39,17 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
         connectedPeripheral != nil && statusCharacteristic != nil
     }
 
-    func startScan() {
+    func startScan(autoConnectFirstDevice: Bool = false) {
         guard let central else { return }
         guard central.state == .poweredOn else {
-            store.fail("蓝牙不可用：\(central.state.description)")
-            publish()
+            shouldScanWhenPoweredOn = true
+            shouldAutoConnectFirstDevice = autoConnectFirstDevice
+            publish("等待蓝牙就绪后扫描。")
             return
         }
 
+        shouldScanWhenPoweredOn = false
+        shouldAutoConnectFirstDevice = autoConnectFirstDevice
         store.startScanning()
         publish("正在扫描 VibeLight 设备...")
         central.scanForPeripherals(withServices: [serviceUUID], options: [
@@ -53,6 +58,8 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
     }
 
     func stopScan() {
+        shouldScanWhenPoweredOn = false
+        shouldAutoConnectFirstDevice = false
         central?.stopScan()
         store.stopScanning()
         publish("已停止扫描。")
@@ -66,6 +73,7 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
         }
 
         central?.stopScan()
+        shouldAutoConnectFirstDevice = false
         store.markConnecting(deviceID)
         publish("正在连接 \(peripheral.name ?? "VibeLight")...")
         central?.connect(peripheral)
@@ -78,6 +86,7 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
         connectedPeripheral = nil
         statusCharacteristic = nil
         healthCharacteristic = nil
+        shouldAutoConnectFirstDevice = false
         onHealthChanged(nil)
         store.disconnect()
         publish("已断开设备。")
@@ -110,8 +119,16 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn:
-            publish("蓝牙已就绪。")
+            if shouldScanWhenPoweredOn {
+                startScan(autoConnectFirstDevice: shouldAutoConnectFirstDevice)
+            } else {
+                publish("蓝牙已就绪。")
+            }
+        case .unknown, .resetting:
+            publish(shouldScanWhenPoweredOn ? "等待蓝牙就绪后扫描。" : "蓝牙\(central.state.description)。")
         default:
+            shouldScanWhenPoweredOn = false
+            shouldAutoConnectFirstDevice = false
             store.fail("蓝牙不可用：\(central.state.description)")
             publish()
         }
@@ -132,6 +149,10 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
         peripheralsByID[id] = peripheral
         store.upsert(HardwareDevice(id: id, name: name, rssi: RSSI.intValue))
         publish("发现 \(store.devices.count) 个 VibeLight 设备。")
+
+        if shouldAutoConnectFirstDevice {
+            connect(deviceID: id)
+        }
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
