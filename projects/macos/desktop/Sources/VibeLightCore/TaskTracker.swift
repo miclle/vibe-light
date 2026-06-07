@@ -2,26 +2,49 @@ import Foundation
 
 public struct TrackedTask: Equatable, Identifiable, Sendable {
     public var id: String
+    public var identityKind: TaskIdentityKind
     public var source: VibeSource
     public var state: DisplayState
     public var title: String
     public var lastDetail: String
     public var lastUpdated: Date
+    public var inclusionReason: String
 
     public init(
         id: String,
+        identityKind: TaskIdentityKind,
         source: VibeSource,
         state: DisplayState,
         title: String,
         lastDetail: String,
-        lastUpdated: Date
+        lastUpdated: Date,
+        inclusionReason: String
     ) {
         self.id = id
+        self.identityKind = identityKind
         self.source = source
         self.state = state
         self.title = title
         self.lastDetail = lastDetail
         self.lastUpdated = lastUpdated
+        self.inclusionReason = inclusionReason
+    }
+}
+
+public enum TaskIdentityKind: String, Codable, Equatable, Sendable {
+    case explicit
+    case workspace
+    case source
+
+    public var title: String {
+        switch self {
+        case .explicit:
+            "session id"
+        case .workspace:
+            "workspace fallback"
+        case .source:
+            "source fallback"
+        }
     }
 }
 
@@ -62,14 +85,16 @@ public struct TaskTracker: Sendable {
         var tasksByID: [String: TrackedTask] = [:]
 
         for event in newestFirstEvents.reversed() where shouldTrack(event) {
-            let taskID = resolvedTaskID(for: event)
-            tasksByID[taskID] = TrackedTask(
-                id: taskID,
+            let identity = resolvedIdentity(for: event)
+            tasksByID[identity.id] = TrackedTask(
+                id: identity.id,
+                identityKind: identity.kind,
                 source: event.source,
                 state: event.displayState,
-                title: title(for: event, taskID: taskID),
+                title: title(for: event, taskID: identity.id),
                 lastDetail: event.displayDetail,
-                lastUpdated: event.timestamp
+                lastUpdated: event.timestamp,
+                inclusionReason: inclusionReason(for: event, identity: identity)
             )
         }
 
@@ -119,16 +144,36 @@ public struct TaskTracker: Sendable {
         return true
     }
 
-    private func resolvedTaskID(for event: VibeHookEvent) -> String {
+    private func resolvedIdentity(for event: VibeHookEvent) -> (id: String, kind: TaskIdentityKind) {
         if let taskID = event.taskID, !taskID.isEmpty {
-            return taskID
+            return (taskID, .explicit)
         }
 
         if let workspace = event.workspace, !workspace.isEmpty {
-            return "\(event.source.rawValue):\(workspace)"
+            return ("\(event.source.rawValue):\(workspace)", .workspace)
         }
 
-        return event.source.rawValue
+        return (event.source.rawValue, .source)
+    }
+
+    private func inclusionReason(
+        for event: VibeHookEvent,
+        identity: (id: String, kind: TaskIdentityKind)
+    ) -> String {
+        switch event.displayState {
+        case .busy:
+            "active busy task from \(identity.kind.title)"
+        case .waiting:
+            "waiting task from \(identity.kind.title)"
+        case .success:
+            "recent success from \(identity.kind.title)"
+        case .error:
+            "recent error from \(identity.kind.title)"
+        case .idle:
+            "idle task from \(identity.kind.title)"
+        case .offline:
+            "offline task from \(identity.kind.title)"
+        }
     }
 
     private func title(for event: VibeHookEvent, taskID: String) -> String {

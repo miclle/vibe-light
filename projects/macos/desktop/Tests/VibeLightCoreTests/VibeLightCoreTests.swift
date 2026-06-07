@@ -84,6 +84,8 @@ import Testing
     #expect(snapshot.source == .codex)
     #expect(snapshot.detail == "1 running")
     #expect(snapshot.tasks.map(\.title) == ["vibe-light"])
+    #expect(snapshot.tasks.first?.identityKind == .explicit)
+    #expect(snapshot.tasks.first?.inclusionReason == "active busy task from session id")
     #expect(snapshot.statusPacket.state == .busy)
 }
 
@@ -100,6 +102,7 @@ import Testing
     #expect(snapshot.state == .waiting)
     #expect(snapshot.detail == "1 running · 1 waiting")
     #expect(snapshot.tasks.map(\.title).prefix(2) == ["slideo", "vibe-light"])
+    #expect(snapshot.tasks.first?.identityKind == .explicit)
 }
 
 @Test func taskTrackerIgnoresCodexMemoryWritingAgent() {

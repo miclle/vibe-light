@@ -93,24 +93,39 @@ private struct TaskSnapshotSummary: View {
             }
 
             ForEach(snapshot.tasks) { task in
-                HStack(spacing: 10) {
-                    Text(task.state.rawValue.uppercased())
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(tint(for: task.state))
-                        .frame(width: 62, alignment: .leading)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 10) {
+                        Text(task.state.rawValue.uppercased())
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(tint(for: task.state))
+                            .frame(width: 62, alignment: .leading)
 
-                    Text(task.title)
-                        .lineLimit(1)
+                        Text(task.title)
+                            .lineLimit(1)
 
-                    Spacer()
+                        Spacer()
 
-                    Text(task.lastUpdated, style: .time)
+                        Text(task.lastUpdated, style: .time)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text("\(task.identityKind.title) · \(shortTaskID(task.id)) · \(task.inclusionReason)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
         }
         .font(.callout)
+    }
+
+    private func shortTaskID(_ value: String) -> String {
+        guard value.count > 18 else {
+            return value
+        }
+
+        return String(value.suffix(18))
     }
 
     private func tint(for state: DisplayState) -> Color {
