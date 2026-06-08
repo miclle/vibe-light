@@ -1,0 +1,36 @@
+# macOS Desktop Rules
+
+## Scope
+
+The desktop app lives in `projects/macos/desktop` and is a SwiftPM app using SwiftUI and CoreBluetooth. The hook CLI shares the package and writes events into Application Support.
+
+## Core Files
+
+- `Sources/VibeLightCore/StatusModels.swift`: display states, hook event mapping, `StatusPacket`, `StatusTask` and `HealthPacket`.
+- `Sources/VibeLightCore/TaskTracker.swift`: multi-task aggregation and `v: 2` packet creation.
+- `Sources/VibeLightCore/EventStore.swift`: recent event storage and current state.
+- `Sources/VibeLightCore/HardwareDevice.swift` and `HardwareReconnectPolicy.swift`: device model and reconnect behavior.
+- `Sources/VibeLightApp/Views/HardwareDevicesPane.swift`: hardware scan/connect/send workflow.
+- `Sources/VibeLightHook/main.swift`: stdin hook CLI entrypoint.
+
+## Rules
+
+- Preserve hook-first behavior. Process detection is not a replacement for hook events.
+- Hook CLI writes should be fail-open: do not break Codex or Claude workflows when local logging fails.
+- Keep `StatusPacket` small. Truncate user-facing text before BLE writes.
+- When changing packet shape, update Swift tests, ESP32 parser tests and `docs/architecture.md` together.
+- When changing hardware UI affordances, keep the "硬件设备" page useful for manual packet sending and demo packets.
+
+## Verification
+
+Run Swift tests for desktop/core changes:
+
+```bash
+swift test --package-path projects/macos/desktop
+```
+
+For packet or hook aggregation changes, also run:
+
+```bash
+./script/verify.sh --quick
+```

@@ -1,0 +1,24 @@
+# Documentation Workflow Rules
+
+## Documentation Surfaces
+
+- `README.md`: product overview, current capabilities and quick start.
+- `TODO.md`: current status, near-term priorities and validation focus.
+- `docs/architecture.md`: cross-layer architecture, packet contract and design boundaries.
+- `docs/hardware.md`: board facts, hardware resources and real-device bring-up notes.
+- `projects/esp32/README.md`: firmware-specific build, flash and display behavior.
+- `AGENTS.md` and `.agents/`: durable guidance for future agents.
+
+## Rules
+
+- Ground docs in current source and tests. Do not update docs from memory alone.
+- If code changed packet fields, status rules, animation behavior or hardware assumptions, update docs in the same change.
+- Keep README concise and product-facing. Move implementation-heavy details to architecture, firmware or rules docs.
+- For docs-only work, avoid staging unrelated code changes. Existing user changes may remain dirty.
+- Before reporting completion, run at least `git diff --check`.
+
+## Current Project Notes
+
+- The project is already beyond a pure concept doc: ESP32 firmware has a real ST7701 LCD path and host-side tests.
+- The current display direction is a readable task list plus firmware-local Codex Pac-Man animation for `busy`.
+- Hardware facts should remain tied to Waveshare `ESP32-S3-LCD-3.16` unless the user changes target hardware.
