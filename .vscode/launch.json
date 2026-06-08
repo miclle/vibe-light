@@ -1,0 +1,44 @@
+{
+  "configurations": [
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder}/projects/macos/desktop",
+      "name": "Debug VibeLightApp (projects/macos/desktop)",
+      "target": "VibeLightApp",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug VibeLightApp (projects/macos/desktop)"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder}/projects/macos/desktop",
+      "name": "Release VibeLightApp (projects/macos/desktop)",
+      "target": "VibeLightApp",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release VibeLightApp (projects/macos/desktop)"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder}/projects/macos/desktop",
+      "name": "Debug vibe-light-hook (projects/macos/desktop)",
+      "target": "vibe-light-hook",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug vibe-light-hook (projects/macos/desktop)"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder}/projects/macos/desktop",
+      "name": "Release vibe-light-hook (projects/macos/desktop)",
+      "target": "vibe-light-hook",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release vibe-light-hook (projects/macos/desktop)"
+    }
+  ]
+}
