@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Vibe Light app icon">
+  <defs>
+    <linearGradient id="tile" x1="218" y1="188" x2="806" y2="824" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#14ead6"/>
+      <stop offset="0.34" stop-color="#2d9dff"/>
+      <stop offset="0.68" stop-color="#6c58ff"/>
+      <stop offset="1" stop-color="#ffca4a"/>
+    </linearGradient>
+    <filter id="shadow" x="-24%" y="-24%" width="148%" height="148%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="28" stdDeviation="26" flood-color="#030711" flood-opacity="0.46"/>
+    </filter>
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g transform="translate(512 512) scale(1.045) translate(-512 -512)">
+  <g filter="url(#shadow)">
+    <rect x="116" y="106" width="792" height="792" rx="176" fill="#0b1121"/>
+    <rect x="156" y="146" width="712" height="712" rx="144" fill="url(#tile)"/>
+    <rect x="202" y="192" width="620" height="620" rx="108" fill="#101827" opacity="0.92"/>
+  </g>
+
+  <g transform="translate(0 28)">
+  <g fill="none" stroke="#3770ff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" opacity="0.98">
+    <path d="M292 312h178v88h-94v100"/>
+    <path d="M548 312h198v88H566v114h156"/>
+    <path d="M292 660h228"/>
+    <path d="M614 660h120"/>
+  </g>
+
+  <g fill="#ffd166">
+    <circle cx="324" cy="258" r="9"/>
+    <circle cx="384" cy="258" r="9"/>
+    <circle cx="444" cy="258" r="9"/>
+    <circle cx="504" cy="258" r="9"/>
+    <circle cx="564" cy="258" r="9"/>
+    <circle cx="624" cy="258" r="9"/>
+    <circle cx="684" cy="258" r="9"/>
+    <circle cx="744" cy="258" r="9"/>
+    <circle cx="324" cy="592" r="9"/>
+    <circle cx="384" cy="592" r="9"/>
+    <circle cx="444" cy="592" r="9"/>
+    <circle cx="504" cy="592" r="9"/>
+    <circle cx="564" cy="592" r="9"/>
+    <circle cx="624" cy="592" r="9"/>
+    <circle cx="684" cy="592" r="9"/>
+    <circle cx="744" cy="592" r="9"/>
+  </g>
+
+  <g filter="url(#softGlow)">
+    <path d="M438 582a105 105 0 1 0 0-210l-88 54 88 52-88 52z" fill="#ffd32a"/>
+    <circle cx="442" cy="429" r="15" fill="#111827"/>
+    <path d="M624 402c-48 0-87 39-87 87v132h42v-48h30v48h42v-48h30v48h42V489c0-48-39-87-87-87z" fill="#ff5c6a"/>
+    <circle cx="602" cy="477" r="13" fill="#f8ffff"/>
+    <circle cx="674" cy="477" r="13" fill="#f8ffff"/>
+  </g>
+  </g>
+  </g>
+</svg>

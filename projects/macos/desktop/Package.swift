@@ -28,7 +28,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "VibeLightApp",
-            dependencies: ["VibeLightCore"]
+            dependencies: ["VibeLightCore"],
+            resources: [
+                .process("Resources"),
+            ]
         ),
         .executableTarget(
             name: "VibeLightHook",

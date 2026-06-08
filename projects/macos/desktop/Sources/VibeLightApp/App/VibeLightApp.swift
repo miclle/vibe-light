@@ -1,8 +1,16 @@
+import AppKit
 import SwiftUI
 
 @main
 struct VibeLightApp: App {
     @StateObject private var model = VibeLightAppModel()
+
+    init() {
+        if let iconURL = Bundle.module.url(forResource: "AppIcon", withExtension: "icns"),
+           let icon = NSImage(contentsOf: iconURL) {
+            NSApplication.shared.applicationIconImage = icon
+        }
+    }
 
     var body: some Scene {
         WindowGroup("Vibe Light") {
