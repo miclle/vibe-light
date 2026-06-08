@@ -94,6 +94,17 @@ void vibe_display_format_task_row(const vibe_status_task_t *task, int index, vib
     }
 }
 
+void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, size_t text_size)
+{
+    (void)packet;
+
+    if (text == NULL || text_size == 0) {
+        return;
+    }
+
+    text[0] = '\0';
+}
+
 bool vibe_display_animation_enabled(vibe_display_state_t state)
 {
     return state == VIBE_DISPLAY_BUSY;

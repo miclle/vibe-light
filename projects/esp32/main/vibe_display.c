@@ -332,9 +332,11 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
         draw_text(32, 386, packet->detail, 3, RGB565_WHITE);
     }
 
-    char ts[48];
-    snprintf(ts, sizeof(ts), "TS %lld", (long long)packet->timestamp_ms);
-    draw_text(32, 746, ts, 2, RGB565_MUTED);
+    char footer[48];
+    vibe_display_footer_text(packet, footer, sizeof(footer));
+    if (footer[0] != '\0') {
+        draw_text(32, 746, footer, 2, RGB565_MUTED);
+    }
 
     if (vibe_display_animation_enabled(packet->state)) {
         render_codex_animation(packet, animation_phase);

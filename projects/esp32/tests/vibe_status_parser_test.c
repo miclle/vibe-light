@@ -216,6 +216,18 @@ static void test_display_model_actor_shape_faces_travel_direction(void)
     assert(left_actor.eye_y < left.y);
 }
 
+static void test_display_model_hides_timestamp_footer(void)
+{
+    vibe_status_packet_t packet;
+    char footer[32];
+
+    vibe_status_default(&packet);
+    packet.timestamp_ms = 1780874713000LL;
+    vibe_display_footer_text(&packet, footer, sizeof(footer));
+
+    assert(strcmp(footer, "") == 0);
+}
+
 int main(void)
 {
     test_v1_status_packet();
@@ -227,6 +239,7 @@ int main(void)
     test_display_model_animates_busy_edge_path();
     test_display_model_animation_speed_scales_with_active_tasks();
     test_display_model_actor_shape_faces_travel_direction();
+    test_display_model_hides_timestamp_footer();
 
     puts("vibe_status_parser_test: ok");
     return 0;
