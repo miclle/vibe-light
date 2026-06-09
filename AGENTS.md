@@ -30,10 +30,22 @@
 ## 常用验证
 
 ```bash
+make quick
+```
+
+等价底层入口：
+
+```bash
 ./script/verify.sh --quick
 ```
 
 完整验证需要 ESP-IDF：
+
+```bash
+make verify
+```
+
+等价底层入口：
 
 ```bash
 ./script/verify.sh

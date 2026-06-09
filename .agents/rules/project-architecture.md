@@ -17,6 +17,8 @@ The stable display states are `idle`, `busy`, `waiting`, `success`, `error` and 
 
 Current desktop packets use `v: 2` with aggregate counts and up to 5 task rows. The firmware remains compatible with `v: 1` single-status packets. If BLE write length is constrained, desktop code may fall back from `v: 2` to `v: 1`.
 
+Desktop packet text is intentionally bounded before BLE writes: overall `detail` is capped at 80 UTF-8 bytes, task titles at 32 UTF-8 bytes and task details at 40 UTF-8 bytes. Firmware rejects status writes at 1024 bytes or larger.
+
 ## Task Aggregation
 
 `TaskTracker` is the source of truth for multi-task display state:
@@ -27,6 +29,8 @@ Current desktop packets use `v: 2` with aggregate counts and up to 5 task rows. 
 - Active rows are capped at 5 before crossing BLE.
 
 Firmware should display the rows it receives. It should not infer Codex or Claude lifecycle semantics.
+
+Firmware may update its own connection affordance: connected Central shows `idle / desktop connected`, disconnected Central shows `offline / desktop disconnected`. It should not otherwise invent Codex or Claude task lifecycle transitions.
 
 ## Animation Direction
 
