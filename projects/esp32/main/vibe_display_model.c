@@ -6,8 +6,12 @@
 static uint32_t fnv1a_update(uint32_t hash, const void *data, size_t length);
 static uint32_t fnv1a_update_text(uint32_t hash, const char *text);
 static const char *badge_for_state(vibe_display_state_t state);
+static int abs_int(int value);
+static void maze_pellet_at_index(int index, vibe_display_animation_frame_t *frame);
+static void maze_frame_at_position(int position, bool mouth_open, vibe_display_animation_frame_t *frame);
 static void copy_text(char *dest, size_t dest_size, const char *source);
 static void append_text(char *dest, size_t dest_size, const char *source);
+static void format_count(char *dest, size_t dest_size, char label, int count);
 
 void vibe_display_signature_reset(vibe_display_signature_t *signature)
 {
@@ -94,6 +98,25 @@ void vibe_display_format_task_row(const vibe_status_task_t *task, int index, vib
     }
 }
 
+void vibe_display_format_count_summary(const vibe_status_packet_t *packet, vibe_display_count_summary_t *summary)
+{
+    if (summary == NULL) {
+        return;
+    }
+
+    memset(summary, 0, sizeof(*summary));
+    if (packet == NULL) {
+        format_count(summary->active, sizeof(summary->active), 'A', 0);
+        format_count(summary->waiting, sizeof(summary->waiting), 'W', 0);
+        format_count(summary->error, sizeof(summary->error), 'E', 0);
+        return;
+    }
+
+    format_count(summary->active, sizeof(summary->active), 'A', packet->active_count);
+    format_count(summary->waiting, sizeof(summary->waiting), 'W', packet->waiting_count);
+    format_count(summary->error, sizeof(summary->error), 'E', packet->error_count);
+}
+
 void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, size_t text_size)
 {
     (void)packet;
@@ -121,50 +144,94 @@ int vibe_display_animation_step(int active_count)
     return 1;
 }
 
+int vibe_display_animation_actor_count(int task_count, int active_count)
+{
+    int count = task_count > 0 ? task_count : active_count;
+    if (count < 1) {
+        return 1;
+    }
+    if (count > VIBE_STATUS_MAX_TASKS) {
+        return VIBE_STATUS_MAX_TASKS;
+    }
+    return count;
+}
+
 void vibe_display_animation_frame(int tick, int active_count, vibe_display_animation_frame_t *frame)
+{
+    vibe_display_animation_actor_frame(tick, 0, 1, active_count, frame);
+}
+
+void vibe_display_animation_actor_frame(int tick, int actor_index, int actor_count, int active_count, vibe_display_animation_frame_t *frame)
 {
     if (frame == NULL) {
         return;
     }
 
+    if (actor_count < 1) {
+        actor_count = 1;
+    }
+    if (actor_count > VIBE_STATUS_MAX_TASKS) {
+        actor_count = VIBE_STATUS_MAX_TASKS;
+    }
+    if (actor_index < 0) {
+        actor_index = 0;
+    }
+    if (actor_index >= actor_count) {
+        actor_index = actor_count - 1;
+    }
+
     int step = vibe_display_animation_step(active_count);
-    int position = (tick * step) % VIBE_DISPLAY_ANIMATION_PATH_STEPS;
+    int phase_offset = (actor_index * VIBE_DISPLAY_ANIMATION_PATH_STEPS) / actor_count;
+    int position = (tick * step + phase_offset) % VIBE_DISPLAY_ANIMATION_PATH_STEPS;
     if (position < 0) {
         position += VIBE_DISPLAY_ANIMATION_PATH_STEPS;
     }
 
-    const int left = 18;
-    const int right = 302;
-    const int top = 92;
-    const int bottom = 788;
-    const int side_steps = VIBE_DISPLAY_ANIMATION_PATH_STEPS / 4;
-    int segment = position / side_steps;
-    int offset = position % side_steps;
+    maze_frame_at_position(position, (tick % 2) == 0, frame);
+}
 
-    frame->mouth_open = (tick % 2) == 0;
-
-    switch (segment) {
-    case 0:
-        frame->x = left + ((right - left) * offset) / side_steps;
-        frame->y = top;
-        frame->direction = VIBE_DISPLAY_DIRECTION_RIGHT;
-        break;
-    case 1:
-        frame->x = right;
-        frame->y = top + ((bottom - top) * offset) / side_steps;
-        frame->direction = VIBE_DISPLAY_DIRECTION_DOWN;
-        break;
-    case 2:
-        frame->x = right - ((right - left) * offset) / side_steps;
-        frame->y = bottom;
-        frame->direction = VIBE_DISPLAY_DIRECTION_LEFT;
-        break;
-    default:
-        frame->x = left;
-        frame->y = bottom - ((bottom - top) * offset) / side_steps;
-        frame->direction = VIBE_DISPLAY_DIRECTION_UP;
-        break;
+void vibe_display_maze_pellet_position(int pellet_index, int pellet_count, vibe_display_animation_frame_t *frame)
+{
+    if (frame == NULL) {
+        return;
     }
+
+    if (pellet_count < 1) {
+        pellet_count = 1;
+    }
+    int index = pellet_index % pellet_count;
+    if (index < 0) {
+        index += pellet_count;
+    }
+
+    if (pellet_count == VIBE_DISPLAY_MAZE_PELLET_COUNT) {
+        maze_pellet_at_index(index, frame);
+        return;
+    }
+
+    int position = (index * VIBE_DISPLAY_ANIMATION_PATH_STEPS) / pellet_count;
+    maze_frame_at_position(position, false, frame);
+}
+
+bool vibe_display_maze_is_power_pellet(int pellet_index, int pellet_count)
+{
+    if (pellet_count < 1) {
+        return false;
+    }
+
+    int index = pellet_index % pellet_count;
+    if (index < 0) {
+        index += pellet_count;
+    }
+
+    if (pellet_count == VIBE_DISPLAY_MAZE_PELLET_COUNT) {
+        return index == 0 || index == 21 || index == 56 || index == 77;
+    }
+
+    return index == 0 ||
+           index == pellet_count / 3 ||
+           index == (pellet_count * 2) / 3 ||
+           index == pellet_count - 1;
 }
 
 void vibe_display_animation_actor_shape(const vibe_display_animation_frame_t *frame, vibe_display_animation_actor_t *actor)
@@ -173,8 +240,9 @@ void vibe_display_animation_actor_shape(const vibe_display_animation_frame_t *fr
         return;
     }
 
-    const int reach = 19;
-    const int open = frame->mouth_open ? 10 : 4;
+    const int radius = VIBE_DISPLAY_CODEX_ACTOR_RADIUS;
+    const int reach = radius + 3;
+    const int open = frame->mouth_open ? radius - 2 : 2;
     memset(actor, 0, sizeof(*actor));
 
     switch (frame->direction) {
@@ -220,6 +288,144 @@ void vibe_display_animation_actor_shape(const vibe_display_animation_frame_t *fr
         actor->eye_y = frame->y - 5;
         break;
     }
+}
+
+static void maze_frame_at_position(int position, bool mouth_open, vibe_display_animation_frame_t *frame)
+{
+    static const struct {
+        int x;
+        int y;
+    } maze_path[] = {
+        {VIBE_DISPLAY_MAZE_STAGE_X + 168, VIBE_DISPLAY_MAZE_STAGE_Y + 238},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 252, VIBE_DISPLAY_MAZE_STAGE_Y + 238},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 252, VIBE_DISPLAY_MAZE_STAGE_Y + 62},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 78, VIBE_DISPLAY_MAZE_STAGE_Y + 62},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 78, VIBE_DISPLAY_MAZE_STAGE_Y + 104},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 132, VIBE_DISPLAY_MAZE_STAGE_Y + 104},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 132, VIBE_DISPLAY_MAZE_STAGE_Y + 150},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 188, VIBE_DISPLAY_MAZE_STAGE_Y + 150},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 188, VIBE_DISPLAY_MAZE_STAGE_Y + 104},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 238, VIBE_DISPLAY_MAZE_STAGE_Y + 104},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 238, VIBE_DISPLAY_MAZE_STAGE_Y + 238},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 168, VIBE_DISPLAY_MAZE_STAGE_Y + 238},
+    };
+
+    if (position < 0) {
+        position += VIBE_DISPLAY_ANIMATION_PATH_STEPS;
+    }
+    position %= VIBE_DISPLAY_ANIMATION_PATH_STEPS;
+
+    const int point_count = (int)(sizeof(maze_path) / sizeof(maze_path[0]));
+    const int segment_count = point_count - 1;
+    int total_length = 0;
+    for (int i = 0; i < segment_count; i++) {
+        total_length += abs_int(maze_path[i + 1].x - maze_path[i].x);
+        total_length += abs_int(maze_path[i + 1].y - maze_path[i].y);
+    }
+
+    int target = (position * total_length) / VIBE_DISPLAY_ANIMATION_PATH_STEPS;
+    int segment = 0;
+    int walked = 0;
+    while (segment < segment_count) {
+        int length = abs_int(maze_path[segment + 1].x - maze_path[segment].x) +
+                     abs_int(maze_path[segment + 1].y - maze_path[segment].y);
+        if (target < walked + length || segment == segment_count - 1) {
+            break;
+        }
+        walked += length;
+        segment++;
+    }
+
+    int ax = maze_path[segment].x;
+    int ay = maze_path[segment].y;
+    int bx = maze_path[segment + 1].x;
+    int by = maze_path[segment + 1].y;
+    int local = target - walked;
+    int segment_length = abs_int(bx - ax) + abs_int(by - ay);
+    if (segment_length <= 0) {
+        segment_length = 1;
+    }
+
+    frame->x = ax + ((bx - ax) * local) / segment_length;
+    frame->y = ay + ((by - ay) * local) / segment_length;
+    frame->mouth_open = mouth_open;
+
+    int dx = bx - ax;
+    int dy = by - ay;
+    if (dx > 0) {
+        frame->direction = VIBE_DISPLAY_DIRECTION_RIGHT;
+    } else if (dx < 0) {
+        frame->direction = VIBE_DISPLAY_DIRECTION_LEFT;
+    } else if (dy > 0) {
+        frame->direction = VIBE_DISPLAY_DIRECTION_DOWN;
+    } else {
+        frame->direction = VIBE_DISPLAY_DIRECTION_UP;
+    }
+}
+
+static void maze_pellet_at_index(int index, vibe_display_animation_frame_t *frame)
+{
+    static const struct {
+        int x1;
+        int y1;
+        int x2;
+        int y2;
+        int count;
+    } lanes[] = {
+        {VIBE_DISPLAY_MAZE_STAGE_X + 78, VIBE_DISPLAY_MAZE_STAGE_Y + 62,
+         VIBE_DISPLAY_MAZE_STAGE_X + 144, VIBE_DISPLAY_MAZE_STAGE_Y + 62, 11},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 176, VIBE_DISPLAY_MAZE_STAGE_Y + 62,
+         VIBE_DISPLAY_MAZE_STAGE_X + 252, VIBE_DISPLAY_MAZE_STAGE_Y + 62, 11},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 78, VIBE_DISPLAY_MAZE_STAGE_Y + 104,
+         VIBE_DISPLAY_MAZE_STAGE_X + 144, VIBE_DISPLAY_MAZE_STAGE_Y + 104, 10},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 176, VIBE_DISPLAY_MAZE_STAGE_Y + 104,
+         VIBE_DISPLAY_MAZE_STAGE_X + 252, VIBE_DISPLAY_MAZE_STAGE_Y + 104, 10},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 78, VIBE_DISPLAY_MAZE_STAGE_Y + 150,
+         VIBE_DISPLAY_MAZE_STAGE_X + 132, VIBE_DISPLAY_MAZE_STAGE_Y + 150, 7},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 188, VIBE_DISPLAY_MAZE_STAGE_Y + 150,
+         VIBE_DISPLAY_MAZE_STAGE_X + 252, VIBE_DISPLAY_MAZE_STAGE_Y + 150, 7},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 78, VIBE_DISPLAY_MAZE_STAGE_Y + 238,
+         VIBE_DISPLAY_MAZE_STAGE_X + 144, VIBE_DISPLAY_MAZE_STAGE_Y + 238, 11},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 176, VIBE_DISPLAY_MAZE_STAGE_Y + 238,
+         VIBE_DISPLAY_MAZE_STAGE_X + 252, VIBE_DISPLAY_MAZE_STAGE_Y + 238, 11},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 82, VIBE_DISPLAY_MAZE_STAGE_Y + 68,
+         VIBE_DISPLAY_MAZE_STAGE_X + 82, VIBE_DISPLAY_MAZE_STAGE_Y + 230, 6},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 132, VIBE_DISPLAY_MAZE_STAGE_Y + 68,
+         VIBE_DISPLAY_MAZE_STAGE_X + 132, VIBE_DISPLAY_MAZE_STAGE_Y + 230, 6},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 188, VIBE_DISPLAY_MAZE_STAGE_Y + 68,
+         VIBE_DISPLAY_MAZE_STAGE_X + 188, VIBE_DISPLAY_MAZE_STAGE_Y + 230, 6},
+        {VIBE_DISPLAY_MAZE_STAGE_X + 238, VIBE_DISPLAY_MAZE_STAGE_Y + 68,
+         VIBE_DISPLAY_MAZE_STAGE_X + 238, VIBE_DISPLAY_MAZE_STAGE_Y + 230, 6},
+    };
+
+    int local_index = index % VIBE_DISPLAY_MAZE_PELLET_COUNT;
+    if (local_index < 0) {
+        local_index += VIBE_DISPLAY_MAZE_PELLET_COUNT;
+    }
+
+    for (size_t i = 0; i < sizeof(lanes) / sizeof(lanes[0]); i++) {
+        if (local_index >= lanes[i].count) {
+            local_index -= lanes[i].count;
+            continue;
+        }
+
+        int divisor = lanes[i].count > 1 ? lanes[i].count - 1 : 1;
+        frame->x = lanes[i].x1 + ((lanes[i].x2 - lanes[i].x1) * local_index) / divisor;
+        frame->y = lanes[i].y1 + ((lanes[i].y2 - lanes[i].y1) * local_index) / divisor;
+        frame->direction = VIBE_DISPLAY_DIRECTION_RIGHT;
+        frame->mouth_open = false;
+        return;
+    }
+
+    frame->x = VIBE_DISPLAY_MAZE_STAGE_X + VIBE_DISPLAY_MAZE_PATH_INSET;
+    frame->y = VIBE_DISPLAY_MAZE_STAGE_Y + 238;
+    frame->direction = VIBE_DISPLAY_DIRECTION_RIGHT;
+    frame->mouth_open = false;
+}
+
+static int abs_int(int value)
+{
+    return value < 0 ? -value : value;
 }
 
 static uint32_t fnv1a_update(uint32_t hash, const void *data, size_t length)
@@ -285,4 +491,16 @@ static void append_text(char *dest, size_t dest_size, const char *source)
     }
 
     copy_text(dest + used, dest_size - used, source);
+}
+
+static void format_count(char *dest, size_t dest_size, char label, int count)
+{
+    if (dest == NULL || dest_size == 0) {
+        return;
+    }
+
+    if (count < 0) {
+        count = 0;
+    }
+    snprintf(dest, dest_size, "%c%d", label, count);
 }

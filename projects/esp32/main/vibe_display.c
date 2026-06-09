@@ -67,13 +67,14 @@ static const char *TAG = "vibe_display";
 #define RGB565_GREEN 0x05e0
 #define RGB565_RED 0xf800
 #define RGB565_AMBER 0xfd20
+#define RGB565_CYAN 0x07ff
+#define RGB565_PINK 0xf81f
 #define RGB565_PANEL 0x18e3
+#define RGB565_MAZE 0x047f
 #define RGB565_DOT 0xffe0
 
 #define ANIMATION_PERIOD_MS 180
-#define ANIMATION_DOT_COUNT 36
-#define ANIMATION_DOT_RADIUS 3
-#define ANIMATION_CODEX_RADIUS 15
+#define ANIMATION_DOT_RADIUS 1
 
 static esp_lcd_panel_handle_t panel_handle;
 static uint16_t *framebuffer;
@@ -137,9 +138,13 @@ static const st7701_lcd_init_cmd_t lcd_init_cmds[] = {
 static esp_err_t init_backlight(void);
 static esp_err_t init_lcd_panel(void);
 static void render_status(const vibe_status_packet_t *packet, int animation_phase);
+static void render_count_summary(const vibe_status_packet_t *packet);
 static void render_task_rows(const vibe_status_packet_t *packet);
 static void render_codex_animation(const vibe_status_packet_t *packet, int animation_phase);
-static void render_animation_dots(const vibe_display_animation_frame_t *frame);
+static void render_maze(void);
+static void render_ghost(int x, int y, uint16_t color);
+static void render_life_icon(int x, int y);
+static void render_animation_dots(const vibe_display_animation_frame_t *frames, int actor_count);
 static void render_codex_actor(const vibe_display_animation_frame_t *frame);
 static void fill_screen(uint16_t color);
 static void fill_rect(int x, int y, int w, int h, uint16_t color);
@@ -311,25 +316,26 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
     uint16_t accent = color_for_state(packet->state);
     fill_screen(RGB565_BLACK);
     fill_rect(0, 0, LCD_H_RES, 82, accent);
-    fill_rect(18, 110, LCD_H_RES - 36, 170, RGB565_PANEL);
-    fill_rect(18, 304, LCD_H_RES - 36, 420, RGB565_PANEL);
+    fill_rect(VIBE_DISPLAY_MAZE_STAGE_X,
+              VIBE_DISPLAY_MAZE_STAGE_Y,
+              VIBE_DISPLAY_MAZE_STAGE_W,
+              VIBE_DISPLAY_MAZE_STAGE_H,
+              RGB565_BLACK);
+    fill_rect(VIBE_DISPLAY_TASK_PANEL_X,
+              VIBE_DISPLAY_TASK_PANEL_Y,
+              VIBE_DISPLAY_TASK_PANEL_W,
+              VIBE_DISPLAY_TASK_PANEL_H,
+              RGB565_PANEL);
 
     draw_text(24, 22, "VIBE LIGHT", 3, RGB565_WHITE);
-    draw_text(32, 132, packet->source, 2, RGB565_WHITE);
-    draw_text(32, 178, vibe_display_state_to_title(packet->state), 4, accent);
-    draw_text(32, 242, packet->detail, 2, RGB565_MUTED);
+    render_maze();
 
     if (packet->task_count > 0) {
-        char counts[56];
-        snprintf(counts, sizeof(counts), "ACTIVE %d  WAIT %d  ERR %d",
-                 packet->active_count,
-                 packet->waiting_count,
-                 packet->error_count);
-        draw_text(32, 318, counts, 2, RGB565_MUTED);
+        render_count_summary(packet);
         render_task_rows(packet);
     } else {
-        draw_text(32, 330, "NO ACTIVE TASKS", 2, RGB565_MUTED);
-        draw_text(32, 386, packet->detail, 3, RGB565_WHITE);
+        draw_text(32, VIBE_DISPLAY_TASK_PANEL_Y + 36, "NO ACTIVE TASKS", 2, RGB565_MUTED);
+        draw_text(32, VIBE_DISPLAY_TASK_PANEL_Y + 92, vibe_display_state_to_title(packet->state), 3, RGB565_WHITE);
     }
 
     char footer[48];
@@ -345,6 +351,20 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
     esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, LCD_H_RES, LCD_V_RES, framebuffer);
 }
 
+static void render_count_summary(const vibe_status_packet_t *packet)
+{
+    vibe_display_count_summary_t summary;
+    vibe_display_format_count_summary(packet, &summary);
+    const int y = VIBE_DISPLAY_TASK_PANEL_Y + 20;
+
+    fill_rect(32, y + 6, 8, 8, color_for_state(VIBE_DISPLAY_BUSY));
+    draw_text(46, y, summary.active, 2, RGB565_MUTED);
+    fill_rect(126, y + 6, 8, 8, color_for_state(VIBE_DISPLAY_WAITING));
+    draw_text(140, y, summary.waiting, 2, RGB565_MUTED);
+    fill_rect(220, y + 6, 8, 8, color_for_state(VIBE_DISPLAY_ERROR));
+    draw_text(234, y, summary.error, 2, RGB565_MUTED);
+}
+
 static void render_task_rows(const vibe_status_packet_t *packet)
 {
     int rows = packet->task_count > VIBE_STATUS_MAX_TASKS ? VIBE_STATUS_MAX_TASKS : packet->task_count;
@@ -353,38 +373,200 @@ static void render_task_rows(const vibe_status_packet_t *packet)
         vibe_display_task_row_t row;
         vibe_display_format_task_row(task, i, &row);
 
-        int y = 360 + i * 70;
+        int y = VIBE_DISPLAY_TASK_ROW_Y + i * VIBE_DISPLAY_TASK_ROW_STRIDE;
         uint16_t task_color = color_for_state(task->state);
 
-        fill_rect(30, y - 10, 6, 54, task_color);
-        fill_rect(44, y - 10, 56, 28, task_color);
-        draw_text(50, y - 4, row.badge, 1, RGB565_BLACK);
-        draw_text(110, y - 8, row.title, 2, RGB565_WHITE);
-        draw_text(110, y + 24, row.subtitle, 1, RGB565_MUTED);
+        fill_rect(32, y, VIBE_DISPLAY_TASK_SWATCH_W, VIBE_DISPLAY_TASK_SWATCH_H, task_color);
+        draw_text(44, y, row.badge, 1, task_color);
+        draw_text(70, y, row.title, 1, RGB565_WHITE);
     }
+}
+
+static void render_maze(void)
+{
+    const int t = VIBE_DISPLAY_MAZE_WALL_THICKNESS;
+    const int x = VIBE_DISPLAY_MAZE_STAGE_X;
+    const int y = VIBE_DISPLAY_MAZE_STAGE_Y;
+    const int w = VIBE_DISPLAY_MAZE_STAGE_W;
+    const int h = VIBE_DISPLAY_MAZE_FRAME_H;
+    const int mx = x + 58;
+    const int my = y + 48;
+
+    fill_rect(x, y, w, h, RGB565_BLACK);
+    fill_rect(x, y, w, t, RGB565_CYAN);
+    fill_rect(x, y + h - t, w, t, RGB565_CYAN);
+    fill_rect(x, y, t, h, RGB565_CYAN);
+    fill_rect(x + w - t, y, t, h, RGB565_CYAN);
+    fill_rect(x + 4, y + 4, w - 8, t, RGB565_MAZE);
+    fill_rect(x + 4, y + h - 5, w - 8, t, RGB565_MAZE);
+    fill_rect(x + 4, y + 4, t, h - 8, RGB565_MAZE);
+    fill_rect(x + w - 5, y + 4, t, h - 8, RGB565_MAZE);
+
+    draw_text(x + 34, y + 12, "SCORE", 1, RGB565_CYAN);
+    draw_text(x + 22, y + 28, "001240", 2, RGB565_WHITE);
+    draw_text(x + 112, y + 12, "HIGH SCORE", 1, RGB565_PINK);
+    draw_text(x + 116, y + 28, "012340", 2, RGB565_WHITE);
+    draw_text(x + 204, y + 12, "LEVEL", 1, RGB565_GREEN);
+    draw_text(x + 218, y + 28, "02", 2, RGB565_WHITE);
+    draw_text(x + 260, y + 12, "LIVES", 1, RGB565_DOT);
+    render_life_icon(x + 272, y + 34);
+    render_life_icon(x + 288, y + 34);
+    render_life_icon(x + 304, y + 34);
+    fill_rect(x + 14, y + 58, w - 28, t, RGB565_MAZE);
+
+    fill_rect(x + 8, y + 72, 46, 34, RGB565_PURPLE);
+    fill_rect(x + 10, y + 74, 42, 30, RGB565_BLACK);
+    draw_text(x + 15, y + 84, "PAC", 2, RGB565_DOT);
+    fill_circle(x + 28, y + 130, 18, RGB565_DOT);
+    fill_triangle(x + 50, y + 130, x + 30, y + 118, x + 30, y + 142, RGB565_BLACK);
+    render_ghost(x + 20, y + 168, RGB565_CYAN);
+    render_ghost(x + 34, y + 162, RGB565_CYAN);
+    render_ghost(x + 46, y + 156, RGB565_CYAN);
+    fill_rect(x + 8, y + 208, 46, 68, RGB565_PINK);
+    fill_rect(x + 10, y + 210, 42, 64, RGB565_BLACK);
+    draw_text(x + 18, y + 218, "STATUS", 1, RGB565_CYAN);
+    render_life_icon(x + 24, y + 238);
+    draw_text(x + 20, y + 254, "READY", 1, RGB565_GREEN);
+
+    fill_rect(x + 280, y + 84, 32, 40, RGB565_CYAN);
+    fill_rect(x + 282, y + 86, 28, 36, RGB565_BLACK);
+    fill_rect(x + 292, y + 96, 4, 14, RGB565_CYAN);
+    fill_rect(x + 302, y + 96, 4, 14, RGB565_CYAN);
+    draw_text(x + 287, y + 112, "PAUSE", 1, RGB565_CYAN);
+    fill_rect(x + 280, y + 144, 32, 40, RGB565_CYAN);
+    fill_rect(x + 282, y + 146, 28, 36, RGB565_BLACK);
+    fill_circle(x + 296, y + 160, 9, RGB565_CYAN);
+    fill_circle(x + 296, y + 160, 4, RGB565_BLACK);
+    fill_rect(x + 280, y + 210, 32, 46, RGB565_PINK);
+    fill_rect(x + 282, y + 212, 28, 42, RGB565_BLACK);
+    draw_text(x + 286, y + 226, "SOUND", 1, RGB565_PINK);
+    draw_text(x + 292, y + 240, "ON", 1, RGB565_PINK);
+
+    fill_rect(mx, my, 216, 216, RGB565_CYAN);
+    fill_rect(mx + 2, my + 2, 212, 212, RGB565_BLACK);
+    fill_rect(mx + 6, my + 6, 204, t, RGB565_MAZE);
+    fill_rect(mx + 6, my + 209, 204, t, RGB565_MAZE);
+    fill_rect(mx + 6, my + 6, t, 204, RGB565_MAZE);
+    fill_rect(mx + 209, my + 6, t, 204, RGB565_MAZE);
+
+    fill_rect(mx + 20, my + 22, 36, t, RGB565_CYAN);
+    fill_rect(mx + 20, my + 52, 36, t, RGB565_CYAN);
+    fill_rect(mx + 20, my + 22, t, 30, RGB565_CYAN);
+    fill_rect(mx + 56, my + 22, t, 30, RGB565_CYAN);
+    fill_rect(mx + 76, my + 22, 56, t, RGB565_CYAN);
+    fill_rect(mx + 76, my + 52, 56, t, RGB565_CYAN);
+    fill_rect(mx + 76, my + 22, t, 30, RGB565_CYAN);
+    fill_rect(mx + 132, my + 22, t, 30, RGB565_CYAN);
+    fill_rect(mx + 160, my + 22, 34, t, RGB565_CYAN);
+    fill_rect(mx + 160, my + 52, 34, t, RGB565_CYAN);
+    fill_rect(mx + 160, my + 22, t, 30, RGB565_CYAN);
+    fill_rect(mx + 194, my + 22, t, 30, RGB565_CYAN);
+
+    fill_rect(mx + 30, my + 76, 36, t, RGB565_CYAN);
+    fill_rect(mx + 82, my + 74, 54, t, RGB565_CYAN);
+    fill_rect(mx + 82, my + 77, 54, t, RGB565_MAZE);
+    fill_rect(mx + 152, my + 76, 36, t, RGB565_CYAN);
+    fill_rect(mx + 56, my + 72, t, 56, RGB565_CYAN);
+    fill_rect(mx + 84, my + 92, 28, t, RGB565_CYAN);
+    fill_rect(mx + 112, my + 92, t, 30, RGB565_CYAN);
+    fill_rect(mx + 160, my + 72, t, 56, RGB565_CYAN);
+    fill_rect(mx + 132, my + 92, 28, t, RGB565_CYAN);
+    fill_rect(mx + 132, my + 92, t, 30, RGB565_CYAN);
+
+    fill_rect(mx + 74, my + 120, 68, t, RGB565_CYAN);
+    fill_rect(mx + 74, my + 150, 68, t, RGB565_CYAN);
+    fill_rect(mx + 74, my + 120, t, 30, RGB565_CYAN);
+    fill_rect(mx + 142, my + 120, t, 30, RGB565_CYAN);
+    fill_rect(mx + 96, my + 120, 20, t, RGB565_PINK);
+
+    fill_rect(mx + 18, my + 158, 70, t, RGB565_CYAN);
+    fill_rect(mx + 18, my + 188, 70, t, RGB565_CYAN);
+    fill_rect(mx + 88, my + 158, t, 30, RGB565_CYAN);
+    fill_rect(mx + 128, my + 158, 70, t, RGB565_CYAN);
+    fill_rect(mx + 128, my + 188, 70, t, RGB565_CYAN);
+    fill_rect(mx + 128, my + 158, t, 30, RGB565_CYAN);
+    fill_rect(mx + 80, my + 170, 34, t, RGB565_CYAN);
+    fill_rect(mx + 120, my + 170, 34, t, RGB565_CYAN);
+
+    render_ghost(mx + 84, my + 140, RGB565_RED);
+    render_ghost(mx + 98, my + 140, RGB565_PINK);
+    render_ghost(mx + 112, my + 140, RGB565_CYAN);
+    render_ghost(mx + 126, my + 140, RGB565_AMBER);
+    render_ghost(mx + 108, my + 74, RGB565_RED);
+    render_ghost(mx + 48, my + 132, RGB565_PINK);
+    render_ghost(mx + 170, my + 132, RGB565_CYAN);
+
+    fill_rect(x + 10, y + 286, 104, 26, RGB565_PURPLE);
+    fill_rect(x + 12, y + 288, 100, 22, RGB565_BLACK);
+    draw_text(x + 34, y + 292, "BONUS", 1, RGB565_PINK);
+    fill_rect(x + 122, y + 286, 74, 26, RGB565_PURPLE);
+    fill_rect(x + 124, y + 288, 70, 22, RGB565_BLACK);
+    draw_text(x + 140, y + 292, "ARCADE", 1, RGB565_PINK);
+    draw_text(x + 142, y + 302, "CLASSIC", 1, RGB565_RED);
+    fill_rect(x + 204, y + 286, 106, 26, RGB565_CYAN);
+    fill_rect(x + 206, y + 288, 102, 22, RGB565_BLACK);
+    draw_text(x + 226, y + 292, "GAME TIP", 1, RGB565_CYAN);
+}
+
+static void render_ghost(int x, int y, uint16_t color)
+{
+    fill_circle(x, y, 4, color);
+    fill_rect(x - 4, y, 8, 5, color);
+    fill_rect(x - 4, y + 4, 2, 3, color);
+    fill_rect(x - 1, y + 4, 2, 3, color);
+    fill_rect(x + 3, y + 4, 2, 3, color);
+    fill_circle(x - 2, y - 1, 1, RGB565_WHITE);
+    fill_circle(x + 3, y - 1, 1, RGB565_WHITE);
+    fill_rect(x - 2, y - 1, 1, 1, RGB565_BLUE);
+    fill_rect(x + 3, y - 1, 1, 1, RGB565_BLUE);
+}
+
+static void render_life_icon(int x, int y)
+{
+    fill_circle(x, y, 4, RGB565_DOT);
+    fill_triangle(x + 5, y,
+                  x + 1, y - 3,
+                  x + 1, y + 3,
+                  RGB565_BLACK);
 }
 
 static void render_codex_animation(const vibe_status_packet_t *packet, int animation_phase)
 {
-    vibe_display_animation_frame_t frame;
-    vibe_display_animation_frame(animation_phase, packet->active_count, &frame);
-    render_animation_dots(&frame);
-    render_codex_actor(&frame);
+    int actor_count = vibe_display_animation_actor_count(packet->task_count, packet->active_count);
+    vibe_display_animation_frame_t frames[VIBE_STATUS_MAX_TASKS];
+    for (int i = 0; i < actor_count; i++) {
+        vibe_display_animation_actor_frame(animation_phase, i, actor_count, packet->active_count, &frames[i]);
+    }
+
+    render_animation_dots(frames, actor_count);
+    for (int i = 0; i < actor_count; i++) {
+        render_codex_actor(&frames[i]);
+    }
 }
 
-static void render_animation_dots(const vibe_display_animation_frame_t *frame)
+static void render_animation_dots(const vibe_display_animation_frame_t *frames, int actor_count)
 {
-    for (int i = 0; i < ANIMATION_DOT_COUNT; i++) {
+    for (int i = 0; i < VIBE_DISPLAY_MAZE_PELLET_COUNT; i++) {
         vibe_display_animation_frame_t dot;
-        vibe_display_animation_frame((i * VIBE_DISPLAY_ANIMATION_PATH_STEPS) / ANIMATION_DOT_COUNT, 1, &dot);
+        vibe_display_maze_pellet_position(i, VIBE_DISPLAY_MAZE_PELLET_COUNT, &dot);
 
-        int dx = dot.x - frame->x;
-        int dy = dot.y - frame->y;
-        if (dx > -24 && dx < 24 && dy > -24 && dy < 24) {
+        bool eaten = false;
+        for (int j = 0; j < actor_count; j++) {
+            int dx = dot.x - frames[j].x;
+            int dy = dot.y - frames[j].y;
+            if (dx > -22 && dx < 22 && dy > -22 && dy < 22) {
+                eaten = true;
+                break;
+            }
+        }
+        if (eaten) {
             continue;
         }
 
-        fill_circle(dot.x, dot.y, ANIMATION_DOT_RADIUS, RGB565_DOT);
+        int radius = vibe_display_maze_is_power_pellet(i, VIBE_DISPLAY_MAZE_PELLET_COUNT)
+                         ? VIBE_DISPLAY_MAZE_POWER_PELLET_RADIUS
+                         : ANIMATION_DOT_RADIUS;
+        fill_circle(dot.x, dot.y, radius, RGB565_DOT);
     }
 }
 
@@ -393,12 +575,14 @@ static void render_codex_actor(const vibe_display_animation_frame_t *frame)
     vibe_display_animation_actor_t actor;
     vibe_display_animation_actor_shape(frame, &actor);
 
-    fill_circle(frame->x, frame->y, ANIMATION_CODEX_RADIUS, RGB565_WHITE);
+    fill_circle(frame->x, frame->y, VIBE_DISPLAY_CODEX_ACTOR_RADIUS, RGB565_DOT);
     fill_triangle(actor.mouth_tip_x, actor.mouth_tip_y,
                   actor.mouth_a_x, actor.mouth_a_y,
                   actor.mouth_b_x, actor.mouth_b_y,
                   RGB565_BLACK);
-    fill_circle(actor.eye_x, actor.eye_y, 2, RGB565_BLACK);
+    if (VIBE_DISPLAY_CODEX_ACTOR_EYE_RADIUS > 0) {
+        fill_circle(actor.eye_x, actor.eye_y, VIBE_DISPLAY_CODEX_ACTOR_EYE_RADIUS, RGB565_BLACK);
+    }
 }
 
 static void fill_screen(uint16_t color)
