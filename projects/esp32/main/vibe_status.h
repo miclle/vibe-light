@@ -26,6 +26,7 @@ typedef struct {
     vibe_display_state_t state;
     char state_text[VIBE_STATUS_TEXT_MAX];
     char detail[VIBE_STATUS_TEXT_MAX];
+    int context_remaining_percent;
 } vibe_status_task_t;
 
 typedef struct {
@@ -38,6 +39,8 @@ typedef struct {
     int active_count;
     int waiting_count;
     int error_count;
+    int codex_5h_remaining_percent;
+    int codex_7d_remaining_percent;
     int task_count;
     vibe_status_task_t tasks[VIBE_STATUS_MAX_TASKS];
 } vibe_status_packet_t;

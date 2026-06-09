@@ -189,6 +189,11 @@ LETTER_GLYPHS = {
     "3": ("111", "001", "111", "001", "111"),
     "4": ("101", "101", "111", "001", "001"),
     "5": ("111", "100", "111", "001", "111"),
+    "6": ("111", "100", "111", "101", "111"),
+    "7": ("111", "001", "010", "010", "010"),
+    "8": ("111", "101", "111", "101", "111"),
+    "9": ("111", "101", "111", "001", "111"),
+    "%": ("101", "001", "010", "100", "101"),
     ".": ("000", "000", "000", "000", "010"),
     "A": ("010", "101", "111", "101", "101"),
     "B": ("110", "101", "110", "101", "110"),
@@ -210,6 +215,7 @@ LETTER_GLYPHS = {
     "U": ("101", "101", "101", "101", "111"),
     "V": ("101", "101", "101", "101", "010"),
     "W": ("101", "101", "111", "111", "101"),
+    "X": ("101", "101", "010", "101", "101"),
     "Y": ("101", "101", "010", "010", "010"),
 }
 
@@ -396,19 +402,25 @@ def draw_full_screen(image: Image) -> None:
     fill_rect(image, TASK_PANEL_X, TASK_PANEL_Y, TASK_PANEL_W, TASK_PANEL_H, PANEL)
 
     draw_text(image, 24, 22, "VIBE LIGHT", 3, WHITE)
+    draw_text(image, 24, 56, "5H 88%", 2, WHITE)
+    draw_text(image, 132, 56, "7D 60%", 2, WHITE)
     draw_maze(image, MAZE_STAGE_Y)
 
     tasks = [
-        (BUSY, "VIBE-LIGHT", "打开 .SLIDEO 文件"),
-        (WAITING, "DOCS", "等待蓝牙权限"),
-        (ERROR, "FIRMWARE", "构建失败"),
-        (BUSY, "FLASH", ""),
-        (WAITING, "APPROVAL", "需要确认"),
+        (BUSY, "VIBE-LIGHT", "打开 .SLIDEO 文件", "CTX 90%"),
+        (WAITING, "DOCS", "等待蓝牙权限", "CTX 74%"),
+        (ERROR, "FIRMWARE", "构建失败", "CTX 61%"),
+        (BUSY, "FLASH", "", "CTX 48%"),
+        (WAITING, "APPROVAL", "需要确认", "CTX 35%"),
     ]
     y = TASK_ROW_Y
-    for index, (color, title, detail) in enumerate(tasks):
+    for index, (color, title, detail, trailing) in enumerate(tasks):
+        trailing_x = 222
+        title_max_width = trailing_x - 40 if trailing else FULL_PREVIEW_WIDTH - 44
         fill_rect(image, 16, y, TASK_SWATCH_W, TASK_SWATCH_H, color)
-        draw_text(image, 32, y, title, 2, WHITE)
+        draw_text_ellipsis(image, 32, y, title, 2, WHITE, title_max_width)
+        if trailing:
+            draw_text(image, trailing_x, y, trailing, 2, MUTED)
         show_detail = bool(detail) and (index == 0 or color in (WAITING, ERROR))
         if show_detail:
             draw_text_ellipsis(image, 32, y + TASK_DETAIL_Y_OFFSET, detail, 2, MUTED, FULL_PREVIEW_WIDTH - 32)

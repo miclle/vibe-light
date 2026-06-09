@@ -83,6 +83,38 @@ static void test_v2_task_list_packet(void)
     assert(strcmp(packet.tasks[4].title, "extra-2") == 0);
 }
 
+static void test_v2_usage_packet(void)
+{
+    const char *json =
+        "{"
+        "\"activeCount\":1,"
+        "\"source\":\"codex\","
+        "\"state\":\"busy\","
+        "\"tasks\":["
+        "{\"contextRemainingPercent\":90,\"source\":\"codex\",\"state\":\"busy\",\"title\":\"vibe-light\"}"
+        "],"
+        "\"usage\":{\"codex5hRemainingPercent\":88,\"codex7dRemainingPercent\":60},"
+        "\"v\":2"
+        "}";
+
+    vibe_status_packet_t packet;
+    vibe_display_usage_summary_t usage;
+    vibe_display_task_row_t row;
+    vibe_status_default(&packet);
+
+    assert(parse(json, &packet));
+    assert(packet.codex_5h_remaining_percent == 88);
+    assert(packet.codex_7d_remaining_percent == 60);
+    assert(packet.tasks[0].context_remaining_percent == 90);
+
+    vibe_display_format_usage_summary(&packet, &usage);
+    assert(strcmp(usage.five_hour, "5H 88%") == 0);
+    assert(strcmp(usage.weekly, "7D 60%") == 0);
+
+    vibe_display_format_task_row(&packet.tasks[0], 0, &row);
+    assert(strcmp(row.trailing, "CTX 90%") == 0);
+}
+
 static void test_unknown_states_fall_back_to_idle(void)
 {
     const char *json =
@@ -713,6 +745,7 @@ int main(void)
 {
     test_v1_status_packet();
     test_v2_task_list_packet();
+    test_v2_usage_packet();
     test_unknown_states_fall_back_to_idle();
     test_utf8_decoder_reads_chinese_codepoints();
     test_utf8_decoder_handles_truncated_sequences();

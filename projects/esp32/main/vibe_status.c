@@ -31,6 +31,22 @@ static int json_int(cJSON *root, const char *key)
     return cJSON_IsNumber(value) ? value->valueint : 0;
 }
 
+static int json_percent(cJSON *root, const char *key)
+{
+    cJSON *value = cJSON_GetObjectItemCaseSensitive(root, key);
+    if (!cJSON_IsNumber(value)) {
+        return -1;
+    }
+
+    if (value->valueint < 0) {
+        return 0;
+    }
+    if (value->valueint > 100) {
+        return 100;
+    }
+    return value->valueint;
+}
+
 static void parse_task(cJSON *item, vibe_status_task_t *task)
 {
     if (item == NULL || task == NULL) {
@@ -40,6 +56,7 @@ static void parse_task(cJSON *item, vibe_status_task_t *task)
     copy_json_string(item, "title", task->title, sizeof(task->title));
     copy_json_string(item, "source", task->source, sizeof(task->source));
     copy_json_string(item, "detail", task->detail, sizeof(task->detail));
+    task->context_remaining_percent = json_percent(item, "contextRemainingPercent");
 
     cJSON *state = cJSON_GetObjectItemCaseSensitive(item, "state");
     if (cJSON_IsString(state) && state->valuestring != NULL) {
@@ -64,6 +81,8 @@ void vibe_status_default(vibe_status_packet_t *packet)
     packet->active_count = 0;
     packet->waiting_count = 0;
     packet->error_count = 0;
+    packet->codex_5h_remaining_percent = -1;
+    packet->codex_7d_remaining_percent = -1;
     packet->task_count = 0;
 
     for (int i = 0; i < VIBE_STATUS_MAX_TASKS; i++) {
@@ -72,6 +91,7 @@ void vibe_status_default(vibe_status_packet_t *packet)
         packet->tasks[i].state = VIBE_DISPLAY_IDLE;
         copy_text(packet->tasks[i].state_text, sizeof(packet->tasks[i].state_text), "idle");
         copy_text(packet->tasks[i].detail, sizeof(packet->tasks[i].detail), "");
+        packet->tasks[i].context_remaining_percent = -1;
     }
 }
 
@@ -103,6 +123,12 @@ bool vibe_status_parse_json(const uint8_t *data, size_t length, vibe_status_pack
     parsed->active_count = json_int(root, "activeCount");
     parsed->waiting_count = json_int(root, "waitingCount");
     parsed->error_count = json_int(root, "errorCount");
+
+    cJSON *usage = cJSON_GetObjectItemCaseSensitive(root, "usage");
+    if (cJSON_IsObject(usage)) {
+        parsed->codex_5h_remaining_percent = json_percent(usage, "codex5hRemainingPercent");
+        parsed->codex_7d_remaining_percent = json_percent(usage, "codex7dRemainingPercent");
+    }
 
     cJSON *timestamp = cJSON_GetObjectItemCaseSensitive(root, "ts");
     if (cJSON_IsNumber(timestamp)) {

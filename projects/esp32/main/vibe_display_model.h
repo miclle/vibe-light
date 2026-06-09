@@ -53,6 +53,7 @@ typedef struct {
     char badge[8];
     char title[VIBE_DISPLAY_ROW_TEXT_MAX];
     char subtitle[VIBE_DISPLAY_ROW_TEXT_MAX];
+    char trailing[12];
 } vibe_display_task_row_t;
 
 typedef struct {
@@ -66,6 +67,11 @@ typedef struct {
     char waiting[16];
     char error[16];
 } vibe_display_maze_count_text_t;
+
+typedef struct {
+    char five_hour[12];
+    char weekly[12];
+} vibe_display_usage_summary_t;
 
 typedef enum {
     VIBE_DISPLAY_DIRECTION_RIGHT = 0,
@@ -98,6 +104,7 @@ bool vibe_display_should_render(vibe_display_signature_t *signature, const vibe_
 void vibe_display_format_task_row(const vibe_status_task_t *task, int index, vibe_display_task_row_t *row);
 void vibe_display_format_count_summary(const vibe_status_packet_t *packet, vibe_display_count_summary_t *summary);
 void vibe_display_format_maze_count_text(const vibe_status_packet_t *packet, vibe_display_maze_count_text_t *text);
+void vibe_display_format_usage_summary(const vibe_status_packet_t *packet, vibe_display_usage_summary_t *summary);
 void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, size_t text_size);
 bool vibe_display_animation_enabled(vibe_display_state_t state);
 int vibe_display_animation_step(int active_count);

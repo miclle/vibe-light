@@ -12,6 +12,7 @@ static void copy_text(char *dest, size_t dest_size, const char *source);
 static void append_text(char *dest, size_t dest_size, const char *source);
 static void format_count(char *dest, size_t dest_size, char label, int count);
 static void format_maze_count(char *dest, size_t dest_size, const char *label, int count);
+static void format_percent(char *dest, size_t dest_size, const char *label, int percent);
 static int positive_mod(int value, int modulus);
 
 typedef struct {
@@ -113,6 +114,8 @@ uint32_t vibe_display_packet_signature(const vibe_status_packet_t *packet)
     hash = fnv1a_update(hash, &packet->active_count, sizeof(packet->active_count));
     hash = fnv1a_update(hash, &packet->waiting_count, sizeof(packet->waiting_count));
     hash = fnv1a_update(hash, &packet->error_count, sizeof(packet->error_count));
+    hash = fnv1a_update(hash, &packet->codex_5h_remaining_percent, sizeof(packet->codex_5h_remaining_percent));
+    hash = fnv1a_update(hash, &packet->codex_7d_remaining_percent, sizeof(packet->codex_7d_remaining_percent));
     hash = fnv1a_update(hash, &packet->task_count, sizeof(packet->task_count));
 
     int rows = packet->task_count > VIBE_STATUS_MAX_TASKS ? VIBE_STATUS_MAX_TASKS : packet->task_count;
@@ -122,6 +125,7 @@ uint32_t vibe_display_packet_signature(const vibe_status_packet_t *packet)
         hash = fnv1a_update_text(hash, task->source);
         hash = fnv1a_update(hash, &task->state, sizeof(task->state));
         hash = fnv1a_update_text(hash, task->detail);
+        hash = fnv1a_update(hash, &task->context_remaining_percent, sizeof(task->context_remaining_percent));
     }
 
     return hash;
@@ -160,6 +164,7 @@ void vibe_display_format_task_row(const vibe_status_task_t *task, int index, vib
 
     copy_text(row->badge, sizeof(row->badge), badge_for_state(task->state));
     copy_text(row->title, sizeof(row->title), task->title[0] == '\0' ? "untitled" : task->title);
+    format_percent(row->trailing, sizeof(row->trailing), "CTX", task->context_remaining_percent);
 
     if (task->source[0] != '\0' && task->detail[0] != '\0') {
         copy_text(row->subtitle, sizeof(row->subtitle), task->source);
@@ -210,6 +215,21 @@ void vibe_display_format_maze_count_text(const vibe_status_packet_t *packet, vib
     format_maze_count(text->active, sizeof(text->active), "ACTIVE", packet->active_count);
     format_maze_count(text->waiting, sizeof(text->waiting), "WAIT", packet->waiting_count);
     format_maze_count(text->error, sizeof(text->error), "ERR", packet->error_count);
+}
+
+void vibe_display_format_usage_summary(const vibe_status_packet_t *packet, vibe_display_usage_summary_t *summary)
+{
+    if (summary == NULL) {
+        return;
+    }
+
+    memset(summary, 0, sizeof(*summary));
+    if (packet == NULL) {
+        return;
+    }
+
+    format_percent(summary->five_hour, sizeof(summary->five_hour), "5H", packet->codex_5h_remaining_percent);
+    format_percent(summary->weekly, sizeof(summary->weekly), "7D", packet->codex_7d_remaining_percent);
 }
 
 void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, size_t text_size)
@@ -588,4 +608,21 @@ static void format_maze_count(char *dest, size_t dest_size, const char *label, i
         count = 0;
     }
     snprintf(dest, dest_size, "%s %d", label, count);
+}
+
+static void format_percent(char *dest, size_t dest_size, const char *label, int percent)
+{
+    if (dest == NULL || dest_size == 0) {
+        return;
+    }
+
+    dest[0] = '\0';
+    if (label == NULL || percent < 0) {
+        return;
+    }
+    if (percent > 100) {
+        percent = 100;
+    }
+
+    snprintf(dest, dest_size, "%s %d%%", label, percent);
 }

@@ -339,6 +339,14 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
               RGB565_PANEL);
 
     draw_text(24, 22, "VIBE LIGHT", 3, RGB565_WHITE);
+    vibe_display_usage_summary_t usage;
+    vibe_display_format_usage_summary(packet, &usage);
+    if (usage.five_hour[0] != '\0') {
+        draw_text(24, 56, usage.five_hour, 2, RGB565_WHITE);
+    }
+    if (usage.weekly[0] != '\0') {
+        draw_text(132, 56, usage.weekly, 2, RGB565_WHITE);
+    }
     render_maze(packet);
 
     if (packet->task_count > 0) {
@@ -371,9 +379,14 @@ static void render_task_rows(const vibe_status_packet_t *packet)
         vibe_display_format_task_row(task, i, &row);
 
         uint16_t task_color = color_for_state(task->state);
+        const int trailing_x = 222;
+        const int title_max_width = row.trailing[0] == '\0' ? LCD_H_RES - 44 : trailing_x - 40;
 
         fill_rect(16, y, VIBE_DISPLAY_TASK_SWATCH_W, VIBE_DISPLAY_TASK_SWATCH_H, task_color);
-        draw_text(32, y, row.title, 2, RGB565_WHITE);
+        draw_text_ellipsis(32, y, row.title, 2, RGB565_WHITE, title_max_width);
+        if (row.trailing[0] != '\0') {
+            draw_text(trailing_x, y, row.trailing, 2, RGB565_MUTED);
+        }
         if (should_render_task_detail(task, i)) {
             draw_text_ellipsis(32,
                                y + VIBE_DISPLAY_TASK_DETAIL_Y_OFFSET,
@@ -781,6 +794,25 @@ static uint8_t glyph_row(char c, int row)
         return row == 6 ? 0x1f : 0x00;
     case '.':
         return row == 6 ? 0x04 : 0x00;
+    case '%':
+        switch (row) {
+        case 0:
+            return 0x19;
+        case 1:
+            return 0x1a;
+        case 2:
+            return 0x02;
+        case 3:
+            return 0x04;
+        case 4:
+            return 0x08;
+        case 5:
+            return 0x0b;
+        case 6:
+            return 0x13;
+        default:
+            return 0x00;
+        }
     case ':':
         return (row == 2 || row == 4) ? 0x04 : 0x00;
     case '/':
