@@ -1,4 +1,5 @@
 #include "vibe_status.h"
+#include "vibe_cjk_font.h"
 #include "vibe_display_model.h"
 
 #include <assert.h>
@@ -7,6 +8,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+const uint8_t cjk_test_font_bin_start[] __asm__("_binary_vibe_cjk_font_bin_start") = {
+    'V', 'C', 'J', 'K',
+    1, 0,
+    18, 0,
+    18, 0,
+    90, 0,
+    0, 0,
+};
+const uint8_t cjk_test_font_bin_end[] __asm__("_binary_vibe_cjk_font_bin_end") = {0};
 
 static bool parse(const char *json, vibe_status_packet_t *packet)
 {
@@ -92,6 +103,43 @@ static void test_unknown_states_fall_back_to_idle(void)
     assert(packet.task_count == 1);
     assert(packet.tasks[0].state == VIBE_DISPLAY_IDLE);
     assert(strcmp(packet.tasks[0].state_text, "idle") == 0);
+}
+
+static void test_utf8_decoder_reads_chinese_codepoints(void)
+{
+    const char *text = "你来验证下";
+    const char *cursor = text;
+    uint32_t codepoint = 0;
+
+    assert(vibe_utf8_decode_next(&cursor, &codepoint) == 3);
+    assert(codepoint == 0x4F60);
+    assert(vibe_utf8_decode_next(&cursor, &codepoint) == 3);
+    assert(codepoint == 0x6765);
+    assert(vibe_utf8_decode_next(&cursor, &codepoint) == 3);
+    assert(codepoint == 0x9A8C);
+}
+
+static void test_utf8_decoder_handles_truncated_sequences(void)
+{
+    const char truncated_two_byte[] = {(char)0xC2, '\0'};
+    const char truncated_three_byte[] = {(char)0xE4, (char)0xBD, '\0'};
+    const char truncated_four_byte[] = {(char)0xF0, (char)0x9F, (char)0x98, '\0'};
+    const char *cursor = truncated_two_byte;
+    uint32_t codepoint = 0;
+
+    assert(vibe_utf8_decode_next(&cursor, &codepoint) == 1);
+    assert(codepoint == '?');
+    assert(*cursor == '\0');
+
+    cursor = truncated_three_byte;
+    assert(vibe_utf8_decode_next(&cursor, &codepoint) == 1);
+    assert(codepoint == '?');
+    assert((unsigned char)*cursor == 0xBD);
+
+    cursor = truncated_four_byte;
+    assert(vibe_utf8_decode_next(&cursor, &codepoint) == 1);
+    assert(codepoint == '?');
+    assert((unsigned char)*cursor == 0x9F);
 }
 
 static void test_invalid_packets_are_rejected_without_mutation(void)
@@ -655,7 +703,7 @@ static void test_display_model_keeps_task_panel_tight_to_screen_bottom(void)
     assert(detail_bottom <= screen_h);
     assert(VIBE_DISPLAY_TASK_ROW_TEXT_H >= 14);
     assert(VIBE_DISPLAY_TASK_ROW_STRIDE <= 48);
-    assert(VIBE_DISPLAY_TASK_DETAIL_ROW_STRIDE <= 60);
+    assert(VIBE_DISPLAY_TASK_DETAIL_ROW_STRIDE <= 64);
     assert(VIBE_DISPLAY_TASK_DETAIL_Y_OFFSET > VIBE_DISPLAY_TASK_ROW_TEXT_H);
     assert(VIBE_DISPLAY_TASK_SWATCH_W <= 4);
     assert(VIBE_DISPLAY_TASK_SWATCH_H <= VIBE_DISPLAY_TASK_ROW_STRIDE);
@@ -666,6 +714,8 @@ int main(void)
     test_v1_status_packet();
     test_v2_task_list_packet();
     test_unknown_states_fall_back_to_idle();
+    test_utf8_decoder_reads_chinese_codepoints();
+    test_utf8_decoder_handles_truncated_sequences();
     test_invalid_packets_are_rejected_without_mutation();
     test_display_model_detects_duplicate_packets();
     test_display_model_formats_task_rows();

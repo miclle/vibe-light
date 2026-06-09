@@ -21,9 +21,33 @@ clang \
   -I "$ROOT_DIR/main" \
   -I "$CJSON_DIR" \
   "$ROOT_DIR/tests/vibe_status_parser_test.c" \
+  "$ROOT_DIR/main/vibe_cjk_font.c" \
   "$ROOT_DIR/main/vibe_display_model.c" \
   "$ROOT_DIR/main/vibe_status.c" \
   "$CJSON_DIR/cJSON.c" \
   -o "$BINARY"
 
 "$BINARY"
+
+FONT_BIN="$BUILD_DIR/vibe_cjk_font.bin"
+python3 "$ROOT_DIR/tools/generate_cjk_font.py" "$FONT_BIN" >/tmp/vibe-cjk-font-test.log
+python3 - "$FONT_BIN" <<'PY'
+import struct
+import sys
+
+data = open(sys.argv[1], "rb").read()
+magic, version, width, height, bytes_per_glyph, count = struct.unpack_from("<4sHHHHH", data)
+assert magic == b"VCJK"
+assert version == 1
+assert (width, height, bytes_per_glyph) == (18, 18, 90)
+table_start = 14
+table = [
+    struct.unpack_from("<H", data, table_start + index * 2)[0]
+    for index in range(count)
+]
+assert ord("你") in table
+assert ord("显") in table
+assert ord("。") in table
+assert ord("？") in table
+assert len(data) == 14 + count * 2 + count * bytes_per_glyph
+PY

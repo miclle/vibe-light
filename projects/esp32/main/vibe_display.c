@@ -18,6 +18,7 @@
 
 #include "esp_lcd_panel_io_additions.h"
 #include "esp_lcd_st7701.h"
+#include "vibe_cjk_font.h"
 #include "vibe_display_model.h"
 #include "vibe_reference_maze.h"
 
@@ -148,10 +149,16 @@ static void render_animation_dots(const vibe_display_animation_frame_t *frames, 
 static void render_codex_actor(const vibe_display_animation_frame_t *frame);
 static void fill_screen(uint16_t color);
 static void fill_rect(int x, int y, int w, int h, uint16_t color);
+static void blend_pixel(int x, int y, uint16_t color, uint8_t alpha_level);
 static void fill_circle(int cx, int cy, int radius, uint16_t color);
 static void fill_triangle(int ax, int ay, int bx, int by, int cx, int cy, uint16_t color);
 static void draw_text(int x, int y, const char *text, int scale, uint16_t color);
+static void draw_text_ellipsis(int x, int y, const char *text, int scale, uint16_t color, int max_width);
 static void draw_char(int x, int y, char c, int scale, uint16_t color);
+static void draw_char_xy(int x, int y, char c, int scale_x, int scale_y, uint16_t color);
+static void draw_cjk_char(int x, int y, const uint8_t *glyph, uint16_t color);
+static void draw_missing_cjk_char(int x, int y, uint16_t color);
+static int text_codepoint_width(uint32_t codepoint, int scale);
 static uint8_t glyph_row(char c, int row);
 static void draw_maze_text_centered(int left, int right, int y, const char *text, uint16_t color);
 static void draw_maze_text(int x, int y, const char *text, int scale, uint16_t color);
@@ -368,7 +375,12 @@ static void render_task_rows(const vibe_status_packet_t *packet)
         fill_rect(16, y, VIBE_DISPLAY_TASK_SWATCH_W, VIBE_DISPLAY_TASK_SWATCH_H, task_color);
         draw_text(32, y, row.title, 2, RGB565_WHITE);
         if (should_render_task_detail(task, i)) {
-            draw_text(32, y + VIBE_DISPLAY_TASK_DETAIL_Y_OFFSET, task->detail, 1, RGB565_MUTED);
+            draw_text_ellipsis(32,
+                               y + VIBE_DISPLAY_TASK_DETAIL_Y_OFFSET,
+                               task->detail,
+                               2,
+                               RGB565_MUTED,
+                               LCD_H_RES - 32);
             y += VIBE_DISPLAY_TASK_DETAIL_ROW_STRIDE;
         } else {
             y += VIBE_DISPLAY_TASK_ROW_STRIDE;
@@ -516,6 +528,30 @@ static void fill_rect(int x, int y, int w, int h, uint16_t color)
     }
 }
 
+static void blend_pixel(int x, int y, uint16_t color, uint8_t alpha_level)
+{
+    if (alpha_level == 0 || x < 0 || y < 0 || x >= LCD_H_RES || y >= LCD_V_RES) {
+        return;
+    }
+    if (alpha_level >= 3) {
+        framebuffer[y * LCD_H_RES + x] = color;
+        return;
+    }
+
+    uint16_t bg = framebuffer[y * LCD_H_RES + x];
+    uint8_t fg_r = (uint8_t)((color >> 11) & 0x1f);
+    uint8_t fg_g = (uint8_t)((color >> 5) & 0x3f);
+    uint8_t fg_b = (uint8_t)(color & 0x1f);
+    uint8_t bg_r = (uint8_t)((bg >> 11) & 0x1f);
+    uint8_t bg_g = (uint8_t)((bg >> 5) & 0x3f);
+    uint8_t bg_b = (uint8_t)(bg & 0x1f);
+    uint8_t inv = (uint8_t)(3 - alpha_level);
+    uint8_t r = (uint8_t)((fg_r * alpha_level + bg_r * inv + 1) / 3);
+    uint8_t g = (uint8_t)((fg_g * alpha_level + bg_g * inv + 1) / 3);
+    uint8_t b = (uint8_t)((fg_b * alpha_level + bg_b * inv + 1) / 3);
+    framebuffer[y * LCD_H_RES + x] = (uint16_t)((r << 11) | (g << 5) | b);
+}
+
 static void fill_circle(int cx, int cy, int radius, uint16_t color)
 {
     int radius_squared = radius * radius;
@@ -563,28 +599,124 @@ static void draw_text(int x, int y, const char *text, int scale, uint16_t color)
     }
 
     int cursor = x;
-    for (const char *p = text; *p != '\0' && cursor < LCD_H_RES - 8; p++) {
-        if (*p == '\n') {
+    const char *p = text;
+    while (*p != '\0' && cursor < LCD_H_RES - 8) {
+        uint32_t codepoint = 0;
+        vibe_utf8_decode_next(&p, &codepoint);
+        if (codepoint == '\n') {
             y += 8 * scale;
             cursor = x;
             continue;
         }
-        draw_char(cursor, y, *p, scale, color);
-        cursor += 6 * scale;
+        if (codepoint < 0x80) {
+            draw_char(cursor, y, (char)codepoint, scale, color);
+            cursor += 6 * scale;
+            continue;
+        }
+
+        const uint8_t *glyph = NULL;
+        if (vibe_cjk_font_lookup(codepoint, &glyph)) {
+            draw_cjk_char(cursor, y, glyph, color);
+        } else {
+            draw_missing_cjk_char(cursor, y, color);
+        }
+        cursor += VIBE_CJK_FONT_WIDTH + 1;
     }
 }
 
+static void draw_text_ellipsis(int x, int y, const char *text, int scale, uint16_t color, int max_width)
+{
+    if (text == NULL || max_width <= 0) {
+        return;
+    }
+
+    const int end_x = x + max_width;
+    const int ellipsis_width = 3 * text_codepoint_width('.', scale);
+    int cursor = x;
+    const char *p = text;
+
+    while (*p != '\0' && cursor < end_x) {
+        const char *next = p;
+        uint32_t codepoint = 0;
+        vibe_utf8_decode_next(&next, &codepoint);
+
+        if (codepoint == '\n') {
+            return;
+        }
+
+        int codepoint_width = text_codepoint_width(codepoint, scale);
+        bool has_more = *next != '\0';
+        if ((has_more && cursor + codepoint_width + ellipsis_width > end_x) ||
+            (!has_more && cursor + codepoint_width > end_x)) {
+            if (cursor + ellipsis_width <= end_x) {
+                draw_char(cursor, y + 2, '.', scale, color);
+                draw_char(cursor + text_codepoint_width('.', scale), y + 2, '.', scale, color);
+                draw_char(cursor + text_codepoint_width('.', scale) * 2, y + 2, '.', scale, color);
+            }
+            return;
+        }
+
+        if (codepoint < 0x80) {
+            draw_char(cursor, y + 2, (char)codepoint, scale, color);
+        } else {
+            const uint8_t *glyph = NULL;
+            if (vibe_cjk_font_lookup(codepoint, &glyph)) {
+                draw_cjk_char(cursor, y, glyph, color);
+            } else {
+                draw_missing_cjk_char(cursor, y, color);
+            }
+        }
+
+        cursor += codepoint_width;
+        p = next;
+    }
+}
+
+static int text_codepoint_width(uint32_t codepoint, int scale)
+{
+    return codepoint < 0x80 ? 6 * scale : VIBE_CJK_FONT_WIDTH + 1;
+}
+
 static void draw_char(int x, int y, char c, int scale, uint16_t color)
+{
+    draw_char_xy(x, y, c, scale, scale, color);
+}
+
+static void draw_char_xy(int x, int y, char c, int scale_x, int scale_y, uint16_t color)
 {
     c = (char)toupper((unsigned char)c);
     for (int row = 0; row < 7; row++) {
         uint8_t bits = glyph_row(c, row);
         for (int col = 0; col < 5; col++) {
             if (bits & (1 << (4 - col))) {
-                fill_rect(x + col * scale, y + row * scale, scale, scale, color);
+                fill_rect(x + col * scale_x, y + row * scale_y, scale_x, scale_y, color);
             }
         }
     }
+}
+
+static void draw_cjk_char(int x, int y, const uint8_t *glyph, uint16_t color)
+{
+    if (glyph == NULL) {
+        return;
+    }
+
+    for (int row = 0; row < VIBE_CJK_FONT_HEIGHT; row++) {
+        for (int col = 0; col < VIBE_CJK_FONT_WIDTH; col++) {
+            uint8_t packed = glyph[row * VIBE_CJK_FONT_BYTES_PER_ROW + col / 4];
+            uint8_t alpha_level = (uint8_t)((packed >> (6 - (col % 4) * 2)) & 0x03);
+            blend_pixel(x + col, y + row, color, alpha_level);
+        }
+    }
+}
+
+static void draw_missing_cjk_char(int x, int y, uint16_t color)
+{
+    fill_rect(x, y, VIBE_CJK_FONT_WIDTH, 1, color);
+    fill_rect(x, y + VIBE_CJK_FONT_HEIGHT - 1, VIBE_CJK_FONT_WIDTH, 1, color);
+    fill_rect(x, y, 1, VIBE_CJK_FONT_HEIGHT, color);
+    fill_rect(x + VIBE_CJK_FONT_WIDTH - 1, y, 1, VIBE_CJK_FONT_HEIGHT, color);
+    draw_char(x + 5, y + 4, '?', 1, color);
 }
 
 static uint8_t glyph_row(char c, int row)

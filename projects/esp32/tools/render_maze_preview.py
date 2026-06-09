@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
-"""Render a host-side PNG preview of the ESP32 Pac-Man maze.
-
-The script intentionally uses only the Python standard library so it can run on
-the development machine without extra image packages. Coordinates mirror the
-firmware's current 320px-wide maze stage closely enough for visual regression
-checks while hardware flashing is unavailable.
-"""
+"""Render a host-side PNG preview of the ESP32 Pac-Man maze."""
 
 from __future__ import annotations
 
 import argparse
 import re
 import struct
+import subprocess
+import tempfile
 import zlib
 from pathlib import Path
 
@@ -29,10 +25,14 @@ TASK_PANEL_W = 320
 TASK_PANEL_H = 418
 TASK_ROW_Y = 418
 TASK_ROW_STRIDE = 44
-TASK_DETAIL_ROW_STRIDE = 56
-TASK_DETAIL_Y_OFFSET = 22
+TASK_DETAIL_ROW_STRIDE = 64
+TASK_DETAIL_Y_OFFSET = 24
 TASK_SWATCH_W = 4
-TASK_SWATCH_H = 16
+TASK_SWATCH_H = 18
+CJK_FONT_WIDTH = 18
+CJK_FONT_HEIGHT = 18
+CJK_FONT_BYTES_PER_ROW = (CJK_FONT_WIDTH + 3) // 4
+CJK_FONT_BYTES_PER_GLYPH = CJK_FONT_BYTES_PER_ROW * CJK_FONT_HEIGHT
 
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
@@ -60,6 +60,7 @@ RGB565_TO_RGB = {
     0xF800: RED,
     0x07FF: CYAN,
 }
+CJK_FONT_CACHE: dict[int, bytes] | None = None
 
 
 def display_model_define(name: str) -> int:
@@ -188,6 +189,7 @@ LETTER_GLYPHS = {
     "3": ("111", "001", "111", "001", "111"),
     "4": ("101", "101", "111", "001", "001"),
     "5": ("111", "100", "111", "001", "111"),
+    ".": ("000", "000", "000", "000", "010"),
     "A": ("010", "101", "111", "101", "101"),
     "B": ("110", "101", "110", "101", "110"),
     "C": ("111", "100", "100", "100", "111"),
@@ -212,13 +214,82 @@ LETTER_GLYPHS = {
 }
 
 
+def load_cjk_font() -> dict[int, bytes]:
+    global CJK_FONT_CACHE
+    if CJK_FONT_CACHE is not None:
+        return CJK_FONT_CACHE
+
+    font_bin = Path(tempfile.gettempdir()) / "vibe-cjk-preview-font.bin"
+    generator = REPO_ROOT / "projects/esp32/tools/generate_cjk_font.py"
+    if not font_bin.exists() or not cjk_font_bin_supported(font_bin):
+        subprocess.run([str(generator), str(font_bin)], check=True, stdout=subprocess.DEVNULL)
+
+    data = font_bin.read_bytes()
+    magic, version, width, height, bytes_per_glyph, count = struct.unpack_from("<4sHHHHH", data)
+    if magic != b"VCJK" or version != 1 or (width, height, bytes_per_glyph) != (
+        CJK_FONT_WIDTH,
+        CJK_FONT_HEIGHT,
+        CJK_FONT_BYTES_PER_GLYPH,
+    ):
+        raise ValueError("unsupported CJK font asset")
+
+    table_start = 14
+    glyph_start = table_start + count * 2
+    CJK_FONT_CACHE = {}
+    for index in range(count):
+        codepoint = struct.unpack_from("<H", data, table_start + index * 2)[0]
+        offset = glyph_start + index * bytes_per_glyph
+        CJK_FONT_CACHE[codepoint] = data[offset : offset + bytes_per_glyph]
+    return CJK_FONT_CACHE
+
+
+def cjk_font_bin_supported(path: Path) -> bool:
+    try:
+        data = path.read_bytes()[:14]
+        magic, version, width, height, bytes_per_glyph, _ = struct.unpack_from("<4sHHHHH", data)
+    except (OSError, struct.error):
+        return False
+    return magic == b"VCJK" and version == 1 and (width, height, bytes_per_glyph) == (
+        CJK_FONT_WIDTH,
+        CJK_FONT_HEIGHT,
+        CJK_FONT_BYTES_PER_GLYPH,
+    )
+
+
+def draw_cjk_char(image: Image, x: int, y: int, char: str, color: tuple[int, int, int]) -> None:
+    glyph = load_cjk_font().get(ord(char))
+    if glyph is None:
+        fill_rect(image, x, y, CJK_FONT_WIDTH, 1, color)
+        fill_rect(image, x, y + CJK_FONT_HEIGHT - 1, CJK_FONT_WIDTH, 1, color)
+        fill_rect(image, x, y, 1, CJK_FONT_HEIGHT, color)
+        fill_rect(image, x + CJK_FONT_WIDTH - 1, y, 1, CJK_FONT_HEIGHT, color)
+        return
+
+    for row in range(CJK_FONT_HEIGHT):
+        for col in range(CJK_FONT_WIDTH):
+            packed = glyph[row * CJK_FONT_BYTES_PER_ROW + col // 4]
+            alpha = (packed >> (6 - (col % 4) * 2)) & 0x03
+            if alpha == 0:
+                continue
+            if alpha >= 3:
+                pixel_color = color
+            else:
+                bg = image[(y + row) * SCALE][(x + col) * SCALE]
+                pixel_color = tuple((color[i] * alpha + bg[i] * (3 - alpha) + 1) // 3 for i in range(3))
+            fill_rect(image, x + col, y + row, 1, 1, pixel_color)
+
+
 def draw_text(image: Image, x: int, y: int, text: str, scale: int, color: tuple[int, int, int]) -> None:
     cursor = x
-    for char in text.upper():
+    for char in text:
         if char == " ":
             cursor += 4 * scale
             continue
-        glyph = LETTER_GLYPHS.get(char)
+        if ord(char) >= 0x80:
+            draw_cjk_char(image, cursor, y, char, color)
+            cursor += CJK_FONT_WIDTH + 1
+            continue
+        glyph = LETTER_GLYPHS.get(char.upper())
         if glyph is None:
             cursor += 4 * scale
             continue
@@ -227,6 +298,63 @@ def draw_text(image: Image, x: int, y: int, text: str, scale: int, color: tuple[
                 if pixel == "1":
                     fill_rect(image, cursor + col_index * scale, y + row_index * scale, scale, scale, color)
         cursor += 4 * scale
+
+
+def draw_ascii_char_xy(
+    image: Image,
+    x: int,
+    y: int,
+    char: str,
+    scale_x: int,
+    scale_y: int,
+    color: tuple[int, int, int],
+) -> None:
+    if char == " ":
+        return
+    glyph = LETTER_GLYPHS.get(char.upper())
+    if glyph is None:
+        return
+    for row_index, row in enumerate(glyph):
+        for col_index, pixel in enumerate(row):
+            if pixel == "1":
+                fill_rect(image, x + col_index * scale_x, y + row_index * scale_y, scale_x, scale_y, color)
+
+
+def text_char_width(char: str, scale: int) -> int:
+    return CJK_FONT_WIDTH + 1 if ord(char) >= 0x80 else 4 * scale
+
+
+def draw_text_ellipsis(
+    image: Image,
+    x: int,
+    y: int,
+    text: str,
+    scale: int,
+    color: tuple[int, int, int],
+    max_width: int,
+) -> None:
+    cursor = x
+    end_x = x + max_width
+    ellipsis_width = text_char_width(".", scale) * 3
+    for index, char in enumerate(text):
+        if char == "\n":
+            return
+        char_width = text_char_width(char, scale)
+        has_more = index < len(text) - 1
+        if (has_more and cursor + char_width + ellipsis_width > end_x) or (
+            not has_more and cursor + char_width > end_x
+        ):
+            if cursor + ellipsis_width <= end_x:
+                dot_width = text_char_width(".", scale)
+                draw_text(image, cursor, y + 2, ".", scale, color)
+                draw_text(image, cursor + dot_width, y + 2, ".", scale, color)
+                draw_text(image, cursor + dot_width * 2, y + 2, ".", scale, color)
+            return
+        if ord(char) >= 0x80:
+            draw_text(image, cursor, y, char, scale, color)
+        else:
+            draw_text(image, cursor, y + 2, char, scale, color)
+        cursor += char_width
 
 
 def load_reference_maze_runs() -> list[tuple[int, int, int, tuple[int, int, int]]]:
@@ -271,11 +399,11 @@ def draw_full_screen(image: Image) -> None:
     draw_maze(image, MAZE_STAGE_Y)
 
     tasks = [
-        (BUSY, "VIBE-LIGHT", "implement v2"),
-        (WAITING, "DOCS", "approve edit"),
-        (ERROR, "FIRMWARE", "build failed"),
+        (BUSY, "VIBE-LIGHT", "打开 .SLIDEO 文件"),
+        (WAITING, "DOCS", "等待蓝牙权限"),
+        (ERROR, "FIRMWARE", "构建失败"),
         (BUSY, "FLASH", ""),
-        (WAITING, "APPROVAL", "needs confirm"),
+        (WAITING, "APPROVAL", "需要确认"),
     ]
     y = TASK_ROW_Y
     for index, (color, title, detail) in enumerate(tasks):
@@ -283,7 +411,7 @@ def draw_full_screen(image: Image) -> None:
         draw_text(image, 32, y, title, 2, WHITE)
         show_detail = bool(detail) and (index == 0 or color in (WAITING, ERROR))
         if show_detail:
-            draw_text(image, 32, y + TASK_DETAIL_Y_OFFSET, detail, 1, MUTED)
+            draw_text_ellipsis(image, 32, y + TASK_DETAIL_Y_OFFSET, detail, 2, MUTED, FULL_PREVIEW_WIDTH - 32)
             y += TASK_DETAIL_ROW_STRIDE
         else:
             y += TASK_ROW_STRIDE
