@@ -23,14 +23,16 @@ FULL_PREVIEW_WIDTH = 320
 FULL_PREVIEW_HEIGHT = 820
 HEADER_HEIGHT = 82
 MAZE_STAGE_Y = 82
-TASK_PANEL_X = 18
-TASK_PANEL_Y = 430
-TASK_PANEL_W = 284
-TASK_PANEL_H = 390
-TASK_ROW_Y = 492
-TASK_ROW_STRIDE = 56
-TASK_SWATCH_W = 3
-TASK_SWATCH_H = 10
+TASK_PANEL_X = 0
+TASK_PANEL_Y = 402
+TASK_PANEL_W = 320
+TASK_PANEL_H = 418
+TASK_ROW_Y = 418
+TASK_ROW_STRIDE = 44
+TASK_DETAIL_ROW_STRIDE = 56
+TASK_DETAIL_Y_OFFSET = 22
+TASK_SWATCH_W = 4
+TASK_SWATCH_H = 16
 
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
@@ -269,17 +271,22 @@ def draw_full_screen(image: Image) -> None:
     draw_maze(image, MAZE_STAGE_Y)
 
     tasks = [
-        (BUSY, "1", "MANUAL"),
-        (WAITING, "2", "BUILD"),
-        (ERROR, "3", "TEST"),
-        (BUSY, "4", "FLASH"),
-        (WAITING, "5", "READY"),
+        (BUSY, "MANUAL", "running shell"),
+        (WAITING, "BUILD", "needs approval"),
+        (ERROR, "TEST", "failed check"),
+        (BUSY, "FLASH", ""),
+        (WAITING, "READY", "device prompt"),
     ]
-    for index, (color, badge, title) in enumerate(tasks):
-        y = TASK_ROW_Y + index * TASK_ROW_STRIDE
-        fill_rect(image, 32, y, TASK_SWATCH_W, TASK_SWATCH_H, color)
-        draw_text(image, 44, y, badge, 1, color)
-        draw_text(image, 70, y, title, 1, WHITE)
+    y = TASK_ROW_Y
+    for index, (color, title, detail) in enumerate(tasks):
+        fill_rect(image, 16, y, TASK_SWATCH_W, TASK_SWATCH_H, color)
+        draw_text(image, 32, y, title, 2, WHITE)
+        show_detail = bool(detail) and (index == 0 or color in (WAITING, ERROR))
+        if show_detail:
+            draw_text(image, 32, y + TASK_DETAIL_Y_OFFSET, detail, 1, MUTED)
+            y += TASK_DETAIL_ROW_STRIDE
+        else:
+            y += TASK_ROW_STRIDE
 
 
 def draw_maze_count_boxes(image: Image, y_offset: int) -> None:

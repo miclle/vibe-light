@@ -140,10 +140,10 @@ static esp_err_t init_backlight(void);
 static esp_err_t init_lcd_panel(void);
 static void render_status(const vibe_status_packet_t *packet, int animation_phase);
 static void render_task_rows(const vibe_status_packet_t *packet);
+static bool should_render_task_detail(const vibe_status_task_t *task, int index);
 static void render_codex_animation(const vibe_status_packet_t *packet, int animation_phase);
 static void render_maze(const vibe_status_packet_t *packet);
 static void render_reference_maze_art(void);
-static void render_maze_count_boxes(const vibe_status_packet_t *packet);
 static void render_animation_dots(const vibe_display_animation_frame_t *frames, int actor_count);
 static void render_codex_actor(const vibe_display_animation_frame_t *frame);
 static void fill_screen(uint16_t color);
@@ -337,8 +337,8 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
     if (packet->task_count > 0) {
         render_task_rows(packet);
     } else {
-        draw_text(32, VIBE_DISPLAY_TASK_PANEL_Y + 36, "NO ACTIVE TASKS", 2, RGB565_MUTED);
-        draw_text(32, VIBE_DISPLAY_TASK_PANEL_Y + 92, vibe_display_state_to_title(packet->state), 3, RGB565_WHITE);
+        draw_text(16, VIBE_DISPLAY_TASK_PANEL_Y + 28, "NO ACTIVE TASKS", 2, RGB565_MUTED);
+        draw_text(16, VIBE_DISPLAY_TASK_PANEL_Y + 84, vibe_display_state_to_title(packet->state), 3, RGB565_WHITE);
     }
 
     char footer[48];
@@ -357,18 +357,31 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
 static void render_task_rows(const vibe_status_packet_t *packet)
 {
     int rows = packet->task_count > VIBE_STATUS_MAX_TASKS ? VIBE_STATUS_MAX_TASKS : packet->task_count;
+    int y = VIBE_DISPLAY_TASK_ROW_Y;
     for (int i = 0; i < rows; i++) {
         const vibe_status_task_t *task = &packet->tasks[i];
         vibe_display_task_row_t row;
         vibe_display_format_task_row(task, i, &row);
 
-        int y = VIBE_DISPLAY_TASK_ROW_Y + i * VIBE_DISPLAY_TASK_ROW_STRIDE;
         uint16_t task_color = color_for_state(task->state);
 
-        fill_rect(32, y, VIBE_DISPLAY_TASK_SWATCH_W, VIBE_DISPLAY_TASK_SWATCH_H, task_color);
-        draw_text(44, y, row.badge, 1, task_color);
-        draw_text(70, y, row.title, 1, RGB565_WHITE);
+        fill_rect(16, y, VIBE_DISPLAY_TASK_SWATCH_W, VIBE_DISPLAY_TASK_SWATCH_H, task_color);
+        draw_text(32, y, row.title, 2, RGB565_WHITE);
+        if (should_render_task_detail(task, i)) {
+            draw_text(32, y + VIBE_DISPLAY_TASK_DETAIL_Y_OFFSET, task->detail, 1, RGB565_MUTED);
+            y += VIBE_DISPLAY_TASK_DETAIL_ROW_STRIDE;
+        } else {
+            y += VIBE_DISPLAY_TASK_ROW_STRIDE;
+        }
     }
+}
+
+static bool should_render_task_detail(const vibe_status_task_t *task, int index)
+{
+    if (task == NULL || task->detail[0] == '\0') {
+        return false;
+    }
+    return index == 0 || task->state == VIBE_DISPLAY_WAITING || task->state == VIBE_DISPLAY_ERROR;
 }
 
 static void render_maze(const vibe_status_packet_t *packet)
@@ -380,27 +393,11 @@ static void render_maze(const vibe_status_packet_t *packet)
 
     fill_rect(x, y, w, h, RGB565_BLACK);
     render_reference_maze_art();
-    render_maze_count_boxes(packet);
-}
 
-static void render_reference_maze_art(void)
-{
-    for (int i = 0; i < VIBE_REFERENCE_MAZE_RUN_COUNT; i++) {
-        const vibe_reference_maze_run_t *run = &VIBE_REFERENCE_MAZE_RUNS[i];
-        fill_rect(vibe_display_maze_display_x(run->x),
-                  VIBE_DISPLAY_MAZE_STAGE_Y + run->y,
-                  vibe_display_maze_display_run_width(run->x, run->length),
-                  1,
-                  run->color);
-    }
-}
-
-static void render_maze_count_boxes(const vibe_status_packet_t *packet)
-{
     vibe_display_maze_count_text_t text;
     vibe_display_format_maze_count_text(packet, &text);
 
-    const int y = VIBE_DISPLAY_MAZE_STAGE_Y + 294;
+    const int count_y = VIBE_DISPLAY_MAZE_STAGE_Y + 294;
     const int clear_y = VIBE_DISPLAY_MAZE_STAGE_Y + 288;
     const int clear_h = 22;
 
@@ -415,9 +412,21 @@ static void render_maze_count_boxes(const vibe_status_packet_t *packet)
     fill_rect(middle_box_left, clear_y, middle_box_right - middle_box_left + 1, clear_h, RGB565_BLACK);
     fill_rect(right_box_left, clear_y, right_box_right - right_box_left + 1, clear_h, RGB565_BLACK);
 
-    draw_maze_text_centered(left_box_left, left_box_right, y, text.active, color_for_state(VIBE_DISPLAY_BUSY));
-    draw_maze_text_centered(middle_box_left, middle_box_right, y, text.waiting, color_for_state(VIBE_DISPLAY_WAITING));
-    draw_maze_text_centered(right_box_left, right_box_right, y, text.error, color_for_state(VIBE_DISPLAY_ERROR));
+    draw_maze_text_centered(left_box_left, left_box_right, count_y, text.active, color_for_state(VIBE_DISPLAY_BUSY));
+    draw_maze_text_centered(middle_box_left, middle_box_right, count_y, text.waiting, color_for_state(VIBE_DISPLAY_WAITING));
+    draw_maze_text_centered(right_box_left, right_box_right, count_y, text.error, color_for_state(VIBE_DISPLAY_ERROR));
+}
+
+static void render_reference_maze_art(void)
+{
+    for (int i = 0; i < VIBE_REFERENCE_MAZE_RUN_COUNT; i++) {
+        const vibe_reference_maze_run_t *run = &VIBE_REFERENCE_MAZE_RUNS[i];
+        fill_rect(vibe_display_maze_display_x(run->x),
+                  VIBE_DISPLAY_MAZE_STAGE_Y + run->y,
+                  vibe_display_maze_display_run_width(run->x, run->length),
+                  1,
+                  run->color);
+    }
 }
 
 static void render_codex_animation(const vibe_status_packet_t *packet, int animation_phase)

@@ -639,15 +639,25 @@ static void test_display_model_hides_timestamp_footer(void)
 static void test_display_model_keeps_task_panel_tight_to_screen_bottom(void)
 {
     const int screen_h = 820;
-    const int last_row_y = VIBE_DISPLAY_TASK_ROW_Y + (VIBE_STATUS_MAX_TASKS - 1) * VIBE_DISPLAY_TASK_ROW_STRIDE;
-    const int row_bottom = last_row_y + VIBE_DISPLAY_TASK_ROW_TEXT_H;
-    const int swatch_bottom = last_row_y + VIBE_DISPLAY_TASK_SWATCH_H;
+    const int last_compact_row_y = VIBE_DISPLAY_TASK_ROW_Y + (VIBE_STATUS_MAX_TASKS - 1) * VIBE_DISPLAY_TASK_ROW_STRIDE;
+    const int row_bottom = last_compact_row_y + VIBE_DISPLAY_TASK_ROW_TEXT_H;
+    const int swatch_bottom = last_compact_row_y + VIBE_DISPLAY_TASK_SWATCH_H;
+    const int last_detail_row_y = VIBE_DISPLAY_TASK_ROW_Y + (VIBE_STATUS_MAX_TASKS - 1) * VIBE_DISPLAY_TASK_DETAIL_ROW_STRIDE;
+    const int detail_bottom = last_detail_row_y + VIBE_DISPLAY_TASK_DETAIL_Y_OFFSET + VIBE_DISPLAY_TASK_DETAIL_TEXT_H;
 
+    assert(VIBE_DISPLAY_TASK_PANEL_X == 0);
+    assert(VIBE_DISPLAY_TASK_PANEL_W == 320);
+    assert(VIBE_DISPLAY_TASK_PANEL_Y == VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_STAGE_H);
     assert(VIBE_DISPLAY_TASK_PANEL_Y + VIBE_DISPLAY_TASK_PANEL_H == screen_h);
     assert(VIBE_DISPLAY_TASK_ROW_Y > VIBE_DISPLAY_TASK_PANEL_Y);
     assert(row_bottom <= screen_h);
     assert(swatch_bottom <= screen_h);
-    assert(VIBE_DISPLAY_TASK_SWATCH_W <= 3);
+    assert(detail_bottom <= screen_h);
+    assert(VIBE_DISPLAY_TASK_ROW_TEXT_H >= 14);
+    assert(VIBE_DISPLAY_TASK_ROW_STRIDE <= 48);
+    assert(VIBE_DISPLAY_TASK_DETAIL_ROW_STRIDE <= 60);
+    assert(VIBE_DISPLAY_TASK_DETAIL_Y_OFFSET > VIBE_DISPLAY_TASK_ROW_TEXT_H);
+    assert(VIBE_DISPLAY_TASK_SWATCH_W <= 4);
     assert(VIBE_DISPLAY_TASK_SWATCH_H <= VIBE_DISPLAY_TASK_ROW_STRIDE);
 }
 
