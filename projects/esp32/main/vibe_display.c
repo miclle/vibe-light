@@ -158,6 +158,7 @@ static void draw_char(int x, int y, char c, int scale, uint16_t color);
 static void draw_char_xy(int x, int y, char c, int scale_x, int scale_y, uint16_t color);
 static void draw_cjk_char(int x, int y, const uint8_t *glyph, uint16_t color);
 static void draw_missing_cjk_char(int x, int y, uint16_t color);
+static int text_width(const char *text, int scale);
 static int text_codepoint_width(uint32_t codepoint, int scale);
 static uint8_t glyph_row(char c, int row);
 static void draw_maze_text_centered(int left, int right, int y, const char *text, uint16_t color);
@@ -379,7 +380,7 @@ static void render_task_rows(const vibe_status_packet_t *packet)
         vibe_display_format_task_row(task, i, &row);
 
         uint16_t task_color = color_for_state(task->state);
-        const int trailing_x = 222;
+        const int trailing_x = row.trailing[0] == '\0' ? LCD_H_RES : LCD_H_RES - 4 - text_width(row.trailing, 2);
         const int title_max_width = row.trailing[0] == '\0' ? LCD_H_RES - 44 : trailing_x - 40;
 
         fill_rect(16, y, VIBE_DISPLAY_TASK_SWATCH_W, VIBE_DISPLAY_TASK_SWATCH_H, task_color);
@@ -683,6 +684,25 @@ static void draw_text_ellipsis(int x, int y, const char *text, int scale, uint16
         cursor += codepoint_width;
         p = next;
     }
+}
+
+static int text_width(const char *text, int scale)
+{
+    if (text == NULL) {
+        return 0;
+    }
+
+    int width = 0;
+    const char *p = text;
+    while (*p != '\0') {
+        uint32_t codepoint = 0;
+        vibe_utf8_decode_next(&p, &codepoint);
+        if (codepoint == '\n') {
+            break;
+        }
+        width += text_codepoint_width(codepoint, scale);
+    }
+    return width;
 }
 
 static int text_codepoint_width(uint32_t codepoint, int scale)

@@ -330,6 +330,10 @@ def text_char_width(char: str, scale: int) -> int:
     return CJK_FONT_WIDTH + 1 if ord(char) >= 0x80 else 4 * scale
 
 
+def text_width(text: str, scale: int) -> int:
+    return sum(text_char_width(char, scale) for char in text.split("\n", 1)[0])
+
+
 def draw_text_ellipsis(
     image: Image,
     x: int,
@@ -415,7 +419,7 @@ def draw_full_screen(image: Image) -> None:
     ]
     y = TASK_ROW_Y
     for index, (color, title, detail, trailing) in enumerate(tasks):
-        trailing_x = 222
+        trailing_x = FULL_PREVIEW_WIDTH - 4 - text_width(trailing, 2) if trailing else FULL_PREVIEW_WIDTH
         title_max_width = trailing_x - 40 if trailing else FULL_PREVIEW_WIDTH - 44
         fill_rect(image, 16, y, TASK_SWATCH_W, TASK_SWATCH_H, color)
         draw_text_ellipsis(image, 32, y, title, 2, WHITE, title_max_width)
