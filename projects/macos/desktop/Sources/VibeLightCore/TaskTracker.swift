@@ -9,6 +9,7 @@ public struct TrackedTask: Equatable, Identifiable, Sendable {
     public var lastDetail: String
     public var lastUpdated: Date
     public var inclusionReason: String
+    public var contextRemainingPercent: Int?
 
     public init(
         id: String,
@@ -18,7 +19,8 @@ public struct TrackedTask: Equatable, Identifiable, Sendable {
         title: String,
         lastDetail: String,
         lastUpdated: Date,
-        inclusionReason: String
+        inclusionReason: String,
+        contextRemainingPercent: Int? = nil
     ) {
         self.id = id
         self.identityKind = identityKind
@@ -28,6 +30,7 @@ public struct TrackedTask: Equatable, Identifiable, Sendable {
         self.lastDetail = lastDetail
         self.lastUpdated = lastUpdated
         self.inclusionReason = inclusionReason
+        self.contextRemainingPercent = contextRemainingPercent
     }
 }
 
@@ -58,6 +61,7 @@ public struct DisplaySnapshot: Equatable, Sendable {
     public var activeCount: Int
     public var waitingCount: Int
     public var errorCount: Int
+    public var codexUsage: CodexUsage?
 
     public init(
         source: VibeSource,
@@ -68,7 +72,8 @@ public struct DisplaySnapshot: Equatable, Sendable {
         staleAfter: TimeInterval,
         activeCount: Int = 0,
         waitingCount: Int = 0,
-        errorCount: Int = 0
+        errorCount: Int = 0,
+        codexUsage: CodexUsage? = nil
     ) {
         self.source = source
         self.state = state
@@ -79,6 +84,7 @@ public struct DisplaySnapshot: Equatable, Sendable {
         self.activeCount = activeCount
         self.waitingCount = waitingCount
         self.errorCount = errorCount
+        self.codexUsage = codexUsage
     }
 
     public var statusPacket: StatusPacket {
@@ -92,7 +98,19 @@ public struct DisplaySnapshot: Equatable, Sendable {
             waitingCount: waitingCount,
             errorCount: errorCount,
             tasks: tasks.map {
-                StatusTask(title: $0.title, state: $0.state, source: $0.source, detail: $0.lastDetail)
+                StatusTask(
+                    title: $0.title,
+                    state: $0.state,
+                    source: $0.source,
+                    detail: $0.lastDetail,
+                    contextRemainingPercent: $0.contextRemainingPercent
+                )
+            },
+            usage: codexUsage.map {
+                StatusUsage(
+                    codex5hRemainingPercent: $0.fiveHourRemainingPercent,
+                    codex7dRemainingPercent: $0.weeklyRemainingPercent
+                )
             }
         )
     }
@@ -107,6 +125,7 @@ public struct TaskTracker: Sendable {
 
     public func snapshot(from newestFirstEvents: [VibeHookEvent], now: Date = Date()) -> DisplaySnapshot {
         var tasksByID: [String: TrackedTask] = [:]
+        let codexUsage = newestFirstEvents.first(where: { $0.source == .codex && $0.codexUsage != nil })?.codexUsage
 
         for event in newestFirstEvents.reversed() where shouldTrack(event) {
             let identity = resolvedIdentity(for: event)
@@ -118,7 +137,8 @@ public struct TaskTracker: Sendable {
                 title: title(for: event, taskID: identity.id),
                 lastDetail: event.displayDetail,
                 lastUpdated: event.timestamp,
-                inclusionReason: inclusionReason(for: event, identity: identity)
+                inclusionReason: inclusionReason(for: event, identity: identity),
+                contextRemainingPercent: event.codexUsage?.contextRemainingPercent
             )
         }
 
@@ -142,7 +162,8 @@ public struct TaskTracker: Sendable {
                 detail: "no active tasks",
                 timestamp: now,
                 tasks: [],
-                staleAfter: staleAfter
+                staleAfter: staleAfter,
+                codexUsage: codexUsage
             )
         }
 
@@ -162,7 +183,8 @@ public struct TaskTracker: Sendable {
             staleAfter: staleAfter,
             activeCount: busyCount + waitingCount,
             waitingCount: waitingCount,
-            errorCount: errorCount
+            errorCount: errorCount,
+            codexUsage: codexUsage
         )
     }
 

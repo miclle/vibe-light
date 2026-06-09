@@ -91,6 +91,7 @@ public struct VibeHookEvent: Codable, Equatable, Identifiable, Sendable {
     public var toolName: String?
     public var workspace: String?
     public var rawPayload: String?
+    public var codexUsage: CodexUsage?
 
     public init(
         id: UUID = UUID(),
@@ -103,7 +104,8 @@ public struct VibeHookEvent: Codable, Equatable, Identifiable, Sendable {
         message: String? = nil,
         toolName: String? = nil,
         workspace: String? = nil,
-        rawPayload: String? = nil
+        rawPayload: String? = nil,
+        codexUsage: CodexUsage? = nil
     ) {
         self.id = id
         self.taskID = taskID
@@ -116,6 +118,7 @@ public struct VibeHookEvent: Codable, Equatable, Identifiable, Sendable {
         self.toolName = toolName
         self.workspace = workspace
         self.rawPayload = rawPayload
+        self.codexUsage = codexUsage
     }
 
     public var displayState: DisplayState {
@@ -124,6 +127,36 @@ public struct VibeHookEvent: Codable, Equatable, Identifiable, Sendable {
 
     public var displayDetail: String {
         summary ?? (detail.isEmpty ? kind.rawValue : detail)
+    }
+}
+
+public struct CodexUsage: Codable, Equatable, Sendable {
+    public var fiveHourRemainingPercent: Int?
+    public var weeklyRemainingPercent: Int?
+    public var contextRemainingPercent: Int?
+
+    public init(
+        fiveHourRemainingPercent: Int? = nil,
+        weeklyRemainingPercent: Int? = nil,
+        contextRemainingPercent: Int? = nil
+    ) {
+        self.fiveHourRemainingPercent = fiveHourRemainingPercent.map(Self.clampedPercent)
+        self.weeklyRemainingPercent = weeklyRemainingPercent.map(Self.clampedPercent)
+        self.contextRemainingPercent = contextRemainingPercent.map(Self.clampedPercent)
+    }
+
+    private static func clampedPercent(_ value: Int) -> Int {
+        min(100, max(0, value))
+    }
+}
+
+public struct StatusUsage: Codable, Equatable, Sendable {
+    public var codex5hRemainingPercent: Int?
+    public var codex7dRemainingPercent: Int?
+
+    public init(codex5hRemainingPercent: Int? = nil, codex7dRemainingPercent: Int? = nil) {
+        self.codex5hRemainingPercent = codex5hRemainingPercent
+        self.codex7dRemainingPercent = codex7dRemainingPercent
     }
 }
 
@@ -141,6 +174,7 @@ public struct StatusPacket: Codable, Equatable, Sendable {
     public var waitingCount: Int?
     public var errorCount: Int?
     public var tasks: [StatusTask]?
+    public var usage: StatusUsage?
 
     public init(
         v: Int = 1,
@@ -151,7 +185,8 @@ public struct StatusPacket: Codable, Equatable, Sendable {
         activeCount: Int? = nil,
         waitingCount: Int? = nil,
         errorCount: Int? = nil,
-        tasks: [StatusTask]? = nil
+        tasks: [StatusTask]? = nil,
+        usage: StatusUsage? = nil
     ) {
         self.v = v
         self.source = source
@@ -162,6 +197,7 @@ public struct StatusPacket: Codable, Equatable, Sendable {
         self.waitingCount = waitingCount
         self.errorCount = errorCount
         self.tasks = tasks
+        self.usage = usage
     }
 
     public init(event: VibeHookEvent) {
@@ -191,6 +227,7 @@ public struct StatusPacket: Codable, Equatable, Sendable {
         fallback.waitingCount = nil
         fallback.errorCount = nil
         fallback.tasks = nil
+        fallback.usage = nil
         return try fallback.encodedJSON()
     }
 
@@ -229,12 +266,20 @@ public struct StatusTask: Codable, Equatable, Sendable {
     public var state: DisplayState
     public var source: VibeSource
     public var detail: String?
+    public var contextRemainingPercent: Int?
 
-    public init(title: String, state: DisplayState, source: VibeSource, detail: String? = nil) {
+    public init(
+        title: String,
+        state: DisplayState,
+        source: VibeSource,
+        detail: String? = nil,
+        contextRemainingPercent: Int? = nil
+    ) {
         self.title = StatusPacket.truncatedTaskTitle(title)
         self.state = state
         self.source = source
         self.detail = detail.map { StatusPacket.truncatedTaskDetail($0) }
+        self.contextRemainingPercent = contextRemainingPercent.map { min(100, max(0, $0)) }
     }
 }
 

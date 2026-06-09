@@ -43,7 +43,8 @@ public struct HookPayloadDecoder: Sendable {
             message: message,
             toolName: stringValue(for: ["tool_name", "toolName"], in: object),
             workspace: cwd.map { URL(fileURLWithPath: $0).lastPathComponent },
-            rawPayload: rawPayload
+            rawPayload: rawPayload,
+            codexUsage: extractedCodexUsage(from: object, source: payload.source ?? defaultSource)
         )
     }
 
@@ -104,6 +105,89 @@ public struct HookPayloadDecoder: Sendable {
         }.first
     }
 
+    private func extractedCodexUsage(from object: [String: Any], source: VibeSource) -> CodexUsage? {
+        guard source == .codex,
+              let transcriptPath = stringValue(for: ["transcript_path", "transcriptPath"], in: object) else {
+            return nil
+        }
+
+        return CodexUsageReader().readLatest(from: URL(fileURLWithPath: transcriptPath))
+    }
+
+}
+
+public struct CodexUsageReader: Sendable {
+    public init() {}
+
+    public func readLatest(from transcriptURL: URL) -> CodexUsage? {
+        guard let text = try? String(contentsOf: transcriptURL, encoding: .utf8) else {
+            return nil
+        }
+
+        for line in text.split(separator: "\n").reversed() {
+            guard let data = String(line).data(using: .utf8),
+                  let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let payload = root["payload"] as? [String: Any],
+                  payload["type"] as? String == "token_count" else {
+                continue
+            }
+
+            return usage(from: payload)
+        }
+
+        return nil
+    }
+
+    private func usage(from payload: [String: Any]) -> CodexUsage {
+        let info = payload["info"] as? [String: Any]
+        let rateLimits = payload["rate_limits"] as? [String: Any]
+        let primary = rateLimits?["primary"] as? [String: Any]
+        let secondary = rateLimits?["secondary"] as? [String: Any]
+
+        return CodexUsage(
+            fiveHourRemainingPercent: remainingPercent(from: primary),
+            weeklyRemainingPercent: remainingPercent(from: secondary),
+            contextRemainingPercent: contextRemainingPercent(from: info)
+        )
+    }
+
+    private func remainingPercent(from window: [String: Any]?) -> Int? {
+        guard let usedPercent = number(window?["used_percent"]) else {
+            return nil
+        }
+
+        return clampedPercent(Int((100 - usedPercent).rounded()))
+    }
+
+    private func contextRemainingPercent(from info: [String: Any]?) -> Int? {
+        guard let window = number(info?["model_context_window"]),
+              window > 0,
+              let usage = info?["total_token_usage"] as? [String: Any],
+              let totalTokens = number(usage["total_tokens"]) else {
+            return nil
+        }
+
+        return clampedPercent(Int((100 - (totalTokens / window * 100)).rounded()))
+    }
+
+    private func number(_ value: Any?) -> Double? {
+        switch value {
+        case let value as Double:
+            value
+        case let value as Int:
+            Double(value)
+        case let value as Int64:
+            Double(value)
+        case let value as NSNumber:
+            value.doubleValue
+        default:
+            nil
+        }
+    }
+
+    private func clampedPercent(_ value: Int) -> Int {
+        min(100, max(0, value))
+    }
 }
 
 public enum PayloadFormatter {

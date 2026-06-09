@@ -131,6 +131,62 @@ import Testing
     #expect(data.count < 768)
 }
 
+@Test func hookPayloadDecoderExtractsCodexUsageFromTranscriptTokenCount() throws {
+    let directory = temporaryDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let transcriptURL = directory.appendingPathComponent("session.jsonl")
+    try """
+    {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":1000},"model_context_window":10000},"rate_limits":{"primary":{"used_percent":12.5,"window_minutes":300,"resets_at":1781014908},"secondary":{"used_percent":40,"window_minutes":10080,"resets_at":1781445567}}}}
+    """.write(to: transcriptURL, atomically: true, encoding: .utf8)
+
+    let data = """
+    {
+      "hook_event_name": "PreToolUse",
+      "session_id": "session-123",
+      "transcript_path": "\(transcriptURL.path)",
+      "cwd": "/Users/miclle/github/miclle/vibe-light"
+    }
+    """.data(using: .utf8)!
+
+    let event = try HookPayloadDecoder(defaultSource: .codex).decode(data)
+    let usage = try #require(event.codexUsage)
+
+    #expect(usage.fiveHourRemainingPercent == 88)
+    #expect(usage.weeklyRemainingPercent == 60)
+    #expect(usage.contextRemainingPercent == 90)
+}
+
+@Test func displaySnapshotAddsUsageToStatusPacketAndTasks() throws {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(
+            taskID: "codex:task-a",
+            source: .codex,
+            kind: .preToolUse,
+            timestamp: base,
+            summary: "implement usage",
+            workspace: "vibe-light",
+            codexUsage: CodexUsage(
+                fiveHourRemainingPercent: 88,
+                weeklyRemainingPercent: 60,
+                contextRemainingPercent: 90
+            )
+        ),
+    ]
+
+    let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(1))
+    let packet = snapshot.statusPacket
+    let data = try packet.encodedJSON()
+    let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let usage = try #require(object["usage"] as? [String: Any])
+    let tasks = try #require(object["tasks"] as? [[String: Any]])
+
+    #expect(usage["codex5hRemainingPercent"] as? Int == 88)
+    #expect(usage["codex7dRemainingPercent"] as? Int == 60)
+    #expect(tasks.first?["contextRemainingPercent"] as? Int == 90)
+}
+
 @Test func statusPacketKeepsChineseTaskDetails() throws {
     let base = Date(timeIntervalSince1970: 1_780_300_800)
     let tracker = TaskTracker()
