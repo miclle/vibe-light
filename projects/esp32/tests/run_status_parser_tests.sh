@@ -7,6 +7,28 @@ CJSON_DIR="$IDF_PATH/components/json/cJSON"
 BUILD_DIR="$ROOT_DIR/build/host-tests"
 BINARY="$BUILD_DIR/vibe_status_parser_test"
 
+find_cjk_font_python() {
+  local candidates=(
+    "${VIBE_CJK_FONT_PYTHON:-}"
+    "$HOME/.platformio/penv/bin/python3"
+    "$HOME/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
+    "/opt/homebrew/bin/python3"
+    "/usr/local/bin/python3"
+    "/usr/bin/python3"
+  )
+
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [[ -n "$candidate" && -x "$candidate" ]] && "$candidate" -c 'import PIL' >/dev/null 2>&1; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  echo "python3 with Pillow is required to generate the CJK font test asset. Set VIBE_CJK_FONT_PYTHON to a suitable interpreter." >&2
+  return 1
+}
+
 if [[ ! -f "$CJSON_DIR/cJSON.c" ]]; then
   echo "cJSON source not found. Set IDF_PATH to an ESP-IDF checkout." >&2
   exit 1
@@ -30,8 +52,9 @@ clang \
 "$BINARY"
 
 FONT_BIN="$BUILD_DIR/vibe_cjk_font.bin"
-python3 "$ROOT_DIR/tools/generate_cjk_font.py" "$FONT_BIN" >/tmp/vibe-cjk-font-test.log
-python3 - "$FONT_BIN" <<'PY'
+CJK_FONT_PYTHON="$(find_cjk_font_python)"
+"$CJK_FONT_PYTHON" "$ROOT_DIR/tools/generate_cjk_font.py" "$FONT_BIN" >/tmp/vibe-cjk-font-test.log
+"$CJK_FONT_PYTHON" - "$FONT_BIN" <<'PY'
 import struct
 import sys
 
