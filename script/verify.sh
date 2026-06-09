@@ -4,6 +4,7 @@ set -euo pipefail
 MODE="${1:---full}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IDF_PATH="${IDF_PATH:-/Users/miclle/esp/esp-idf}"
+IDF_SAFE_PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 
 usage() {
   echo "usage: $0 [--full|--quick]" >&2
@@ -40,7 +41,7 @@ if [[ "$RUN_ESP32_BUILD" == "1" ]]; then
     exit 1
   fi
 
-  run_step "ESP32 firmware build" zsh -lc "source \"$IDF_PATH/export.sh\" >/tmp/vibe-idf-export.log && cd \"$ROOT_DIR/projects/esp32\" && idf.py build"
+  run_step "ESP32 firmware build" zsh -lc "export PATH=\"$IDF_SAFE_PATH\" && source \"$IDF_PATH/export.sh\" >/tmp/vibe-idf-export.log && cd \"$ROOT_DIR/projects/esp32\" && idf.py build"
 fi
 
 run_step "Git whitespace check" git -C "$ROOT_DIR" diff --check

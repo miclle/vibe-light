@@ -6,7 +6,7 @@ ESP32_DIR="$ROOT_DIR/projects/esp32"
 IDF_PATH="${IDF_PATH:-/Users/miclle/esp/esp-idf}"
 PORT="${ESP32_PORT:-/dev/cu.usbmodem1101}"
 BAUD="${ESP32_BAUD:-460800}"
-DEFAULT_IDF_ENV="/Users/miclle/.espressif/python_env/idf5.5_py3.14_env"
+IDF_SAFE_PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 RUN_MONITOR=1
 
 usage() {
@@ -43,10 +43,7 @@ if [[ ! -f "$IDF_PATH/export.sh" ]]; then
 fi
 
 unset IDF_PYTHON_ENV_PATH
-if [[ -d "$DEFAULT_IDF_ENV" ]]; then
-  export IDF_PYTHON_ENV_PATH="$DEFAULT_IDF_ENV"
-fi
-
+export PATH="$IDF_SAFE_PATH"
 source "$IDF_PATH/export.sh" >/tmp/vibe-idf-export.log
 cd "$ESP32_DIR"
 
