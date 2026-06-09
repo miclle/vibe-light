@@ -7,10 +7,11 @@ static uint32_t fnv1a_update(uint32_t hash, const void *data, size_t length);
 static uint32_t fnv1a_update_text(uint32_t hash, const char *text);
 static const char *badge_for_state(vibe_display_state_t state);
 static void maze_pellet_at_index(int index, vibe_display_animation_frame_t *frame);
-static void maze_frame_at_position(int position, bool mouth_open, vibe_display_animation_frame_t *frame);
+static void maze_frame_at_tick(int tick, int phase_offset, bool mouth_open, vibe_display_animation_frame_t *frame);
 static void copy_text(char *dest, size_t dest_size, const char *source);
 static void append_text(char *dest, size_t dest_size, const char *source);
 static void format_count(char *dest, size_t dest_size, char label, int count);
+static int positive_mod(int value, int modulus);
 
 typedef struct {
     int16_t x;
@@ -252,12 +253,7 @@ void vibe_display_animation_actor_frame(int tick, int actor_index, int actor_cou
     }
 
     int phase_offset = (actor_index * VIBE_DISPLAY_ANIMATION_PATH_STEPS) / actor_count;
-    int position = (tick + phase_offset) % VIBE_DISPLAY_ANIMATION_PATH_STEPS;
-    if (position < 0) {
-        position += VIBE_DISPLAY_ANIMATION_PATH_STEPS;
-    }
-
-    maze_frame_at_position(position, (tick % 2) == 0, frame);
+    maze_frame_at_tick(tick, phase_offset, (tick % 2) == 0, frame);
 }
 
 int vibe_display_maze_display_x(int reference_x)
@@ -309,7 +305,7 @@ void vibe_display_maze_pellet_position(int pellet_index, int pellet_count, vibe_
     }
 
     int position = (index * VIBE_DISPLAY_ANIMATION_PATH_STEPS) / pellet_count;
-    maze_frame_at_position(position, false, frame);
+    maze_frame_at_tick(position * VIBE_DISPLAY_ANIMATION_SUBSTEPS, 0, false, frame);
 }
 
 bool vibe_display_maze_is_power_pellet(int pellet_index, int pellet_count)
@@ -339,27 +335,30 @@ bool vibe_display_maze_pellet_visible(int pellet_index,
                                       int active_count,
                                       int recovery_ticks)
 {
-    vibe_display_animation_frame_t pellet;
-    vibe_display_maze_pellet_position(pellet_index, VIBE_DISPLAY_MAZE_PELLET_COUNT, &pellet);
-
     if (actor_count < 1) {
         actor_count = 1;
     }
     if (actor_count > VIBE_STATUS_MAX_TASKS) {
         actor_count = VIBE_STATUS_MAX_TASKS;
     }
+    (void)active_count;
     if (recovery_ticks < 0) {
         recovery_ticks = 0;
     }
 
+    const int total_ticks = VIBE_DISPLAY_ANIMATION_PATH_STEPS * VIBE_DISPLAY_ANIMATION_SUBSTEPS;
+
     for (int age = 0; age <= recovery_ticks; age++) {
         for (int actor_index = 0; actor_index < actor_count; actor_index++) {
-            vibe_display_animation_frame_t frame;
-            vibe_display_animation_actor_frame(tick - age, actor_index, actor_count, active_count, &frame);
-            int dx = pellet.x - frame.x;
-            int dy = pellet.y - frame.y;
-            if (dx > -VIBE_DISPLAY_MAZE_PELLET_EAT_RADIUS && dx < VIBE_DISPLAY_MAZE_PELLET_EAT_RADIUS &&
-                dy > -VIBE_DISPLAY_MAZE_PELLET_EAT_RADIUS && dy < VIBE_DISPLAY_MAZE_PELLET_EAT_RADIUS) {
+            int phase_offset = (actor_index * VIBE_DISPLAY_ANIMATION_PATH_STEPS) / actor_count;
+            int total_position = positive_mod(tick - age + phase_offset * VIBE_DISPLAY_ANIMATION_SUBSTEPS, total_ticks);
+            if ((total_position % VIBE_DISPLAY_ANIMATION_SUBSTEPS) != 0) {
+                continue;
+            }
+
+            int path_index = total_position / VIBE_DISPLAY_ANIMATION_SUBSTEPS;
+            int eaten_index = reference_path[path_index];
+            if (eaten_index == pellet_index) {
                 return false;
             }
         }
@@ -424,21 +423,23 @@ void vibe_display_animation_actor_shape(const vibe_display_animation_frame_t *fr
     }
 }
 
-static void maze_frame_at_position(int position, bool mouth_open, vibe_display_animation_frame_t *frame)
+static void maze_frame_at_tick(int tick, int phase_offset, bool mouth_open, vibe_display_animation_frame_t *frame)
 {
-    if (position < 0) {
-        position %= VIBE_DISPLAY_ANIMATION_PATH_STEPS;
-        position += VIBE_DISPLAY_ANIMATION_PATH_STEPS;
-    }
-    position %= VIBE_DISPLAY_ANIMATION_PATH_STEPS;
-
+    const int total_ticks = VIBE_DISPLAY_ANIMATION_PATH_STEPS * VIBE_DISPLAY_ANIMATION_SUBSTEPS;
+    int total_position = positive_mod(tick + phase_offset * VIBE_DISPLAY_ANIMATION_SUBSTEPS, total_ticks);
+    int position = total_position / VIBE_DISPLAY_ANIMATION_SUBSTEPS;
+    int substep = total_position % VIBE_DISPLAY_ANIMATION_SUBSTEPS;
     int index = reference_path[position];
     int next_index = reference_path[(position + 1) % VIBE_DISPLAY_ANIMATION_PATH_STEPS];
     const maze_point_t *point = &reference_pellets[index];
     const maze_point_t *next = &reference_pellets[next_index];
+    int ax = vibe_display_maze_display_x(point->x);
+    int bx = vibe_display_maze_display_x(next->x);
+    int ay = VIBE_DISPLAY_MAZE_STAGE_Y + point->y;
+    int by = VIBE_DISPLAY_MAZE_STAGE_Y + next->y;
 
-    frame->x = vibe_display_maze_display_x(point->x);
-    frame->y = VIBE_DISPLAY_MAZE_STAGE_Y + point->y;
+    frame->x = ax + ((bx - ax) * substep) / VIBE_DISPLAY_ANIMATION_SUBSTEPS;
+    frame->y = ay + ((by - ay) * substep) / VIBE_DISPLAY_ANIMATION_SUBSTEPS;
     frame->mouth_open = mouth_open;
 
     int dx = next->x - point->x;
@@ -465,6 +466,19 @@ static void maze_pellet_at_index(int index, vibe_display_animation_frame_t *fram
     frame->y = VIBE_DISPLAY_MAZE_STAGE_Y + reference_pellets[local_index].y;
     frame->direction = VIBE_DISPLAY_DIRECTION_RIGHT;
     frame->mouth_open = false;
+}
+
+static int positive_mod(int value, int modulus)
+{
+    if (modulus <= 0) {
+        return 0;
+    }
+
+    int result = value % modulus;
+    if (result < 0) {
+        result += modulus;
+    }
+    return result;
 }
 
 static uint32_t fnv1a_update(uint32_t hash, const void *data, size_t length)

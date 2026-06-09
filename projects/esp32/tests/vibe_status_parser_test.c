@@ -194,7 +194,7 @@ static void test_display_model_animates_busy_center_stage(void)
 
     vibe_display_animation_frame(0, 1, &frame0);
     vibe_display_animation_frame(1, 1, &frame1);
-    vibe_display_animation_frame(VIBE_DISPLAY_ANIMATION_PATH_STEPS, 1, &wrapped);
+    vibe_display_animation_frame(VIBE_DISPLAY_ANIMATION_PATH_STEPS * VIBE_DISPLAY_ANIMATION_SUBSTEPS, 1, &wrapped);
 
     assert(frame0.x == wrapped.x);
     assert(frame0.y == wrapped.y);
@@ -220,8 +220,8 @@ static void test_display_model_animates_through_maze_turns(void)
     bool saw_down = false;
     bool saw_up = false;
 
-    for (int tick = 0; tick < VIBE_DISPLAY_ANIMATION_PATH_STEPS; tick++) {
-        vibe_display_animation_actor_frame(tick, 0, 1, 1, &frame);
+    for (int path_tick = 0; path_tick < VIBE_DISPLAY_ANIMATION_PATH_STEPS; path_tick++) {
+        vibe_display_animation_actor_frame(path_tick * VIBE_DISPLAY_ANIMATION_SUBSTEPS, 0, 1, 1, &frame);
         saw_right = saw_right || frame.direction == VIBE_DISPLAY_DIRECTION_RIGHT;
         saw_left = saw_left || frame.direction == VIBE_DISPLAY_DIRECTION_LEFT;
         saw_down = saw_down || frame.direction == VIBE_DISPLAY_DIRECTION_DOWN;
@@ -341,9 +341,9 @@ static void test_display_model_animates_only_on_reference_pellets(void)
         vibe_display_animation_actor_frame(0, 0, 1, active_count, &previous);
         assert(frame_matches_reference_pellet(&previous));
 
-        for (int tick = 1; tick < VIBE_DISPLAY_ANIMATION_PATH_STEPS; tick++) {
+        for (int path_tick = 1; path_tick < VIBE_DISPLAY_ANIMATION_PATH_STEPS; path_tick++) {
             vibe_display_animation_frame_t current;
-            vibe_display_animation_actor_frame(tick, 0, 1, active_count, &current);
+            vibe_display_animation_actor_frame(path_tick * VIBE_DISPLAY_ANIMATION_SUBSTEPS, 0, 1, active_count, &current);
             assert(frame_matches_reference_pellet(&current));
             assert(abs(current.x - previous.x) <= 2 || abs(current.y - previous.y) <= 2);
             assert(abs(current.x - previous.x) <= 50);
@@ -353,17 +353,44 @@ static void test_display_model_animates_only_on_reference_pellets(void)
     }
 }
 
+static void test_display_model_smooths_between_pellet_nodes(void)
+{
+    vibe_display_animation_frame_t start;
+    vibe_display_animation_frame_t halfway;
+    vibe_display_animation_frame_t next;
+
+    assert(VIBE_DISPLAY_ANIMATION_SUBSTEPS == 2);
+    vibe_display_animation_actor_frame(0, 0, 1, 1, &start);
+    vibe_display_animation_actor_frame(1, 0, 1, 1, &halfway);
+    vibe_display_animation_actor_frame(VIBE_DISPLAY_ANIMATION_SUBSTEPS, 0, 1, 1, &next);
+
+    assert(frame_matches_reference_pellet(&start));
+    assert(!frame_matches_reference_pellet(&halfway));
+    assert(frame_matches_reference_pellet(&next));
+    assert(halfway.y == start.y);
+    assert(halfway.x > start.x && halfway.x < next.x);
+    assert(halfway.direction == VIBE_DISPLAY_DIRECTION_RIGHT);
+}
+
 static void test_display_model_delays_eaten_pellet_recovery(void)
 {
     vibe_display_animation_frame_t frame;
-    const int eaten_tick = 15;
+    const int eaten_tick = 43 * VIBE_DISPLAY_ANIMATION_SUBSTEPS;
     vibe_display_animation_actor_frame(eaten_tick, 0, 1, 1, &frame);
     int pellet_index = find_pellet_at_frame(&frame);
+    int next_pellet_index;
 
     assert(VIBE_DISPLAY_ANIMATION_PERIOD_MS == 240);
     assert(VIBE_DISPLAY_MAZE_PELLET_RECOVERY_MS == 5000);
     assert(VIBE_DISPLAY_MAZE_PELLET_RECOVERY_TICKS == 21);
     assert(pellet_index >= 0);
+    vibe_display_animation_actor_frame(eaten_tick + 1, 0, 1, 1, &frame);
+    assert(!frame_matches_reference_pellet(&frame));
+    vibe_display_animation_actor_frame(eaten_tick + VIBE_DISPLAY_ANIMATION_SUBSTEPS, 0, 1, 1, &frame);
+    next_pellet_index = find_pellet_at_frame(&frame);
+    assert(next_pellet_index >= 0);
+    assert(vibe_display_maze_pellet_visible(next_pellet_index, eaten_tick + 1, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RECOVERY_TICKS));
+    assert(!vibe_display_maze_pellet_visible(next_pellet_index, eaten_tick + VIBE_DISPLAY_ANIMATION_SUBSTEPS, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RECOVERY_TICKS));
     assert(!vibe_display_maze_pellet_visible(pellet_index, eaten_tick, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RECOVERY_TICKS));
     assert(!vibe_display_maze_pellet_visible(pellet_index, eaten_tick + VIBE_DISPLAY_MAZE_PELLET_RECOVERY_TICKS, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RECOVERY_TICKS));
     assert(vibe_display_maze_pellet_visible(pellet_index, eaten_tick + VIBE_DISPLAY_MAZE_PELLET_RECOVERY_TICKS + 1, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RECOVERY_TICKS));
@@ -620,6 +647,7 @@ int main(void)
     test_display_model_spaces_pellets_evenly_by_lane();
     test_display_model_scales_maze_to_screen_edges();
     test_display_model_animates_only_on_reference_pellets();
+    test_display_model_smooths_between_pellet_nodes();
     test_display_model_delays_eaten_pellet_recovery();
     test_display_model_leaves_bottom_gate_clear_of_pellets();
     test_display_model_keeps_pellets_outside_reference_wall_cores();
