@@ -11,16 +11,23 @@ extern "C" {
 
 #define VIBE_DISPLAY_ROW_TEXT_MAX 48
 #define VIBE_DISPLAY_COUNT_TEXT_MAX 8
-#define VIBE_DISPLAY_ANIMATION_PATH_STEPS 96
+#define VIBE_DISPLAY_ANIMATION_PATH_STEPS 425
+#define VIBE_DISPLAY_ANIMATION_PERIOD_MS 240
 #define VIBE_DISPLAY_MAZE_STAGE_X 0
 #define VIBE_DISPLAY_MAZE_STAGE_Y 82
 #define VIBE_DISPLAY_MAZE_STAGE_W 320
 #define VIBE_DISPLAY_MAZE_STAGE_H 320
 #define VIBE_DISPLAY_MAZE_FRAME_H 320
+#define VIBE_DISPLAY_MAZE_REFERENCE_MIN_X 15
+#define VIBE_DISPLAY_MAZE_REFERENCE_MAX_X 303
 #define VIBE_DISPLAY_MAZE_PATH_INSET 14
 #define VIBE_DISPLAY_MAZE_WALL_THICKNESS 1
 #define VIBE_DISPLAY_MAZE_BORDER_GAP 8
-#define VIBE_DISPLAY_MAZE_PELLET_COUNT 102
+#define VIBE_DISPLAY_MAZE_PELLET_COUNT 213
+#define VIBE_DISPLAY_MAZE_PELLET_RECOVERY_MS 5000
+#define VIBE_DISPLAY_MAZE_PELLET_RECOVERY_TICKS \
+    ((VIBE_DISPLAY_MAZE_PELLET_RECOVERY_MS + VIBE_DISPLAY_ANIMATION_PERIOD_MS - 1) / VIBE_DISPLAY_ANIMATION_PERIOD_MS)
+#define VIBE_DISPLAY_MAZE_PELLET_EAT_RADIUS 22
 #define VIBE_DISPLAY_MAZE_POWER_PELLET_RADIUS 3
 #define VIBE_DISPLAY_CODEX_ACTOR_RADIUS 7
 #define VIBE_DISPLAY_CODEX_ACTOR_EYE_RADIUS 0
@@ -87,8 +94,15 @@ int vibe_display_animation_step(int active_count);
 int vibe_display_animation_actor_count(int task_count, int active_count);
 void vibe_display_animation_frame(int tick, int active_count, vibe_display_animation_frame_t *frame);
 void vibe_display_animation_actor_frame(int tick, int actor_index, int actor_count, int active_count, vibe_display_animation_frame_t *frame);
+int vibe_display_maze_display_x(int reference_x);
+int vibe_display_maze_display_run_width(int reference_x, int reference_length);
 void vibe_display_maze_pellet_position(int pellet_index, int pellet_count, vibe_display_animation_frame_t *frame);
 bool vibe_display_maze_is_power_pellet(int pellet_index, int pellet_count);
+bool vibe_display_maze_pellet_visible(int pellet_index,
+                                      int tick,
+                                      int actor_count,
+                                      int active_count,
+                                      int recovery_ticks);
 void vibe_display_animation_actor_shape(const vibe_display_animation_frame_t *frame, vibe_display_animation_actor_t *actor);
 
 #ifdef __cplusplus

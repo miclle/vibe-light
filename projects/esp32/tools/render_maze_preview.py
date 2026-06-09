@@ -10,6 +10,7 @@ checks while hardware flashing is unavailable.
 from __future__ import annotations
 
 import argparse
+import re
 import struct
 import zlib
 from pathlib import Path
@@ -44,6 +45,45 @@ RED = (255, 0, 0)
 GREEN = (0, 220, 0)
 PINK = (255, 0, 255)
 CYAN = (0, 255, 255)
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+REFERENCE_MAZE_HEADER = REPO_ROOT / "projects/esp32/main/vibe_reference_maze.h"
+DISPLAY_MODEL_SOURCE = REPO_ROOT / "projects/esp32/main/vibe_display_model.c"
+DISPLAY_MODEL_HEADER = REPO_ROOT / "projects/esp32/main/vibe_display_model.h"
+RGB565_TO_RGB = {
+    0x047F: BUSY,
+    0xF81F: PINK,
+    0xFFFF: WHITE,
+    0x05E0: GREEN,
+    0xF800: RED,
+    0x07FF: CYAN,
+}
+
+
+def display_model_define(name: str) -> int:
+    text = DISPLAY_MODEL_HEADER.read_text()
+    match = re.search(rf"#define\s+{name}\s+(\d+)", text)
+    if match is None:
+        raise ValueError(f"{name} is not defined")
+    return int(match.group(1))
+
+
+MAZE_REFERENCE_MIN_X = display_model_define("VIBE_DISPLAY_MAZE_REFERENCE_MIN_X")
+MAZE_REFERENCE_MAX_X = display_model_define("VIBE_DISPLAY_MAZE_REFERENCE_MAX_X")
+
+
+def maze_display_x(reference_x: int) -> int:
+    span = MAZE_REFERENCE_MAX_X - MAZE_REFERENCE_MIN_X
+    scaled = ((reference_x - MAZE_REFERENCE_MIN_X) * (MAZE_PREVIEW_WIDTH - 1)) // span
+    return max(0, min(MAZE_PREVIEW_WIDTH - 1, scaled))
+
+
+def maze_display_run_width(reference_x: int, reference_length: int) -> int:
+    if reference_length <= 0:
+        return 0
+    start = maze_display_x(reference_x)
+    end = maze_display_x(reference_x + reference_length - 1)
+    return max(1, end - start + 1)
 
 
 Image = list[list[tuple[int, int, int]]]
@@ -187,309 +227,37 @@ def draw_text(image: Image, x: int, y: int, text: str, scale: int, color: tuple[
         cursor += 4 * scale
 
 
+def load_reference_maze_runs() -> list[tuple[int, int, int, tuple[int, int, int]]]:
+    text = REFERENCE_MAZE_HEADER.read_text()
+    runs = []
+    for x, y, length, color in re.findall(r"\{(\d+), (\d+), (\d+), 0x([0-9a-fA-F]+)\}", text):
+        rgb = RGB565_TO_RGB.get(int(color, 16), BUSY)
+        runs.append((int(x), int(y), int(length), rgb))
+    return runs
+
+
+def load_reference_pellets() -> list[tuple[int, int]]:
+    text = DISPLAY_MODEL_SOURCE.read_text()
+    match = re.search(r"reference_pellets\[.*?\] = \{(.*?)\};", text, re.S)
+    if match is None:
+        return []
+    return [(int(x), int(y)) for x, y in re.findall(r"\{(\d+), (\d+)\}", match.group(1))]
+
+
+def draw_reference_maze(image: Image, y_offset: int) -> None:
+    fill_rect(image, 0, y_offset, MAZE_PREVIEW_WIDTH, MAZE_PREVIEW_HEIGHT, BLACK)
+    for x, y, length, color in load_reference_maze_runs():
+        fill_rect(image, maze_display_x(x), y_offset + y, maze_display_run_width(x, length), 1, color)
+    for index, (x, y) in enumerate(load_reference_pellets()):
+        radius = 3 if index in (30, 31, 149, 150) else 1
+        fill_circle(image, maze_display_x(x), y_offset + y, radius, DOT)
+    pacman_x = maze_display_x(143)
+    fill_circle(image, pacman_x, y_offset + 214, 7, DOT)
+    fill_triangle(image, pacman_x + 10, y_offset + 214, pacman_x, y_offset + 209, pacman_x, y_offset + 219, BLACK)
+
+
 def draw_maze(image: Image, y_offset: int = 0) -> None:
-    x = 0
-    y = y_offset
-    w = 320
-    h = 320
-    t = 1
-    mx = x + 58
-    my = y + 48
-
-    fill_rect(image, x, y, w, h, BLACK)
-    draw_rects(image, [
-        (x, y, w, t, CYAN), (x, y + h - t, w, t, CYAN), (x, y, t, h, CYAN), (x + w - t, y, t, h, CYAN),
-        (x + 4, y + 4, w - 8, t, MAZE), (x + 4, y + h - 5, w - 8, t, MAZE),
-        (x + 4, y + 4, t, h - 8, MAZE), (x + w - 5, y + 4, t, h - 8, MAZE),
-    ])
-    draw_text(image, x + 34, y + 12, "SCORE", 1, CYAN)
-    draw_text(image, x + 22, y + 28, "001240", 2, WHITE)
-    draw_text(image, x + 112, y + 12, "HIGH SCORE", 1, PINK)
-    draw_text(image, x + 116, y + 28, "012340", 2, WHITE)
-    draw_text(image, x + 204, y + 12, "LEVEL", 1, GREEN)
-    draw_text(image, x + 218, y + 28, "02", 2, WHITE)
-    draw_text(image, x + 260, y + 12, "LIVES", 1, DOT)
-    for life_x in (272, 288, 304):
-        fill_circle(image, x + life_x, y + 34, 4, DOT)
-        fill_triangle(image, x + life_x + 5, y + 34, x + life_x + 1, y + 31, x + life_x + 1, y + 37, BLACK)
-    fill_rect(image, x + 14, y + 58, w - 28, t, MAZE)
-
-    draw_rects(image, [
-        (x + 8, y + 72, 46, 34, PINK), (x + 10, y + 74, 42, 30, BLACK),
-        (x + 8, y + 208, 46, 68, PINK), (x + 10, y + 210, 42, 64, BLACK),
-        (x + 280, y + 84, 32, 40, CYAN), (x + 282, y + 86, 28, 36, BLACK),
-        (x + 280, y + 144, 32, 40, CYAN), (x + 282, y + 146, 28, 36, BLACK),
-        (x + 280, y + 210, 32, 46, PINK), (x + 282, y + 212, 28, 42, BLACK),
-        (mx, my, 216, 216, CYAN), (mx + 2, my + 2, 212, 212, BLACK),
-        (mx + 6, my + 6, 204, t, MAZE), (mx + 6, my + 209, 204, t, MAZE),
-        (mx + 6, my + 6, t, 204, MAZE), (mx + 209, my + 6, t, 204, MAZE),
-        (mx + 20, my + 22, 36, t, CYAN), (mx + 20, my + 52, 36, t, CYAN), (mx + 20, my + 22, t, 30, CYAN), (mx + 56, my + 22, t, 30, CYAN),
-        (mx + 76, my + 22, 56, t, CYAN), (mx + 76, my + 52, 56, t, CYAN), (mx + 76, my + 22, t, 30, CYAN), (mx + 132, my + 22, t, 30, CYAN),
-        (mx + 160, my + 22, 34, t, CYAN), (mx + 160, my + 52, 34, t, CYAN), (mx + 160, my + 22, t, 30, CYAN), (mx + 194, my + 22, t, 30, CYAN),
-        (mx + 30, my + 76, 36, t, CYAN), (mx + 82, my + 74, 54, t, CYAN), (mx + 82, my + 77, 54, t, MAZE), (mx + 152, my + 76, 36, t, CYAN),
-        (mx + 56, my + 72, t, 56, CYAN), (mx + 84, my + 92, 28, t, CYAN), (mx + 112, my + 92, t, 30, CYAN),
-        (mx + 160, my + 72, t, 56, CYAN), (mx + 132, my + 92, 28, t, CYAN), (mx + 132, my + 92, t, 30, CYAN),
-        (mx + 74, my + 120, 68, t, CYAN), (mx + 74, my + 150, 68, t, CYAN), (mx + 74, my + 120, t, 30, CYAN), (mx + 142, my + 120, t, 30, CYAN), (mx + 96, my + 120, 20, t, PINK),
-        (mx + 18, my + 158, 70, t, CYAN), (mx + 18, my + 188, 70, t, CYAN), (mx + 88, my + 158, t, 30, CYAN),
-        (mx + 128, my + 158, 70, t, CYAN), (mx + 128, my + 188, 70, t, CYAN), (mx + 128, my + 158, t, 30, CYAN),
-        (mx + 80, my + 170, 34, t, CYAN), (mx + 120, my + 170, 34, t, CYAN),
-        (x + 10, y + 286, 104, 26, PINK), (x + 12, y + 288, 100, 22, BLACK),
-        (x + 122, y + 286, 74, 26, PINK), (x + 124, y + 288, 70, 22, BLACK),
-        (x + 204, y + 286, 106, 26, CYAN), (x + 206, y + 288, 102, 22, BLACK),
-    ])
-    draw_text(image, x + 15, y + 84, "PAC", 2, DOT)
-    draw_text(image, x + 18, y + 218, "STATUS", 1, CYAN)
-    draw_text(image, x + 20, y + 254, "READY", 1, GREEN)
-    draw_text(image, x + 287, y + 112, "PAUSE", 1, CYAN)
-    draw_text(image, x + 286, y + 226, "SOUND", 1, PINK)
-    draw_text(image, x + 292, y + 240, "ON", 1, PINK)
-    draw_text(image, x + 34, y + 292, "BONUS", 1, PINK)
-    draw_text(image, x + 140, y + 292, "ARCADE", 1, PINK)
-    draw_text(image, x + 142, y + 302, "CLASSIC", 1, RED)
-    draw_text(image, x + 226, y + 292, "GAME TIP", 1, CYAN)
-    for ghost_x, ghost_y, color in ((84, 140, RED), (98, 140, PINK), (112, 140, CYAN), (126, 140, (255, 170, 0)), (108, 74, RED), (48, 132, PINK), (170, 132, CYAN)):
-        fill_circle(image, mx + ghost_x, my + ghost_y, 4, color)
-    lanes = [
-        (78, 62, 144, 62, 11), (176, 62, 252, 62, 11),
-        (78, 104, 144, 104, 10), (176, 104, 252, 104, 10),
-        (78, 150, 132, 150, 7), (188, 150, 252, 150, 7),
-        (78, 238, 144, 238, 11), (176, 238, 252, 238, 11),
-        (82, 68, 82, 230, 6), (132, 68, 132, 230, 6),
-        (188, 68, 188, 230, 6), (238, 68, 238, 230, 6),
-    ]
-    index = 0
-    for x1, y1, x2, y2, count in lanes:
-        divisor = count - 1 if count > 1 else 1
-        for i in range(count):
-            dot_x = x + x1 + ((x2 - x1) * i) // divisor
-            dot_y = y + y1 + ((y2 - y1) * i) // divisor
-            radius = 3 if index in (0, 21, 56, 77) else 1
-            fill_circle(image, dot_x, dot_y, radius, DOT)
-            index += 1
-    fill_circle(image, mx + 110, my + 190, 7, DOT)
-    fill_triangle(image, mx + 120, my + 190, mx + 110, my + 185, mx + 110, my + 195, BLACK)
-    return
-
-    draw_text(image, x + 8, y - 16, "SCORE", 1, CYAN)
-    draw_text(image, x + 56, y - 16, "1240", 1, WHITE)
-    draw_text(image, x + 218, y - 16, "LIVES", 1, DOT)
-    for life_x in (270, 288, 306):
-        fill_circle(image, x + life_x, y - 12, 4, DOT)
-        fill_triangle(image, x + life_x + 5, y - 12, x + life_x + 1, y - 15, x + life_x + 1, y - 9, BLACK)
-
-    mini_rects = [
-        (x, y, w, t, CYAN), (x, y + h - t, w, t, CYAN), (x, y, t, h, CYAN), (x + w - t, y, t, h, CYAN),
-        (x + 3, y + 3, w - 6, t, MAZE), (x + 3, y + h - 4, w - 6, t, MAZE),
-        (x + 3, y + 3, t, h - 6, MAZE), (x + w - 4, y + 3, t, h - 6, MAZE),
-        (x, y + 39, 24, 14, BLACK), (x + w - 24, y + 39, 24, 14, BLACK),
-        (x, y + 38, 27, t, CYAN), (x, y + 53, 27, t, CYAN),
-        (x + w - 27, y + 38, 27, t, CYAN), (x + w - 27, y + 53, 27, t, CYAN),
-        (x + 32, y + 15, 44, t, CYAN), (x + 32, y + 31, 44, t, CYAN),
-        (x + 32, y + 15, t, 17, CYAN), (x + 76, y + 15, t, 17, CYAN),
-        (x + 96, y + 15, 56, t, CYAN), (x + 96, y + 31, 56, t, CYAN),
-        (x + 96, y + 15, t, 17, CYAN), (x + 152, y + 15, t, 17, CYAN),
-        (x + 168, y + 15, 56, t, CYAN), (x + 168, y + 31, 56, t, CYAN),
-        (x + 168, y + 15, t, 17, CYAN), (x + 224, y + 15, t, 17, CYAN),
-        (x + 244, y + 15, 44, t, CYAN), (x + 244, y + 31, 44, t, CYAN),
-        (x + 244, y + 15, t, 17, CYAN), (x + 288, y + 15, t, 17, CYAN),
-        (x + 58, y + 44, 30, t, CYAN), (x + 58, y + 47, 30, t, MAZE),
-        (x + 112, y + 43, 96, t, CYAN), (x + 112, y + 46, 96, t, MAZE),
-        (x + 232, y + 44, 30, t, CYAN), (x + 232, y + 47, 30, t, MAZE),
-        (x + 84, y + 38, t, 38, CYAN), (x + 96, y + 55, 34, t, CYAN),
-        (x + 130, y + 55, t, 18, CYAN), (x + 236, y + 38, t, 38, CYAN),
-        (x + 190, y + 55, 34, t, CYAN), (x + 190, y + 55, t, 18, CYAN),
-        (x + 132, y + 62, 56, t, CYAN), (x + 132, y + 86, 56, t, CYAN),
-        (x + 132, y + 62, t, 24, CYAN), (x + 188, y + 62, t, 24, CYAN),
-        (x + 154, y + 62, 12, t, PINK),
-        (x + 28, y + 70, 72, t, CYAN), (x + 28, y + 86, 72, t, CYAN), (x + 100, y + 70, t, 17, CYAN),
-        (x + 220, y + 70, 72, t, CYAN), (x + 220, y + 86, 72, t, CYAN), (x + 220, y + 70, t, 17, CYAN),
-        (x + 118, y + 78, 36, t, CYAN), (x + 166, y + 78, 36, t, CYAN),
-    ]
-    draw_rects(image, mini_rects)
-
-    lanes = [
-        (30, 10, 144, 10, 12), (176, 10, 290, 10, 12),
-        (30, 35, 144, 35, 12), (176, 35, 290, 35, 12),
-        (30, 58, 96, 58, 8), (224, 58, 290, 58, 8),
-        (30, 90, 144, 90, 12), (176, 90, 290, 90, 12),
-        (24, 12, 24, 86, 8), (104, 12, 104, 86, 8), (216, 12, 216, 86, 8), (296, 12, 296, 86, 8),
-    ]
-    for x1, y1, x2, y2, count in lanes:
-        divisor = count - 1 if count > 1 else 1
-        for i in range(count):
-            dot_x = x + x1 + ((x2 - x1) * i) // divisor
-            dot_y = y + y1 + ((y2 - y1) * i) // divisor
-            fill_circle(image, dot_x, dot_y, 1, DOT)
-    for dot_x, dot_y in ((24, 23), (296, 23), (24, 84), (296, 84)):
-        fill_circle(image, x + dot_x, y + dot_y, 4, DOT)
-
-    for ghost_x, ghost_y, color in ((146, 75, RED), (158, 75, PINK), (170, 75, CYAN), (182, 75, (255, 170, 0)), (160, 43, RED), (104, 66, PINK), (250, 66, CYAN)):
-        fill_circle(image, x + ghost_x, y + ghost_y, 4, color)
-    fill_circle(image, x + 188, y + 82, 7, DOT)
-    fill_triangle(image, x + 198, y + 82, x + 188, y + 77, x + 188, y + 87, BLACK)
-    return
-
-    maze_rects = [
-        (x, y, w, t, MAZE),
-        (x, y + h - t, w, t, MAZE),
-        (x, y, t, h, MAZE),
-        (x + w - t, y, t, h, MAZE),
-        (x + 2, y + 3, w - 4, t, MAZE),
-        (x + 2, y + h - 4, w - 4, t, MAZE),
-        (x + 3, y + 2, t, h - 4, MAZE),
-        (x + w - 4, y + 2, t, h - 4, MAZE),
-        (x, y, 3, 2, BLACK),
-        (x + w - 3, y, 3, 2, BLACK),
-        (x, y + h - 2, 3, 2, BLACK),
-        (x + w - 3, y + h - 2, 3, 2, BLACK),
-        (x + 2, y + 1, 3, t, MAZE),
-        (x + w - 5, y + 1, 3, t, MAZE),
-        (x + 2, y + h - 2, 3, t, MAZE),
-        (x + w - 5, y + h - 2, 3, t, MAZE),
-        (x, y + 34, t, 12, BLACK),
-        (x + w - t, y + 34, t, 12, BLACK),
-        (x + 3, y + 34, t, 12, BLACK),
-        (x + w - 4, y + 34, t, 12, BLACK),
-        (0, y + 33, x + 22, t, MAZE),
-        (0, y + 48, x + 22, t, MAZE),
-        (x + w - 22, y + 33, MAZE_PREVIEW_WIDTH - (x + w - 22), t, MAZE),
-        (x + w - 22, y + 48, MAZE_PREVIEW_WIDTH - (x + w - 22), t, MAZE),
-        (x + 26, y + 23, 12, t, MAZE),
-        (x + 26, y + 26, 12, t, MAZE),
-        (x + 26, y + 23, t, 4, MAZE),
-        (x + 38, y + 23, t, 4, MAZE),
-        (x + 232, y + 23, 12, t, MAZE),
-        (x + 232, y + 26, 12, t, MAZE),
-        (x + 232, y + 23, t, 4, MAZE),
-        (x + 244, y + 23, t, 4, MAZE),
-        (x + 276, y + 23, 18, t, MAZE),
-        (x + 276, y + 26, 18, t, MAZE),
-        (x + 276, y + 23, t, 4, MAZE),
-        (x + 294, y + 23, t, 4, MAZE),
-        (x + 33, y + 12, 37, t, MAZE),
-        (x + 34, y + 15, 35, t, MAZE),
-        (x + 33, y + 12, t, 4, MAZE),
-        (x + 70, y + 12, t, 4, MAZE),
-        (x + 81, y + 12, 67, t, MAZE),
-        (x + 82, y + 15, 65, t, MAZE),
-        (x + 81, y + 12, t, 4, MAZE),
-        (x + 148, y + 12, t, 4, MAZE),
-        (x + 160, y + 12, 33, t, MAZE),
-        (x + 161, y + 15, 31, t, MAZE),
-        (x + 160, y + 12, t, 4, MAZE),
-        (x + 193, y + 12, t, 4, MAZE),
-        (x + 223, y + 12, 18, t, MAZE),
-        (x + 224, y + 15, 16, t, MAZE),
-        (x + 223, y + 12, t, 4, MAZE),
-        (x + 241, y + 12, t, 4, MAZE),
-        (x + 253, y + 12, 18, t, MAZE),
-        (x + 254, y + 15, 16, t, MAZE),
-        (x + 253, y + 12, t, 4, MAZE),
-        (x + 271, y + 12, t, 4, MAZE),
-        (x + 52, y + 30, 25, t, MAZE),
-        (x + 52, y + 30, t, 27, MAZE),
-        (x + 76, y + 30, t, 11, MAZE),
-        (x + 62, y + 41, 15, t, MAZE),
-        (x + 76, y + 41, t, 16, MAZE),
-        (x + 52, y + 57, 25, t, MAZE),
-        (x + 56, y + 34, 17, t, MAZE),
-        (x + 56, y + 34, t, 19, MAZE),
-        (x + 66, y + 45, 7, t, MAZE),
-        (x + 56, y + 53, 17, t, MAZE),
-        (x + 81, y + 30, 28, t, RED),
-        (x + 81, y + 30, t, 27, RED),
-        (x + 108, y + 30, t, 27, RED),
-        (x + 81, y + 57, 28, t, RED),
-        (x + 85, y + 34, 20, t, RED),
-        (x + 85, y + 34, t, 19, RED),
-        (x + 104, y + 34, t, 19, RED),
-        (x + 85, y + 53, 20, t, RED),
-        (x + 126, y + 34, 20, t, DOT),
-        (x + 126, y + 34, t, 20, DOT),
-        (x + 145, y + 34, t, 20, DOT),
-        (x + 126, y + 53, 20, t, DOT),
-        (x + 130, y + 38, 12, t, DOT),
-        (x + 130, y + 38, t, 12, DOT),
-        (x + 141, y + 38, t, 12, DOT),
-        (x + 130, y + 50, 12, t, DOT),
-        (x + 159, y + 31, 34, t, MAZE),
-        (x + 159, y + 31, t, 19, MAZE),
-        (x + 191, y + 31, t, 19, MAZE),
-        (x + 159, y + 48, 34, t, MAZE),
-        (x + 163, y + 35, 26, t, MAZE),
-        (x + 163, y + 35, t, 11, MAZE),
-        (x + 188, y + 35, t, 11, MAZE),
-        (x + 163, y + 46, 26, t, MAZE),
-        (x + 203, y + 14, t, 42, GREEN),
-        (x + 212, y + 14, t, 42, GREEN),
-        (x + 224, y + 30, 28, t, RED),
-        (x + 224, y + 30, t, 27, RED),
-        (x + 251, y + 30, t, 14, RED),
-        (x + 234, y + 41, 18, t, RED),
-        (x + 234, y + 52, 18, t, RED),
-        (x + 224, y + 57, 28, t, RED),
-        (x + 228, y + 34, 20, t, RED),
-        (x + 228, y + 34, t, 19, RED),
-        (x + 238, y + 42, 10, t, RED),
-        (x + 238, y + 50, 10, t, RED),
-        (x + 228, y + 53, 20, t, RED),
-        (x + 258, y + 33, 28, t, MAZE),
-        (x + 258, y + 48, 28, t, MAZE),
-        (x + 284, y + 33, t, 16, MAZE),
-        (x + 116, y + 53, 32, t, MAZE),
-        (x + 170, y + 53, 44, t, MAZE),
-        (x + 184, y + 61, t, 12, MAZE),
-        (x + 18, y + 76, 88, t, MAZE),
-        (x + 18, y + 79, 88, t, MAZE),
-        (x + 18, y + 76, t, 4, MAZE),
-        (x + 106, y + 76, t, 4, MAZE),
-        (x + 126, y + 76, 42, t, MAZE),
-        (x + 126, y + 79, 42, t, MAZE),
-        (x + 126, y + 76, t, 4, MAZE),
-        (x + 168, y + 76, t, 4, MAZE),
-        (x + 190, y + 76, 78, t, MAZE),
-        (x + 190, y + 79, 78, t, MAZE),
-        (x + 190, y + 76, t, 4, MAZE),
-        (x + 268, y + 76, t, 4, MAZE),
-        (x + 150, y + 89, t, 5, MAZE),
-        (x + 151, y + 93, 18, t, MAZE),
-        (x + 168, y + 89, t, 5, MAZE),
-    ]
-    draw_rects(image, maze_rects)
-
-    lanes = [
-        (14, 8, 306, 8, 34),
-        (14, 88, 138, 88, 16),
-        (182, 88, 306, 88, 16),
-        (14, 30, 44, 30, 4),
-        (14, 46, 44, 46, 4),
-        (116, 58, 196, 58, 8),
-        (116, 30, 116, 66, 5),
-        (196, 30, 196, 66, 5),
-        (256, 30, 306, 30, 5),
-        (256, 46, 306, 46, 5),
-    ]
-    index = 0
-    for x1, y1, x2, y2, count in lanes:
-        divisor = count - 1 if count > 1 else 1
-        for i in range(count):
-            dot_x = x1 + ((x2 - x1) * i) // divisor
-            dot_y = y1 + ((y2 - y1) * i) // divisor
-            radius = 3 if index in (0, 33, 34, 65) else 1
-            fill_circle(image, dot_x, y + dot_y, radius, DOT)
-            index += 1
-
-    for ghost_x, ghost_y, color in ((144, y + 43, PINK), (156, y + 51, CYAN), (124, y + 86, CYAN), (246, y + 86, RED)):
-        fill_circle(image, ghost_x, ghost_y, 4, color)
-
-    for life_x in (10, 24):
-        fill_circle(image, life_x, y + h + 14, 4, DOT)
-        fill_triangle(image, life_x + 5, y + h + 14, life_x + 1, y + h + 11, life_x + 1, y + h + 17, BLACK)
-    fill_circle(image, 188, y + 82, 7, DOT)
-    fill_triangle(image, 198, y + 82, 188, y + 77, 188, y + 87, BLACK)
-    fill_circle(image, x + w - 14, y + h + 16, 2, RED)
-    fill_circle(image, x + w - 10, y + h + 16, 2, RED)
-
+    draw_reference_maze(image, y_offset)
 
 def draw_full_screen(image: Image) -> None:
     fill_rect(image, 0, 0, 320, HEADER_HEIGHT, BUSY)
