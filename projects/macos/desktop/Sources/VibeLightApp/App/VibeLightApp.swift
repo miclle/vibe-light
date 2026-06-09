@@ -1,6 +1,8 @@
 import AppKit
 import SwiftUI
 
+private let mainWindowMinimumSize = NSSize(width: 1040, height: 680)
+
 @main
 struct VibeLightApp: App {
     @StateObject private var model = VibeLightAppModel()
@@ -15,7 +17,11 @@ struct VibeLightApp: App {
     var body: some Scene {
         WindowGroup("Vibe Light") {
             ContentView(model: model)
-                .frame(minWidth: 900, minHeight: 560)
+                .frame(
+                    minWidth: mainWindowMinimumSize.width,
+                    minHeight: mainWindowMinimumSize.height
+                )
+                .background(WindowMinimumSizeSetter(minSize: mainWindowMinimumSize))
         }
         .commands {
             CommandGroup(after: .newItem) {
@@ -29,6 +35,24 @@ struct VibeLightApp: App {
         Settings {
             SettingsWindowView(model: model)
                 .frame(width: 520, height: 360)
+        }
+    }
+}
+
+private struct WindowMinimumSizeSetter: NSViewRepresentable {
+    var minSize: NSSize
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            view.window?.minSize = minSize
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            nsView.window?.minSize = minSize
         }
     }
 }
