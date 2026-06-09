@@ -161,13 +161,17 @@ public struct CodexUsageReader: Sendable {
 
     private func contextRemainingPercent(from info: [String: Any]?) -> Int? {
         guard let window = number(info?["model_context_window"]),
-              window > 0,
-              let usage = info?["total_token_usage"] as? [String: Any],
-              let totalTokens = number(usage["total_tokens"]) else {
+              window > 0 else {
             return nil
         }
 
-        return clampedPercent(Int((100 - (totalTokens / window * 100)).rounded()))
+        let lastUsage = info?["last_token_usage"] as? [String: Any]
+        let totalUsage = info?["total_token_usage"] as? [String: Any]
+        guard let contextTokens = number(lastUsage?["input_tokens"]) ?? number(totalUsage?["total_tokens"]) else {
+            return nil
+        }
+
+        return clampedPercent(Int((100 - (contextTokens / window * 100)).rounded()))
     }
 
     private func number(_ value: Any?) -> Double? {

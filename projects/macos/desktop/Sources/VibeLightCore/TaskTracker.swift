@@ -125,10 +125,11 @@ public struct TaskTracker: Sendable {
 
     public func snapshot(from newestFirstEvents: [VibeHookEvent], now: Date = Date()) -> DisplaySnapshot {
         var tasksByID: [String: TrackedTask] = [:]
-        let codexUsage = newestFirstEvents.first(where: { $0.source == .codex && $0.codexUsage != nil })?.codexUsage
+        let codexUsage = newestFirstEvents.compactMap { resolvedCodexUsage(for: $0) }.first
 
         for event in newestFirstEvents.reversed() where shouldTrack(event) {
             let identity = resolvedIdentity(for: event)
+            let usage = resolvedCodexUsage(for: event)
             tasksByID[identity.id] = TrackedTask(
                 id: identity.id,
                 identityKind: identity.kind,
@@ -138,7 +139,7 @@ public struct TaskTracker: Sendable {
                 lastDetail: event.displayDetail,
                 lastUpdated: event.timestamp,
                 inclusionReason: inclusionReason(for: event, identity: identity),
-                contextRemainingPercent: event.codexUsage?.contextRemainingPercent
+                contextRemainingPercent: usage?.contextRemainingPercent
             )
         }
 
@@ -196,6 +197,31 @@ public struct TaskTracker: Sendable {
         }
 
         return true
+    }
+
+    private func resolvedCodexUsage(for event: VibeHookEvent) -> CodexUsage? {
+        if let codexUsage = event.codexUsage {
+            return codexUsage
+        }
+        guard event.source == .codex,
+              let rawPayload = event.rawPayload,
+              let data = rawPayload.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let transcriptPath = stringValue(for: ["transcript_path", "transcriptPath"], in: object) else {
+            return nil
+        }
+
+        return CodexUsageReader().readLatest(from: URL(fileURLWithPath: transcriptPath))
+    }
+
+    private func stringValue(for keys: [String], in object: [String: Any]) -> String? {
+        for key in keys {
+            if let value = object[key] as? String,
+               !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return value
+            }
+        }
+        return nil
     }
 
     private func resolvedIdentity(for event: VibeHookEvent) -> (id: String, kind: TaskIdentityKind) {

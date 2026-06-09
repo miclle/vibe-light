@@ -156,6 +156,28 @@ import Testing
     #expect(usage.contextRemainingPercent == 90)
 }
 
+@Test func hookPayloadDecoderUsesLastInputTokensForContextRemaining() throws {
+    let directory = temporaryDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let transcriptURL = directory.appendingPathComponent("session.jsonl")
+    try """
+    {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":1000000},"last_token_usage":{"input_tokens":2000},"model_context_window":10000},"rate_limits":{"primary":{"used_percent":5,"window_minutes":300},"secondary":{"used_percent":21,"window_minutes":10080}}}}
+    """.write(to: transcriptURL, atomically: true, encoding: .utf8)
+
+    let data = """
+    {
+      "hook_event_name": "PreToolUse",
+      "session_id": "session-123",
+      "transcript_path": "\(transcriptURL.path)",
+      "cwd": "/Users/miclle/github/miclle/vibe-light"
+    }
+    """.data(using: .utf8)!
+
+    let event = try HookPayloadDecoder(defaultSource: .codex).decode(data)
+
+    #expect(event.codexUsage?.contextRemainingPercent == 80)
+}
+
 @Test func displaySnapshotAddsUsageToStatusPacketAndTasks() throws {
     let base = Date(timeIntervalSince1970: 1_780_300_800)
     let tracker = TaskTracker()
@@ -185,6 +207,41 @@ import Testing
     #expect(usage["codex5hRemainingPercent"] as? Int == 88)
     #expect(usage["codex7dRemainingPercent"] as? Int == 60)
     #expect(tasks.first?["contextRemainingPercent"] as? Int == 90)
+}
+
+@Test func displaySnapshotBackfillsUsageFromStoredRawPayloadTranscript() throws {
+    let directory = temporaryDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let transcriptURL = directory.appendingPathComponent("session.jsonl")
+    try """
+    {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":2500},"model_context_window":10000},"rate_limits":{"primary":{"used_percent":5,"window_minutes":300},"secondary":{"used_percent":21,"window_minutes":10080}}}}
+    """.write(to: transcriptURL, atomically: true, encoding: .utf8)
+
+    let rawPayload = """
+    {"session_id":"session-123","transcript_path":"\(transcriptURL.path)","cwd":"/Users/miclle/github/miclle/vibe-light","hook_event_name":"UserPromptSubmit"}
+    """
+    let event = VibeHookEvent(
+        taskID: "codex:session-123",
+        source: .codex,
+        kind: .userPromptSubmit,
+        timestamp: Date(timeIntervalSince1970: 1_780_300_800),
+        summary: "implement usage",
+        workspace: "vibe-light",
+        rawPayload: rawPayload
+    )
+
+    let packet = TaskTracker().snapshot(
+        from: [event],
+        now: Date(timeIntervalSince1970: 1_780_300_801)
+    ).statusPacket
+    let data = try packet.encodedJSON()
+    let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let usage = try #require(object["usage"] as? [String: Any])
+    let tasks = try #require(object["tasks"] as? [[String: Any]])
+
+    #expect(usage["codex5hRemainingPercent"] as? Int == 95)
+    #expect(usage["codex7dRemainingPercent"] as? Int == 79)
+    #expect(tasks.first?["contextRemainingPercent"] as? Int == 75)
 }
 
 @Test func statusPacketKeepsChineseTaskDetails() throws {
