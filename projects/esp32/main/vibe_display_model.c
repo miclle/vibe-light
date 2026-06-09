@@ -125,7 +125,7 @@ uint32_t vibe_display_packet_signature(const vibe_status_packet_t *packet)
         hash = fnv1a_update_text(hash, task->source);
         hash = fnv1a_update(hash, &task->state, sizeof(task->state));
         hash = fnv1a_update_text(hash, task->detail);
-        hash = fnv1a_update(hash, &task->context_remaining_percent, sizeof(task->context_remaining_percent));
+        hash = fnv1a_update(hash, &task->context_used_percent, sizeof(task->context_used_percent));
     }
 
     return hash;
@@ -164,7 +164,7 @@ void vibe_display_format_task_row(const vibe_status_task_t *task, int index, vib
 
     copy_text(row->badge, sizeof(row->badge), badge_for_state(task->state));
     copy_text(row->title, sizeof(row->title), task->title[0] == '\0' ? "untitled" : task->title);
-    format_percent(row->trailing, sizeof(row->trailing), "CTX", task->context_remaining_percent);
+    format_percent(row->trailing, sizeof(row->trailing), "CTX", task->context_used_percent);
 
     if (task->source[0] != '\0' && task->detail[0] != '\0') {
         copy_text(row->subtitle, sizeof(row->subtitle), task->source);

@@ -91,7 +91,7 @@ static void test_v2_usage_packet(void)
         "\"source\":\"codex\","
         "\"state\":\"busy\","
         "\"tasks\":["
-        "{\"contextRemainingPercent\":90,\"source\":\"codex\",\"state\":\"busy\",\"title\":\"vibe-light\"}"
+        "{\"contextUsedPercent\":90,\"source\":\"codex\",\"state\":\"busy\",\"title\":\"vibe-light\"}"
         "],"
         "\"usage\":{\"codex5hRemainingPercent\":88,\"codex7dRemainingPercent\":60},"
         "\"v\":2"
@@ -105,7 +105,7 @@ static void test_v2_usage_packet(void)
     assert(parse(json, &packet));
     assert(packet.codex_5h_remaining_percent == 88);
     assert(packet.codex_7d_remaining_percent == 60);
-    assert(packet.tasks[0].context_remaining_percent == 90);
+    assert(packet.tasks[0].context_used_percent == 90);
 
     vibe_display_format_usage_summary(&packet, &usage);
     assert(strcmp(usage.five_hour, "5H 88%") == 0);
@@ -113,6 +113,30 @@ static void test_v2_usage_packet(void)
 
     vibe_display_format_task_row(&packet.tasks[0], 0, &row);
     assert(strcmp(row.trailing, "CTX 90%") == 0);
+}
+
+static void test_v2_usage_packet_accepts_legacy_context_remaining(void)
+{
+    const char *json =
+        "{"
+        "\"activeCount\":1,"
+        "\"source\":\"codex\","
+        "\"state\":\"busy\","
+        "\"tasks\":["
+        "{\"contextRemainingPercent\":75,\"source\":\"codex\",\"state\":\"busy\",\"title\":\"vibe-light\"}"
+        "],"
+        "\"v\":2"
+        "}";
+
+    vibe_status_packet_t packet;
+    vibe_display_task_row_t row;
+    vibe_status_default(&packet);
+
+    assert(parse(json, &packet));
+    assert(packet.tasks[0].context_used_percent == 25);
+
+    vibe_display_format_task_row(&packet.tasks[0], 0, &row);
+    assert(strcmp(row.trailing, "CTX 25%") == 0);
 }
 
 static void test_unknown_states_fall_back_to_idle(void)
@@ -746,6 +770,7 @@ int main(void)
     test_v1_status_packet();
     test_v2_task_list_packet();
     test_v2_usage_packet();
+    test_v2_usage_packet_accepts_legacy_context_remaining();
     test_unknown_states_fall_back_to_idle();
     test_utf8_decoder_reads_chinese_codepoints();
     test_utf8_decoder_handles_truncated_sequences();

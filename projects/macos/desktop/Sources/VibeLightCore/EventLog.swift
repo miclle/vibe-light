@@ -147,7 +147,7 @@ public struct CodexUsageReader: Sendable {
         return CodexUsage(
             fiveHourRemainingPercent: remainingPercent(from: primary),
             weeklyRemainingPercent: remainingPercent(from: secondary),
-            contextRemainingPercent: contextRemainingPercent(from: info)
+            contextUsedPercent: contextUsedPercent(from: info)
         )
     }
 
@@ -159,7 +159,7 @@ public struct CodexUsageReader: Sendable {
         return clampedPercent(Int((100 - usedPercent).rounded()))
     }
 
-    private func contextRemainingPercent(from info: [String: Any]?) -> Int? {
+    private func contextUsedPercent(from info: [String: Any]?) -> Int? {
         guard let window = number(info?["model_context_window"]),
               window > 0 else {
             return nil
@@ -171,7 +171,7 @@ public struct CodexUsageReader: Sendable {
             return nil
         }
 
-        return clampedPercent(Int((100 - (contextTokens / window * 100)).rounded()))
+        return clampedPercent(Int((contextTokens / window * 100).rounded()))
     }
 
     private func number(_ value: Any?) -> Double? {

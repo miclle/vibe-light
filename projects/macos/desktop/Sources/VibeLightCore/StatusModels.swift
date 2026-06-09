@@ -133,16 +133,40 @@ public struct VibeHookEvent: Codable, Equatable, Identifiable, Sendable {
 public struct CodexUsage: Codable, Equatable, Sendable {
     public var fiveHourRemainingPercent: Int?
     public var weeklyRemainingPercent: Int?
-    public var contextRemainingPercent: Int?
+    public var contextUsedPercent: Int?
+
+    private enum CodingKeys: String, CodingKey {
+        case fiveHourRemainingPercent
+        case weeklyRemainingPercent
+        case contextUsedPercent
+        case contextRemainingPercent
+    }
 
     public init(
         fiveHourRemainingPercent: Int? = nil,
         weeklyRemainingPercent: Int? = nil,
-        contextRemainingPercent: Int? = nil
+        contextUsedPercent: Int? = nil
     ) {
         self.fiveHourRemainingPercent = fiveHourRemainingPercent.map(Self.clampedPercent)
         self.weeklyRemainingPercent = weeklyRemainingPercent.map(Self.clampedPercent)
-        self.contextRemainingPercent = contextRemainingPercent.map(Self.clampedPercent)
+        self.contextUsedPercent = contextUsedPercent.map(Self.clampedPercent)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let legacyRemaining = try container.decodeIfPresent(Int.self, forKey: .contextRemainingPercent)
+        self.init(
+            fiveHourRemainingPercent: try container.decodeIfPresent(Int.self, forKey: .fiveHourRemainingPercent),
+            weeklyRemainingPercent: try container.decodeIfPresent(Int.self, forKey: .weeklyRemainingPercent),
+            contextUsedPercent: try container.decodeIfPresent(Int.self, forKey: .contextUsedPercent) ?? legacyRemaining.map { 100 - $0 }
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(fiveHourRemainingPercent, forKey: .fiveHourRemainingPercent)
+        try container.encodeIfPresent(weeklyRemainingPercent, forKey: .weeklyRemainingPercent)
+        try container.encodeIfPresent(contextUsedPercent, forKey: .contextUsedPercent)
     }
 
     private static func clampedPercent(_ value: Int) -> Int {
@@ -266,20 +290,50 @@ public struct StatusTask: Codable, Equatable, Sendable {
     public var state: DisplayState
     public var source: VibeSource
     public var detail: String?
-    public var contextRemainingPercent: Int?
+    public var contextUsedPercent: Int?
+
+    private enum CodingKeys: String, CodingKey {
+        case title
+        case state
+        case source
+        case detail
+        case contextUsedPercent
+        case contextRemainingPercent
+    }
 
     public init(
         title: String,
         state: DisplayState,
         source: VibeSource,
         detail: String? = nil,
-        contextRemainingPercent: Int? = nil
+        contextUsedPercent: Int? = nil
     ) {
         self.title = StatusPacket.truncatedTaskTitle(title)
         self.state = state
         self.source = source
         self.detail = detail.map { StatusPacket.truncatedTaskDetail($0) }
-        self.contextRemainingPercent = contextRemainingPercent.map { min(100, max(0, $0)) }
+        self.contextUsedPercent = contextUsedPercent.map { min(100, max(0, $0)) }
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let legacyRemaining = try container.decodeIfPresent(Int.self, forKey: .contextRemainingPercent)
+        self.init(
+            title: try container.decode(String.self, forKey: .title),
+            state: try container.decode(DisplayState.self, forKey: .state),
+            source: try container.decode(VibeSource.self, forKey: .source),
+            detail: try container.decodeIfPresent(String.self, forKey: .detail),
+            contextUsedPercent: try container.decodeIfPresent(Int.self, forKey: .contextUsedPercent) ?? legacyRemaining.map { 100 - $0 }
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(title, forKey: .title)
+        try container.encode(state, forKey: .state)
+        try container.encode(source, forKey: .source)
+        try container.encodeIfPresent(detail, forKey: .detail)
+        try container.encodeIfPresent(contextUsedPercent, forKey: .contextUsedPercent)
     }
 }
 

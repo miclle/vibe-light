@@ -153,10 +153,10 @@ import Testing
 
     #expect(usage.fiveHourRemainingPercent == 88)
     #expect(usage.weeklyRemainingPercent == 60)
-    #expect(usage.contextRemainingPercent == 90)
+    #expect(usage.contextUsedPercent == 10)
 }
 
-@Test func hookPayloadDecoderUsesLastInputTokensForContextRemaining() throws {
+@Test func hookPayloadDecoderUsesLastInputTokensForContextUsed() throws {
     let directory = temporaryDirectory()
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let transcriptURL = directory.appendingPathComponent("session.jsonl")
@@ -175,7 +175,7 @@ import Testing
 
     let event = try HookPayloadDecoder(defaultSource: .codex).decode(data)
 
-    #expect(event.codexUsage?.contextRemainingPercent == 80)
+    #expect(event.codexUsage?.contextUsedPercent == 20)
 }
 
 @Test func displaySnapshotAddsUsageToStatusPacketAndTasks() throws {
@@ -192,7 +192,7 @@ import Testing
             codexUsage: CodexUsage(
                 fiveHourRemainingPercent: 88,
                 weeklyRemainingPercent: 60,
-                contextRemainingPercent: 90
+                contextUsedPercent: 90
             )
         ),
     ]
@@ -206,7 +206,7 @@ import Testing
 
     #expect(usage["codex5hRemainingPercent"] as? Int == 88)
     #expect(usage["codex7dRemainingPercent"] as? Int == 60)
-    #expect(tasks.first?["contextRemainingPercent"] as? Int == 90)
+    #expect(tasks.first?["contextUsedPercent"] as? Int == 90)
 }
 
 @Test func displaySnapshotBackfillsUsageFromStoredRawPayloadTranscript() throws {
@@ -241,7 +241,21 @@ import Testing
 
     #expect(usage["codex5hRemainingPercent"] as? Int == 95)
     #expect(usage["codex7dRemainingPercent"] as? Int == 79)
-    #expect(tasks.first?["contextRemainingPercent"] as? Int == 75)
+    #expect(tasks.first?["contextUsedPercent"] as? Int == 25)
+}
+
+@Test func codexUsageDecodesLegacyContextRemainingPercentAsUsedPercent() throws {
+    let data = """
+    {
+      "fiveHourRemainingPercent": 88,
+      "weeklyRemainingPercent": 60,
+      "contextRemainingPercent": 75
+    }
+    """.data(using: .utf8)!
+
+    let usage = try JSONDecoder().decode(CodexUsage.self, from: data)
+
+    #expect(usage.contextUsedPercent == 25)
 }
 
 @Test func statusPacketKeepsChineseTaskDetails() throws {

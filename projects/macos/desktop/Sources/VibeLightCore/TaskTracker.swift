@@ -9,7 +9,7 @@ public struct TrackedTask: Equatable, Identifiable, Sendable {
     public var lastDetail: String
     public var lastUpdated: Date
     public var inclusionReason: String
-    public var contextRemainingPercent: Int?
+    public var contextUsedPercent: Int?
 
     public init(
         id: String,
@@ -20,7 +20,7 @@ public struct TrackedTask: Equatable, Identifiable, Sendable {
         lastDetail: String,
         lastUpdated: Date,
         inclusionReason: String,
-        contextRemainingPercent: Int? = nil
+        contextUsedPercent: Int? = nil
     ) {
         self.id = id
         self.identityKind = identityKind
@@ -30,7 +30,7 @@ public struct TrackedTask: Equatable, Identifiable, Sendable {
         self.lastDetail = lastDetail
         self.lastUpdated = lastUpdated
         self.inclusionReason = inclusionReason
-        self.contextRemainingPercent = contextRemainingPercent
+        self.contextUsedPercent = contextUsedPercent
     }
 }
 
@@ -103,7 +103,7 @@ public struct DisplaySnapshot: Equatable, Sendable {
                     state: $0.state,
                     source: $0.source,
                     detail: $0.lastDetail,
-                    contextRemainingPercent: $0.contextRemainingPercent
+                    contextUsedPercent: $0.contextUsedPercent
                 )
             },
             usage: codexUsage.map {
@@ -139,7 +139,7 @@ public struct TaskTracker: Sendable {
                 lastDetail: event.displayDetail,
                 lastUpdated: event.timestamp,
                 inclusionReason: inclusionReason(for: event, identity: identity),
-                contextRemainingPercent: usage?.contextRemainingPercent
+                contextUsedPercent: usage?.contextUsedPercent
             )
         }
 

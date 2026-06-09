@@ -56,7 +56,11 @@ static void parse_task(cJSON *item, vibe_status_task_t *task)
     copy_json_string(item, "title", task->title, sizeof(task->title));
     copy_json_string(item, "source", task->source, sizeof(task->source));
     copy_json_string(item, "detail", task->detail, sizeof(task->detail));
-    task->context_remaining_percent = json_percent(item, "contextRemainingPercent");
+    task->context_used_percent = json_percent(item, "contextUsedPercent");
+    if (task->context_used_percent < 0) {
+        int context_remaining_percent = json_percent(item, "contextRemainingPercent");
+        task->context_used_percent = context_remaining_percent < 0 ? -1 : 100 - context_remaining_percent;
+    }
 
     cJSON *state = cJSON_GetObjectItemCaseSensitive(item, "state");
     if (cJSON_IsString(state) && state->valuestring != NULL) {
@@ -91,7 +95,7 @@ void vibe_status_default(vibe_status_packet_t *packet)
         packet->tasks[i].state = VIBE_DISPLAY_IDLE;
         copy_text(packet->tasks[i].state_text, sizeof(packet->tasks[i].state_text), "idle");
         copy_text(packet->tasks[i].detail, sizeof(packet->tasks[i].detail), "");
-        packet->tasks[i].context_remaining_percent = -1;
+        packet->tasks[i].context_used_percent = -1;
     }
 }
 
