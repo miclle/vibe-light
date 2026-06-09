@@ -2,7 +2,8 @@ import CoreBluetooth
 import Foundation
 import VibeLightCore
 
-final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
+@MainActor
+final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManagerDelegate, @preconcurrency CBPeripheralDelegate {
     private let serviceUUID = CBUUID(string: "7d8f0001-7b9a-4f0b-9e8a-8b4c2c7f1000")
     private let statusCharacteristicUUID = CBUUID(string: "7d8f0002-7b9a-4f0b-9e8a-8b4c2c7f1000")
     private let healthCharacteristicUUID = CBUUID(string: "7d8f0003-7b9a-4f0b-9e8a-8b4c2c7f1000")
@@ -45,10 +46,20 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
 
     func startScan(autoConnectFirstDevice: Bool = false) {
         guard let central else { return }
-        guard central.state == .poweredOn else {
+
+        switch central.state {
+        case .poweredOn:
+            break
+        case .unknown, .resetting:
             shouldScanWhenPoweredOn = true
             shouldAutoConnectFirstDevice = autoConnectFirstDevice
             publish("等待蓝牙就绪后扫描。")
+            return
+        default:
+            shouldScanWhenPoweredOn = false
+            shouldAutoConnectFirstDevice = false
+            store.fail(central.state.recoveryMessage)
+            publish(central.state.recoveryMessage)
             return
         }
 
@@ -158,12 +169,12 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
                 publish("蓝牙已就绪。")
             }
         case .unknown, .resetting:
-            publish(shouldScanWhenPoweredOn ? "等待蓝牙就绪后扫描。" : "蓝牙\(central.state.description)。")
+            publish(shouldScanWhenPoweredOn ? "等待蓝牙就绪后扫描。" : central.state.recoveryMessage)
         default:
             shouldScanWhenPoweredOn = false
             shouldAutoConnectFirstDevice = false
-            store.fail("蓝牙不可用：\(central.state.description)")
-            publish()
+            store.fail(central.state.recoveryMessage)
+            publish(central.state.recoveryMessage)
         }
     }
 
@@ -312,12 +323,15 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
     }
 
     private func publish(_ message: String? = nil) {
-        onDevicesChanged(store.devices)
-        onStateChanged(
-            store.connectionState,
-            store.isScanning,
-            message ?? store.connectionState.title
-        )
+        let devices = store.devices
+        let connectionState = store.connectionState
+        let isScanning = store.isScanning
+        let hardwareMessage = message ?? connectionState.title
+
+        Task { @MainActor [onDevicesChanged, onStateChanged] in
+            onDevicesChanged(devices)
+            onStateChanged(connectionState, isScanning, hardwareMessage)
+        }
     }
 
     private func recoverConnectionIfNeeded(after event: HardwareReconnectPolicy.Event) {
@@ -331,15 +345,22 @@ final class BluetoothHardwareManager: NSObject, CBCentralManagerDelegate, CBPeri
 }
 
 private extension CBManagerState {
-    var description: String {
+    var recoveryMessage: String {
         switch self {
-        case .unknown: "未知"
-        case .resetting: "重置中"
-        case .unsupported: "不支持蓝牙"
-        case .unauthorized: "未授权"
-        case .poweredOff: "蓝牙已关闭"
-        case .poweredOn: "蓝牙已开启"
-        @unknown default: "未知状态"
+        case .unknown:
+            "正在检查蓝牙状态。"
+        case .resetting:
+            "蓝牙正在重置，稍后会自动继续扫描。"
+        case .unsupported:
+            "这台 Mac 不支持 BLE，无法扫描 VibeLight 设备。"
+        case .unauthorized:
+            "未获得蓝牙权限。请在系统设置 > 隐私与安全性 > 蓝牙中允许 Vibe Light。"
+        case .poweredOff:
+            "蓝牙已关闭。请先打开系统蓝牙后再扫描。"
+        case .poweredOn:
+            "蓝牙已就绪。"
+        @unknown default:
+            "蓝牙处于未知状态，请稍后重试。"
         }
     }
 }

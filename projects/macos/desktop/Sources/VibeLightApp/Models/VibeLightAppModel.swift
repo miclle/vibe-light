@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import VibeLightCore
 
@@ -191,6 +192,13 @@ final class VibeLightAppModel: ObservableObject {
 
     func refreshHardwareHealth() {
         bluetoothManager?.readHealthPacket()
+    }
+
+    func openBluetoothPrivacySettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
     }
 
     func pollEvents() async {

@@ -11,6 +11,14 @@ struct HardwareDevicesPane: View {
                     LabeledContent("连接状态", value: model.hardwareConnectionState.title)
                     LabeledContent("说明", value: model.hardwareMessage)
 
+                    if model.hardwareMessage.contains("蓝牙权限") {
+                        Button {
+                            model.openBluetoothPrivacySettings()
+                        } label: {
+                            Label("打开蓝牙权限设置", systemImage: "lock.shield")
+                        }
+                    }
+
                     HStack {
                         Button {
                             model.startHardwareScan()
