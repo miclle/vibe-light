@@ -254,6 +254,7 @@ def draw_reference_maze(image: Image, y_offset: int) -> None:
     pacman_x = maze_display_x(143)
     fill_circle(image, pacman_x, y_offset + 214, 7, DOT)
     fill_triangle(image, pacman_x + 10, y_offset + 214, pacman_x, y_offset + 209, pacman_x, y_offset + 219, BLACK)
+    draw_maze_count_boxes(image, y_offset)
 
 
 def draw_maze(image: Image, y_offset: int = 0) -> None:
@@ -267,11 +268,6 @@ def draw_full_screen(image: Image) -> None:
     draw_text(image, 24, 22, "VIBE LIGHT", 3, WHITE)
     draw_maze(image, MAZE_STAGE_Y)
 
-    count_y = TASK_PANEL_Y + 26
-    draw_status_chip(image, 32, count_y, BUSY, "A1")
-    draw_status_chip(image, 126, count_y, WAITING, "W0")
-    draw_status_chip(image, 220, count_y, ERROR, "E0")
-
     tasks = [
         (BUSY, "1", "MANUAL"),
         (WAITING, "2", "BUILD"),
@@ -284,6 +280,33 @@ def draw_full_screen(image: Image) -> None:
         fill_rect(image, 32, y, TASK_SWATCH_W, TASK_SWATCH_H, color)
         draw_text(image, 44, y, badge, 1, color)
         draw_text(image, 70, y, title, 1, WHITE)
+
+
+def draw_maze_count_boxes(image: Image, y_offset: int) -> None:
+    y = y_offset + 294
+    clear_y = y_offset + 288
+    boxes = [
+        (maze_display_x(20), maze_display_x(128), "ACTIVE 1", BUSY),
+        (maze_display_x(132), maze_display_x(187), "WAIT 0", WAITING),
+        (maze_display_x(192), maze_display_x(300), "ERR 0", ERROR),
+    ]
+    for left, right, label, color in boxes:
+        fill_rect(image, left, clear_y, right - left + 1, 22, BLACK)
+        draw_text_centered(image, left, right, y, label, 2, color)
+
+
+def draw_text_centered(
+    image: Image,
+    left: int,
+    right: int,
+    y: int,
+    text: str,
+    scale: int,
+    color: tuple[int, int, int],
+) -> None:
+    width = len(text) * 4 * scale
+    x = left + ((right - left + 1) - width) // 2
+    draw_text(image, max(left, x), y, text, scale, color)
 
 
 def draw_status_chip(image: Image, x: int, y: int, color: tuple[int, int, int], label: str) -> None:

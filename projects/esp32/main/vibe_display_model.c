@@ -11,6 +11,7 @@ static void maze_frame_at_tick(int tick, int phase_offset, bool mouth_open, vibe
 static void copy_text(char *dest, size_t dest_size, const char *source);
 static void append_text(char *dest, size_t dest_size, const char *source);
 static void format_count(char *dest, size_t dest_size, char label, int count);
+static void format_maze_count(char *dest, size_t dest_size, const char *label, int count);
 static int positive_mod(int value, int modulus);
 
 typedef struct {
@@ -190,6 +191,25 @@ void vibe_display_format_count_summary(const vibe_status_packet_t *packet, vibe_
     format_count(summary->active, sizeof(summary->active), 'A', packet->active_count);
     format_count(summary->waiting, sizeof(summary->waiting), 'W', packet->waiting_count);
     format_count(summary->error, sizeof(summary->error), 'E', packet->error_count);
+}
+
+void vibe_display_format_maze_count_text(const vibe_status_packet_t *packet, vibe_display_maze_count_text_t *text)
+{
+    if (text == NULL) {
+        return;
+    }
+
+    memset(text, 0, sizeof(*text));
+    if (packet == NULL) {
+        format_maze_count(text->active, sizeof(text->active), "ACTIVE", 0);
+        format_maze_count(text->waiting, sizeof(text->waiting), "WAIT", 0);
+        format_maze_count(text->error, sizeof(text->error), "ERR", 0);
+        return;
+    }
+
+    format_maze_count(text->active, sizeof(text->active), "ACTIVE", packet->active_count);
+    format_maze_count(text->waiting, sizeof(text->waiting), "WAIT", packet->waiting_count);
+    format_maze_count(text->error, sizeof(text->error), "ERR", packet->error_count);
 }
 
 void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, size_t text_size)
@@ -556,4 +576,16 @@ static void format_count(char *dest, size_t dest_size, char label, int count)
         count = 0;
     }
     snprintf(dest, dest_size, "%c%d", label, count);
+}
+
+static void format_maze_count(char *dest, size_t dest_size, const char *label, int count)
+{
+    if (dest == NULL || dest_size == 0) {
+        return;
+    }
+
+    if (count < 0) {
+        count = 0;
+    }
+    snprintf(dest, dest_size, "%s %d", label, count);
 }

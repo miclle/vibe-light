@@ -58,6 +58,12 @@ typedef struct {
     char error[VIBE_DISPLAY_COUNT_TEXT_MAX];
 } vibe_display_count_summary_t;
 
+typedef struct {
+    char active[16];
+    char waiting[16];
+    char error[16];
+} vibe_display_maze_count_text_t;
+
 typedef enum {
     VIBE_DISPLAY_DIRECTION_RIGHT = 0,
     VIBE_DISPLAY_DIRECTION_DOWN,
@@ -88,6 +94,7 @@ uint32_t vibe_display_packet_signature(const vibe_status_packet_t *packet);
 bool vibe_display_should_render(vibe_display_signature_t *signature, const vibe_status_packet_t *packet);
 void vibe_display_format_task_row(const vibe_status_task_t *task, int index, vibe_display_task_row_t *row);
 void vibe_display_format_count_summary(const vibe_status_packet_t *packet, vibe_display_count_summary_t *summary);
+void vibe_display_format_maze_count_text(const vibe_status_packet_t *packet, vibe_display_maze_count_text_t *text);
 void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, size_t text_size);
 bool vibe_display_animation_enabled(vibe_display_state_t state);
 int vibe_display_animation_step(int active_count);

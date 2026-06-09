@@ -178,6 +178,26 @@ static void test_display_model_formats_compact_count_summary(void)
     assert(strlen(summary.error) < VIBE_DISPLAY_COUNT_TEXT_MAX);
 }
 
+static void test_display_model_formats_maze_count_text(void)
+{
+    vibe_status_packet_t packet;
+    vibe_display_maze_count_text_t text;
+
+    vibe_status_default(&packet);
+    packet.active_count = 12;
+    packet.waiting_count = 3;
+    packet.error_count = 0;
+
+    vibe_display_format_maze_count_text(&packet, &text);
+
+    assert(strcmp(text.active, "ACTIVE 12") == 0);
+    assert(strcmp(text.waiting, "WAIT 3") == 0);
+    assert(strcmp(text.error, "ERR 0") == 0);
+    assert(strlen(text.active) < sizeof(text.active));
+    assert(strlen(text.waiting) < sizeof(text.waiting));
+    assert(strlen(text.error) < sizeof(text.error));
+}
+
 static void test_display_model_animates_busy_center_stage(void)
 {
     vibe_display_animation_frame_t frame0;
@@ -640,6 +660,7 @@ int main(void)
     test_display_model_detects_duplicate_packets();
     test_display_model_formats_task_rows();
     test_display_model_formats_compact_count_summary();
+    test_display_model_formats_maze_count_text();
     test_display_model_animates_busy_center_stage();
     test_display_model_animates_through_maze_turns();
     test_display_model_places_pellets_on_maze_centerline();
