@@ -87,6 +87,8 @@ idf.py build
 projects/esp32/tools/flash_firmware.sh /dev/cu.usbmodemXXXX
 ```
 
+进入 `esp_idf_monitor` 后，按 `Ctrl+]` 退出串口监视；按 `Ctrl+T` 后再按 `Ctrl+H` 可查看 monitor 快捷键帮助。
+
 只烧录、不进入串口监视：
 
 ```bash
