@@ -21,6 +21,8 @@ help:
 	@printf '  make setup             交互式安装缺失的开发环境依赖\n'
 	@printf '  make quick             运行快速验证，不构建 ESP32 固件\n'
 	@printf '  make verify            运行完整验证，包含 ESP32 固件构建\n'
+	@printf '  make docs-context      汇总文档刷新所需的当前项目事实\n'
+	@printf '  make docs-check        检查文档改动、agent 引用和兼容 symlink\n'
 	@printf '  make whitespace        用 git diff --check 检查空白字符问题\n'
 	@printf '  make clean             删除本地构建产物\n\n'
 	@printf 'macOS 桌面端:\n'
@@ -44,7 +46,7 @@ help:
 	@printf '  ESP32_PORT=%s\n' '$(ESP32_PORT)'
 	@printf '  ESP32_BAUD=%s\n' '$(ESP32_BAUD)'
 
-.PHONY: check-env setup quick verify whitespace clean
+.PHONY: check-env setup quick verify docs-context docs-check whitespace clean
 check-env:
 	$(ROOT_DIR)/script/setup_env.sh --check
 
@@ -56,6 +58,12 @@ quick:
 
 verify:
 	$(ROOT_DIR)/script/verify.sh --full
+
+docs-context:
+	$(ROOT_DIR)/script/docs_refresh_context.sh
+
+docs-check:
+	$(ROOT_DIR)/script/docs_check.sh
 
 whitespace:
 	git -C $(ROOT_DIR) diff --check

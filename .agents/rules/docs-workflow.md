@@ -12,10 +12,18 @@
 ## Rules
 
 - Ground docs in current source and tests. Do not update docs from memory alone.
+- For recurring current-state refreshes, start with `make docs-context` to gather the repeatable source/doc facts, then inspect the specific files behind any claims you will edit.
 - If code changed packet fields, status rules, animation behavior or hardware assumptions, update docs in the same change.
 - Keep README concise and product-facing. Move implementation-heavy details to architecture, firmware or rules docs.
 - For docs-only work, avoid staging unrelated code changes. Existing user changes may remain dirty.
-- Before reporting completion, run at least `git diff --check`.
+- Before reporting completion, run at least `make docs-check`.
+- Run `make quick` when the changed docs mention firmware display, protocol shape, preview tooling, tests or verification behavior.
+
+## Automation Boundaries
+
+- `script/docs_refresh_context.sh` is read-only context collection. It should make repeated refreshes faster, not decide the edits.
+- `script/docs_check.sh` is a lightweight docs guardrail for whitespace, `CLAUDE.md -> AGENTS.md` compatibility and local `AGENTS.md` references.
+- Do not fully automate prose rewrites. The agent must still decide whether a source fact belongs in README, TODO, architecture, hardware, firmware docs or agent guidance.
 
 ## Current Project Notes
 
