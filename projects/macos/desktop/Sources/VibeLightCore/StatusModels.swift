@@ -256,15 +256,19 @@ public struct StatusPacket: Codable, Equatable, Sendable {
     }
 
     private static func truncatedDetail(_ value: String) -> String {
-        truncated(value, maxUTF8Bytes: maxDetailUTF8Bytes)
+        hardwareSafeTruncated(value, maxUTF8Bytes: maxDetailUTF8Bytes)
     }
 
     static func truncatedTaskTitle(_ value: String) -> String {
-        truncated(value, maxUTF8Bytes: maxTaskTitleUTF8Bytes)
+        hardwareSafeTruncated(value, maxUTF8Bytes: maxTaskTitleUTF8Bytes)
     }
 
     static func truncatedTaskDetail(_ value: String) -> String {
-        truncated(value, maxUTF8Bytes: maxTaskDetailUTF8Bytes)
+        hardwareSafeTruncated(value, maxUTF8Bytes: maxTaskDetailUTF8Bytes)
+    }
+
+    private static func hardwareSafeTruncated(_ value: String, maxUTF8Bytes: Int) -> String {
+        truncated(hardwareSafeText(value), maxUTF8Bytes: maxUTF8Bytes)
     }
 
     fileprivate static func truncated(_ value: String, maxUTF8Bytes: Int) -> String {
@@ -282,6 +286,85 @@ public struct StatusPacket: Codable, Equatable, Sendable {
         }
 
         return result
+    }
+
+    private static func hardwareSafeText(_ value: String) -> String {
+        let replacements: [Character: String] = [
+            "⎿": " ",
+            "↳": " ",
+            "└": " ",
+            "╰": " ",
+            "╭": " ",
+            "│": " ",
+            "┃": " ",
+            "║": " ",
+            "┆": " ",
+            "┊": " ",
+            "•": "-",
+            "●": "-",
+            "○": "-",
+            "◦": "-",
+            "▪": "-",
+            "▫": "-",
+            "→": ">",
+            "⇒": ">",
+            "➜": ">",
+            "←": "<",
+            "✓": "OK",
+            "✔": "OK",
+            "✗": "X",
+            "✖": "X"
+        ]
+
+        var result = ""
+        var previousWasSpace = true
+
+        func appendHardwareText(_ text: String) {
+            for character in text {
+                if character.isWhitespace {
+                    if !previousWasSpace {
+                        result.append(" ")
+                        previousWasSpace = true
+                    }
+                    continue
+                }
+                result.append(character)
+                previousWasSpace = false
+            }
+        }
+
+        for character in value {
+            if let replacement = replacements[character] {
+                appendHardwareText(replacement)
+            } else if character.isWhitespace {
+                appendHardwareText(" ")
+            } else if isHardwareDisplayable(character) {
+                appendHardwareText(String(character))
+            } else if !previousWasSpace {
+                result.append(" ")
+                previousWasSpace = true
+            }
+        }
+
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func isHardwareDisplayable(_ character: Character) -> Bool {
+        guard !character.unicodeScalars.isEmpty else {
+            return false
+        }
+
+        return character.unicodeScalars.allSatisfy { scalar in
+            switch scalar.value {
+            case 0x20...0x7E,
+                 0x3400...0x4DBF,
+                 0x4E00...0x9FFF,
+                 0xF900...0xFAFF:
+                true
+            default:
+                "。，、！？：；（）【】《》“”‘’·—…".unicodeScalars.contains(scalar)
+            }
+        }
     }
 }
 

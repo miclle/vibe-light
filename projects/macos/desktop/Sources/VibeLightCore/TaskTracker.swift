@@ -125,11 +125,15 @@ public struct TaskTracker: Sendable {
 
     public func snapshot(from newestFirstEvents: [VibeHookEvent], now: Date = Date()) -> DisplaySnapshot {
         var tasksByID: [String: TrackedTask] = [:]
-        let codexUsage = newestFirstEvents.compactMap { resolvedCodexUsage(for: $0) }.first
+        var usageCache: [String: CodexUsage] = [:]
+        var usageMisses = Set<String>()
+        let codexUsage = newestFirstEvents.lazy.compactMap {
+            resolvedCodexUsage(for: $0, cache: &usageCache, misses: &usageMisses)
+        }.first
 
         for event in newestFirstEvents.reversed() where shouldTrack(event) {
             let identity = resolvedIdentity(for: event)
-            let usage = resolvedCodexUsage(for: event)
+            let usage = resolvedCodexUsage(for: event, cache: &usageCache, misses: &usageMisses)
             tasksByID[identity.id] = TrackedTask(
                 id: identity.id,
                 identityKind: identity.kind,
@@ -199,19 +203,43 @@ public struct TaskTracker: Sendable {
         return true
     }
 
-    private func resolvedCodexUsage(for event: VibeHookEvent) -> CodexUsage? {
+    private func resolvedCodexUsage(
+        for event: VibeHookEvent,
+        cache: inout [String: CodexUsage],
+        misses: inout Set<String>
+    ) -> CodexUsage? {
         if let codexUsage = event.codexUsage {
             return codexUsage
         }
-        guard event.source == .codex,
-              let rawPayload = event.rawPayload,
-              let data = rawPayload.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let transcriptPath = stringValue(for: ["transcript_path", "transcriptPath"], in: object) else {
+        guard let transcriptPath = codexTranscriptPath(for: event) else {
             return nil
         }
 
-        return CodexUsageReader().readLatest(from: URL(fileURLWithPath: transcriptPath))
+        if let cached = cache[transcriptPath] {
+            return cached
+        }
+        if misses.contains(transcriptPath) {
+            return nil
+        }
+
+        guard let usage = CodexUsageReader().readLatest(from: URL(fileURLWithPath: transcriptPath)) else {
+            misses.insert(transcriptPath)
+            return nil
+        }
+
+        cache[transcriptPath] = usage
+        return usage
+    }
+
+    private func codexTranscriptPath(for event: VibeHookEvent) -> String? {
+        guard event.source == .codex,
+              let rawPayload = event.rawPayload,
+              let data = rawPayload.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+
+        return stringValue(for: ["transcript_path", "transcriptPath"], in: object)
     }
 
     private func stringValue(for keys: [String], in object: [String: Any]) -> String? {

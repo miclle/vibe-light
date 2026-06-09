@@ -178,6 +178,25 @@ import Testing
     #expect(event.codexUsage?.contextUsedPercent == 20)
 }
 
+@Test func codexUsageReaderFindsLatestTokenCountNearTranscriptTail() throws {
+    let directory = temporaryDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let transcriptURL = directory.appendingPathComponent("session.jsonl")
+    let filler = (0..<1_200)
+        .map { #"{"type":"event_msg","payload":{"type":"other","index":\#($0),"text":"正在处理一段较长的输出，保持 transcript 体积接近真实会话。"}}"# }
+        .joined(separator: "\n")
+    try """
+    {"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":4200},"model_context_window":12000},"rate_limits":{"primary":{"used_percent":25,"window_minutes":300},"secondary":{"used_percent":50,"window_minutes":10080}}}}
+    \(filler)
+    """.write(to: transcriptURL, atomically: true, encoding: .utf8)
+
+    let usage = try #require(CodexUsageReader().readLatest(from: transcriptURL))
+
+    #expect(usage.fiveHourRemainingPercent == 75)
+    #expect(usage.weeklyRemainingPercent == 50)
+    #expect(usage.contextUsedPercent == 35)
+}
+
 @Test func displaySnapshotAddsUsageToStatusPacketAndTasks() throws {
     let base = Date(timeIntervalSince1970: 1_780_300_800)
     let tracker = TaskTracker()
@@ -273,6 +292,28 @@ import Testing
 
     #expect(snapshot.tasks.first?.lastDetail == "你来验证下")
     #expect(tasks.first?["detail"] as? String == "你来验证下")
+}
+
+@Test func statusPacketNormalizesUnsupportedTerminalGlyphsForHardware() throws {
+    let task = StatusTask(
+        title: "🧪 vibe-light",
+        state: .busy,
+        source: .codex,
+        detail: "⎿  CODE REVIEW GUIDEL..."
+    )
+    let packet = StatusPacket(
+        source: .codex,
+        state: .busy,
+        detail: "1 running · 1 waiting",
+        tasks: [task]
+    )
+    let data = try packet.encodedJSON()
+    let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let tasks = try #require(object["tasks"] as? [[String: Any]])
+
+    #expect(packet.detail == "1 running · 1 waiting")
+    #expect(tasks.first?["title"] as? String == "vibe-light")
+    #expect(tasks.first?["detail"] as? String == "CODE REVIEW GUIDEL...")
 }
 
 @Test func statusPacketTruncatesTaskDetailsAtUtf8Boundaries() throws {
@@ -518,6 +559,32 @@ import Testing
 
     #expect(lines.count == 3)
     #expect(events.map(\.detail) == ["event-4", "event-3", "event-2"])
+}
+
+@Test func eventLogReadsRecentEventsFromLargeLogTail() throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let log = EventLog(directory: directory, retentionLimit: 2_000)
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    let lines = try (0..<1_200).map { index in
+        let event = VibeHookEvent(
+            source: .codex,
+            kind: .preToolUse,
+            detail: "event-\(index)-正在处理较长输出"
+        )
+        return String(data: try encoder.encode(event), encoding: .utf8)!
+    }.joined(separator: "\n") + "\n"
+    try lines.write(to: log.fileURL, atomically: true, encoding: .utf8)
+
+    let events = try log.readRecent(limit: 3)
+
+    #expect(events.map(\.detail) == [
+        "event-1199-正在处理较长输出",
+        "event-1198-正在处理较长输出",
+        "event-1197-正在处理较长输出",
+    ])
 }
 
 @Test func eventLogSerializesConcurrentAppends() async throws {

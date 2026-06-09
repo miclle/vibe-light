@@ -120,22 +120,28 @@ public struct CodexUsageReader: Sendable {
     public init() {}
 
     public func readLatest(from transcriptURL: URL) -> CodexUsage? {
-        guard let text = try? String(contentsOf: transcriptURL, encoding: .utf8) else {
+        guard let line = try? TailLineReader.readLastLine(from: transcriptURL, matching: Self.isTokenCountLine) else {
             return nil
         }
 
-        for line in text.split(separator: "\n").reversed() {
-            guard let data = String(line).data(using: .utf8),
-                  let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let payload = root["payload"] as? [String: Any],
-                  payload["type"] as? String == "token_count" else {
-                continue
-            }
-
-            return usage(from: payload)
+        guard let data = line.data(using: .utf8),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let payload = root["payload"] as? [String: Any] else {
+            return nil
         }
 
-        return nil
+        return usage(from: payload)
+    }
+
+    private static func isTokenCountLine(_ line: String) -> Bool {
+        guard line.contains(#""token_count""#),
+              let data = line.data(using: .utf8),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let payload = root["payload"] as? [String: Any] else {
+            return false
+        }
+
+        return payload["type"] as? String == "token_count"
     }
 
     private func usage(from payload: [String: Any]) -> CodexUsage {
@@ -266,17 +272,12 @@ public struct EventLog: Sendable {
             return []
         }
 
-        let data = try Data(contentsOf: fileURL)
-        guard let text = String(data: data, encoding: .utf8) else {
-            return []
-        }
+        let lines = try TailLineReader.readLastLines(from: fileURL, limit: max(1, limit))
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
-        return text
-            .split(separator: "\n")
-            .suffix(max(1, limit))
+        return lines
             .reversed()
             .compactMap { line in
                 try? decoder.decode(VibeHookEvent.self, from: Data(line.utf8))
@@ -328,4 +329,71 @@ public struct EventLog: Sendable {
 
 private enum EventLogProcessLock {
     static let lock = NSLock()
+}
+
+private enum TailLineReader {
+    static func readLastLine(from url: URL, matching predicate: (String) -> Bool) throws -> String? {
+        try readLinesFromEnd(from: url) { line in
+            predicate(line) ? line : nil
+        }
+    }
+
+    static func readLastLines(from url: URL, limit: Int) throws -> [String] {
+        let lineLimit = max(1, limit)
+        var lines: [String] = []
+
+        if let result = try readLinesFromEnd(from: url, onLine: { line in
+            lines.append(line)
+            return lines.count >= lineLimit ? Array(lines.reversed()) : nil
+        }) {
+            return result
+        }
+
+        return Array(lines.reversed())
+    }
+
+    private static func readLinesFromEnd<T>(from url: URL, onLine: (String) -> T?) throws -> T? {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+
+        let fileSize = try handle.seekToEnd()
+        guard fileSize > 0 else {
+            return nil
+        }
+
+        let chunkSize: UInt64 = 64 * 1024
+        var offset = fileSize
+        var remainder = Data()
+
+        while offset > 0 {
+            let readSize = min(chunkSize, offset)
+            offset -= readSize
+            try handle.seek(toOffset: offset)
+            let chunk = try handle.read(upToCount: Int(readSize)) ?? Data()
+
+            var block = chunk
+            block.append(remainder)
+
+            var searchEnd = block.endIndex
+            while let newlineIndex = block[..<searchEnd].lastIndex(of: 0x0A) {
+                if let result = processLine(block[(newlineIndex + 1)..<searchEnd], onLine: onLine) {
+                    return result
+                }
+                searchEnd = newlineIndex
+            }
+
+            remainder = Data(block[..<searchEnd])
+        }
+
+        return processLine(remainder[remainder.startIndex..<remainder.endIndex], onLine: onLine)
+    }
+
+    private static func processLine<T>(_ data: Data.SubSequence, onLine: (String) -> T?) -> T? {
+        guard !data.isEmpty,
+              let line = String(data: Data(data), encoding: .utf8) else {
+            return nil
+        }
+
+        return onLine(line)
+    }
 }
