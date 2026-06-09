@@ -24,6 +24,8 @@
 - 回答架构、协议或硬件能力问题时，优先追源码和当前文档，不凭印象回答。
 - README 保持产品和上手视角；实现细节放到 `docs/architecture.md`、`projects/esp32/README.md`、`TODO.md` 或 `.agents/rules/`。
 - 跨 macOS / ESP32 协议变更必须同时核对 `StatusModels.swift`、`TaskTracker.swift`、`vibe_status.*`、`vibe_display_model.*` 和协议文档。
+- Hook CLI 必须保持 stdout 安静、失败只写 stderr 并 fail-open；不要把调试 JSON 输出重新接回 hook 流程。
+- Codex 用量相关变更要同时核对 `HookPayloadDecoder`、`CodexUsageReader`、`TaskTracker`、`StatusPacket`、固件 parser/display-model 测试和协议文档。
 - 固件显示逻辑尽量把可测试的状态转换、任务行格式、紧凑计数、参考迷宫坐标、豆子恢复、角色数量、角色嘴型和去重判断放在 `vibe_display_model.*`，再由 `vibe_display.c` 做硬件绘制。
 - 当前 `CLAUDE.md` 是指向 `AGENTS.md` 的兼容 symlink；更新 agent 指南时保持 `AGENTS.md` 为唯一正文。
 

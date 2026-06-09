@@ -20,6 +20,7 @@ The firmware lives in `projects/esp32` and targets Waveshare `ESP32-S3-LCD-3.16`
 - Keep display-model logic testable in `vibe_display_model.*` when it does not require hardware handles.
 - Avoid introducing LVGL until the lightweight framebuffer path is insufficient for a concrete feature such as fonts, complex layout or richer animation.
 - `busy` animation should stay firmware-local. The desktop app sends state and counts, not animation frames.
+- Keep Codex usage display parser/model behavior testable: top-level usage maps to 5H / 7D remaining labels, task-level `contextUsedPercent` maps to the `CTX` trailing label, and legacy `contextRemainingPercent` remains accepted as a compatibility input.
 - Preserve the current connection affordance unless product direction changes: Central connect shows `idle / desktop connected`; disconnect shows `offline / desktop disconnected`.
 - Preserve active-low backlight behavior for the current board unless hardware evidence says otherwise.
 - Keep `projects/esp32/tools/render_maze_preview.py` aligned with display model constants when changing the maze, task panel or previewable layout.

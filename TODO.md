@@ -6,11 +6,11 @@
 
 - macOS SwiftPM app 已有通用、智能体安装、硬件设备和事件四个主要界面。
 - Hook CLI 会把 Codex / Claude 事件写入本地 `events.jsonl`，桌面端轮询事件并通过 `TaskTracker` 聚合多任务状态。
-- BLE 协议当前以 `v: 2` 多任务状态包为主，保留 `v: 1` 降级路径。
+- BLE 协议当前以 `v: 2` 多任务状态包为主，保留 `v: 1` 降级路径；Codex 用量摘要会从 transcript 最新 `token_count` 事件提取，并显示 5h / 7d 剩余百分比和每条 Codex 任务的上下文已用百分比。
 - ESP32-S3 固件已接入 BLE Peripheral、状态解析、健康读取特征、ST7701 LCD 初始化、RGB565 framebuffer 绘制和 Codex 吃豆人 `busy` 迷宫动画。
-- 显示模型已从“简单任务列表”推进到 320px 参考迷宫舞台、213 个豆子、4 个能量豆、最多 5 个错相主角、底部贴边任务面板和渲染签名去重。
+- 显示模型已从“简单任务列表”推进到 320px 参考迷宫舞台、213 个豆子、4 个能量豆、最多 5 个错相主角、底部贴边任务面板、CTX 用量尾标和渲染签名去重。
 - 固件连接状态已经会主动刷新屏幕：Central 连接时显示 `idle / desktop connected`，断开时显示 `offline / desktop disconnected`。
-- 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试，并生成迷宫 / 全屏 PNG 预览；实机烧录验证仍待完成。
+- 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试、生成迷宫 / 全屏 PNG 预览并执行 Git whitespace 检查；实机烧录验证仍待完成。
 
 ## 近期优先级
 
@@ -23,6 +23,7 @@
 
 2. **收紧显示模型测试**
    - 继续把动画路径、嘴型方向、重复包去重、任务行格式、未知状态降级、底部布局和豆子恢复保持在 host-side C 测试里。
+   - 用量显示和中文任务文本也应继续保持在 Swift 测试与 host-side C 测试的组合覆盖里。
    - 新增屏幕布局或状态表现时，优先测试 `vibe_display_model.*`，避免让硬件渲染细节变成不可验证的黑盒。
    - 修改参考迷宫素材、坐标或缩放规则时，同步更新 `render_maze_preview.py` 和 parser 测试断言。
 

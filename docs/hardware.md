@@ -15,7 +15,7 @@
 | 无线 | 2.4GHz Wi-Fi，Bluetooth 5 LE |
 | 内存 | 512KB SRAM，384KB ROM |
 | 存储 | 16MB NOR Flash，8MB PSRAM |
-| 显示 | 3.16 英寸 LCD，320 x 820 分辨率，64K 色，RGB565 接口 |
+| 显示 | 3.16 英寸 LCD，320 x 820 分辨率，64K 色，RGB565 / RGB 并口 |
 | 传感器 | QMI8658 六轴 IMU |
 | RTC | PCF85063 RTC，预留 RTC 独立电池接口 |
 | 存储扩展 | Micro SD 卡槽，使用前需格式化为 FAT32 |
@@ -36,7 +36,7 @@
 
 ## 当前源码采用的板级连接
 
-以下来自当前 `projects/esp32/main/vibe_display.c`，是固件实现正在使用的 GPIO 配置；仍需通过实机烧录和串口日志确认板级稳定性。
+以下来自当前 `projects/esp32/main/vibe_display.c`，是固件实现正在使用的 GPIO 配置；仍需通过实机烧录和串口日志确认板级稳定性。当前 RGB panel 配置为 16-bit data width、18MHz PCLK、PSRAM framebuffer、2 个 framebuffer 和 10 行 bounce buffer。
 
 | 用途 | GPIO |
 | --- | --- |

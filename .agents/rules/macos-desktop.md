@@ -17,7 +17,9 @@ The desktop app lives in `projects/macos/desktop` and is a SwiftPM app using Swi
 
 - Preserve hook-first behavior. Process detection is not a replacement for hook events.
 - Hook CLI writes should be fail-open: do not break Codex or Claude workflows when local logging fails.
+- Keep `vibe-light-hook` stdout silent. It may write diagnostics to stderr, but stdout output can corrupt agent hook flows.
 - Keep `StatusPacket` small. Truncate user-facing text before BLE writes.
+- Keep Codex usage extraction aligned between `HookPayloadDecoder`, `CodexUsageReader`, `TaskTracker`, Swift tests and the protocol docs.
 - When changing packet shape, update Swift tests, ESP32 parser tests and `docs/architecture.md` together.
 - When changing hardware UI affordances, keep the "硬件设备" page useful for manual packet sending and demo packets.
 
