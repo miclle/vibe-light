@@ -30,4 +30,6 @@ Firmware should display the rows it receives. It should not infer Codex or Claud
 
 ## Animation Direction
 
-The Codex Pac-Man style animation is firmware-local display behavior. `activeCount`, `waitingCount` and `errorCount` can tune animation speed or emphasis, but they must not change protocol meaning. Animation ticks must be non-blocking and must not block BLE callbacks, JSON parsing or health reads.
+The Codex Pac-Man style animation is firmware-local display behavior. `activeCount`, `waitingCount` and `errorCount` can tune visual emphasis, but they must not change protocol meaning. Animation ticks must be non-blocking and must not block BLE callbacks, JSON parsing or health reads.
+
+The current firmware uses a 320px reference maze stage, a bottom task panel and a 240ms animation timer. Actor count comes from `tasks[]` first, then falls back to `activeCount`, and remains capped at 5.

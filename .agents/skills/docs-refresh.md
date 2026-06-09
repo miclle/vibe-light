@@ -12,6 +12,7 @@ Use this workflow when the user asks to update docs according to the current pro
    - `projects/esp32/main/vibe_status.*`
    - `projects/esp32/main/vibe_display_model.*`
    - `projects/esp32/main/vibe_display.*`
+   - `projects/esp32/tools/render_maze_preview.py`
    - `script/verify.sh`
 4. Update docs by responsibility:
    - README for product and quick-start changes.

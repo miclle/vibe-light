@@ -44,7 +44,9 @@
 
 ## 起步路线
 
-第一版目标是打通从 macOS 桌面应用到 ESP32-S3 屏幕的最小可见闭环，而不是一次性完成所有板载外设。推荐按以下阶段推进：
+当前源码目标已经超过“只显示 state/detail”的最小样机：固件目录已具备 BLE Peripheral、状态解析、健康读取、ST7701 LCD 初始化、PSRAM framebuffer、底部任务面板和 Codex 吃豆人参考迷宫动画。下一步重点是把这些源码能力在实机上闭环验证，而不是继续扩展板载外设。
+
+推荐按以下阶段推进：
 
 1. **验证官方硬件示例**
    - 先烧录 Waveshare 官方 `09_FactoryProgram` 或 `07_LVGL_V8_Test` / `08_LVGL_V9_Test`。
@@ -57,22 +59,20 @@
    - macOS app 能扫描、连接，并写入 `StatusPacket` JSON。
    - ESP32-S3 收到坏包时保持运行，不重启、不阻塞 BLE 回调。
 
-3. **显示最小事件信息**
-   - 屏幕先只显示 `Vibe Light`、状态、来源和 `detail`。
-   - 第一版 UI 以可读和稳定为主，不做动画、触摸、设置页或复杂布局。
-   - 典型显示内容：
+3. **验证当前屏幕实现**
+   - 屏幕顶部显示 `VIBE LIGHT` 和状态色。
+   - 中间区域显示 320px 参考迷宫舞台，`busy` 时显示 Codex 吃豆人角色和豆子。
+   - 底部贴边任务面板显示 `A` / `W` / `E` 计数和最多 5 条任务摘要；没有任务时显示空任务状态。
+   - Host-side PNG 预览入口：
 
-     ```text
-     Vibe Light
-     Codex
-     运行中
-
-     running shell
+     ```bash
+     projects/esp32/tools/render_maze_preview.py /tmp/vibe-maze-preview.png
+     projects/esp32/tools/render_maze_preview.py --full-screen /tmp/vibe-screen-preview.png
      ```
 
-4. **补健康状态回读**
+4. **验证健康状态回读**
    - 通过健康状态 characteristic 回传协议版本、设备名、运行时长、连接状态和最近状态。
-   - macOS app 后续再订阅或读取该 characteristic，用于诊断连接质量。
+   - macOS app 发现健康状态特征后读取设备状态，用于诊断连接质量。
 
 5. **再做产品化增强**
    - 视觉主题、状态动画、屏幕亮度、电池信息、RTC、IMU、SD 卡日志和 Wi-Fi 配网都放在闭环稳定之后。
@@ -82,7 +82,8 @@
 - macOS app 能发现 `VibeLight-S3`。
 - macOS app 能连接设备。
 - macOS app 点击发送最近状态包后，ESP32-S3 能收到并解析 JSON。
-- LCD 能展示 `source`、`state`、`detail`。
+- LCD 能展示顶部状态色、参考迷宫、底部任务计数和任务摘要；无任务时能回退到空任务状态。
+- `busy` 状态下动画 timer 非阻塞运行，角色数量、豆子恢复和主角方向与 host-side 测试 / PNG 预览一致。
 - 未知状态或格式错误的 JSON 不会导致固件崩溃。
 
 如果先验证屏幕和板载资源，可使用官方示例工程：
@@ -108,6 +109,6 @@
 
 - 从原理图或示例工程中确认 LCD、背光、SD、I2C、BOOT、电池电压检测对应的具体 GPIO。
 - 确认官方示例使用的 LCD 驱动芯片和初始化序列是否需要直接复用。
-- 确认 ESP-IDF 版本、LVGL 版本和项目固件目录结构。当前固件目录已经落在 `projects/esp32`，本机记录的 ESP-IDF 构建版本为 v5.5.1。
+- 确认 ESP-IDF 版本和项目固件目录结构。当前固件目录已经落在 `projects/esp32`，本机记录的 ESP-IDF 构建版本为 v5.5.1；当前渲染路径未引入 LVGL。
 - 确认 BLE 与 LCD 刷新并行运行时的内存占用和刷新性能。
 - 在实机上确认当前 ST7701 初始化序列、PSRAM framebuffer、主动低电平背光 PWM 和 Codex 吃豆人动画是否稳定。
