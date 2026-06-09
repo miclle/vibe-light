@@ -271,11 +271,11 @@ def draw_full_screen(image: Image) -> None:
     draw_maze(image, MAZE_STAGE_Y)
 
     tasks = [
-        (BUSY, "MANUAL", "running shell"),
-        (WAITING, "BUILD", "needs approval"),
-        (ERROR, "TEST", "failed check"),
+        (BUSY, "VIBE-LIGHT", "implement v2"),
+        (WAITING, "DOCS", "approve edit"),
+        (ERROR, "FIRMWARE", "build failed"),
         (BUSY, "FLASH", ""),
-        (WAITING, "READY", "device prompt"),
+        (WAITING, "APPROVAL", "needs confirm"),
     ]
     y = TASK_ROW_Y
     for index, (color, title, detail) in enumerate(tasks):

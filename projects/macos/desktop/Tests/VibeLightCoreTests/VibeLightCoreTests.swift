@@ -126,6 +126,7 @@ import Testing
     #expect(object["errorCount"] as? Int == 1)
     #expect(tasks.map { $0["title"] as? String } == ["docs", "vibe-light"])
     #expect(tasks.map { $0["state"] as? String } == ["waiting", "busy"])
+    #expect(tasks.map { $0["detail"] as? String } == ["approve edit", "implement v2"])
     #expect(data.count < 768)
 }
 
