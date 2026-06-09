@@ -203,10 +203,49 @@ public struct StatusPacket: Codable, Equatable, Sendable {
     }
 
     static func truncatedTaskDetail(_ value: String) -> String {
-        truncated(value, maxUTF8Bytes: maxTaskDetailUTF8Bytes)
+        truncated(hardwareDisplayableTaskDetail(value), maxUTF8Bytes: maxTaskDetailUTF8Bytes)
     }
 
-    private static func truncated(_ value: String, maxUTF8Bytes: Int) -> String {
+    static func hardwareDisplayableTaskDetail(_ value: String, fallbackState: DisplayState? = nil) -> String {
+        var result = ""
+        var previousWasSpace = false
+
+        for scalar in value.unicodeScalars {
+            let character: Character?
+            switch scalar.value {
+            case 48...57, 65...90:
+                character = Character(scalar)
+            case 97...122:
+                character = Character(String(scalar).uppercased())
+            case 45, 46, 47, 58, 95:
+                character = Character(scalar)
+            case 32, 9, 10, 13:
+                character = " "
+            default:
+                character = nil
+            }
+
+            guard let character else { continue }
+            if character == " " {
+                if result.isEmpty || previousWasSpace {
+                    continue
+                }
+                previousWasSpace = true
+            } else {
+                previousWasSpace = false
+            }
+            result.append(character)
+        }
+
+        let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            return trimmed
+        }
+
+        return fallbackState?.hardwareFallbackDetail ?? "TASK"
+    }
+
+    fileprivate static func truncated(_ value: String, maxUTF8Bytes: Int) -> String {
         var result = ""
         var usedBytes = 0
 
@@ -234,7 +273,31 @@ public struct StatusTask: Codable, Equatable, Sendable {
         self.title = StatusPacket.truncatedTaskTitle(title)
         self.state = state
         self.source = source
-        self.detail = detail.map { StatusPacket.truncatedTaskDetail($0) }
+        self.detail = detail.map {
+            StatusPacket.truncated(
+                StatusPacket.hardwareDisplayableTaskDetail($0, fallbackState: state),
+                maxUTF8Bytes: StatusPacket.maxTaskDetailUTF8Bytes
+            )
+        }
+    }
+}
+
+private extension DisplayState {
+    var hardwareFallbackDetail: String {
+        switch self {
+        case .idle:
+            "IDLE"
+        case .busy:
+            "RUNNING"
+        case .waiting:
+            "WAITING"
+        case .success:
+            "DONE"
+        case .error:
+            "ERROR"
+        case .offline:
+            "OFFLINE"
+        }
     }
 }
 

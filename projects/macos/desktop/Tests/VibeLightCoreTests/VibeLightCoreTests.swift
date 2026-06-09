@@ -126,8 +126,32 @@ import Testing
     #expect(object["errorCount"] as? Int == 1)
     #expect(tasks.map { $0["title"] as? String } == ["docs", "vibe-light"])
     #expect(tasks.map { $0["state"] as? String } == ["waiting", "busy"])
-    #expect(tasks.map { $0["detail"] as? String } == ["approve edit", "implement v2"])
+    #expect(snapshot.tasks.map(\.lastDetail) == ["approve edit", "implement v2"])
+    #expect(tasks.map { $0["detail"] as? String } == ["APPROVE EDIT", "IMPLEMENT V2"])
     #expect(data.count < 768)
+}
+
+@Test func statusPacketUsesHardwareReadableTaskDetails() throws {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(taskID: "codex:task-a", source: .codex, kind: .userPromptSubmit, timestamp: base, summary: "你来验证下", workspace: "vibe-light"),
+    ]
+
+    let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(1))
+    let packet = snapshot.statusPacket
+    let data = try packet.encodedJSON()
+    let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let tasks = try #require(object["tasks"] as? [[String: Any]])
+
+    #expect(snapshot.tasks.first?.lastDetail == "你来验证下")
+    #expect(tasks.first?["detail"] as? String == "RUNNING")
+}
+
+@Test func statusPacketKeepsAsciiFragmentsInTaskDetails() throws {
+    let task = StatusTask(title: "firmware", state: .busy, source: .codex, detail: "修复 ESP32 detail 展示")
+
+    #expect(task.detail == "ESP32 DETAIL")
 }
 
 @Test func statusPacketFallsBackToV1WhenV2ExceedsBleWriteLength() throws {
