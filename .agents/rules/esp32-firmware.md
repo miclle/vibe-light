@@ -8,7 +8,7 @@ The firmware lives in `projects/esp32` and targets Waveshare `ESP32-S3-LCD-3.16`
 
 - `main/vibe_ble.*`: BLE peripheral, `VibeLight-S3` advertising, status write characteristic and health read characteristic.
 - `main/vibe_status.*`: JSON packet parsing and display state conversion.
-- `main/vibe_display_model.*`: render signatures, task row formatting, compact counts, reference maze coordinates, pellet recovery, actor count and animation geometry that can be tested on host.
+- `main/vibe_display_model.*`: render signatures, task row formatting, compact counts, reference maze coordinates, eaten-pellet visibility reset, actor count and animation geometry that can be tested on host.
 - `main/vibe_display.*`: LCD initialization, framebuffer drawing, backlight PWM and non-blocking animation timer.
 - `tests/vibe_status_parser_test.c`: host-side parser and display-model regression tests.
 

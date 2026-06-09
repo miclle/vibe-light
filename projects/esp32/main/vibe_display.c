@@ -481,7 +481,7 @@ static void render_animation_dots(const vibe_display_animation_frame_t *frames, 
                                               animation_tick,
                                               actor_count,
                                               last_render_packet.active_count,
-                                              VIBE_DISPLAY_MAZE_PELLET_RECOVERY_TICKS)) {
+                                              VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS)) {
             continue;
         }
 

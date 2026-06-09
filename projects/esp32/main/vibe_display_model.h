@@ -25,9 +25,8 @@ extern "C" {
 #define VIBE_DISPLAY_MAZE_WALL_THICKNESS 1
 #define VIBE_DISPLAY_MAZE_BORDER_GAP 8
 #define VIBE_DISPLAY_MAZE_PELLET_COUNT 213
-#define VIBE_DISPLAY_MAZE_PELLET_RECOVERY_MS 5000
-#define VIBE_DISPLAY_MAZE_PELLET_RECOVERY_TICKS \
-    ((VIBE_DISPLAY_MAZE_PELLET_RECOVERY_MS + VIBE_DISPLAY_ANIMATION_PERIOD_MS - 1) / VIBE_DISPLAY_ANIMATION_PERIOD_MS)
+#define VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS \
+    (VIBE_DISPLAY_ANIMATION_PATH_STEPS * VIBE_DISPLAY_ANIMATION_SUBSTEPS)
 #define VIBE_DISPLAY_MAZE_POWER_PELLET_RADIUS 3
 #define VIBE_DISPLAY_CODEX_ACTOR_RADIUS 7
 #define VIBE_DISPLAY_CODEX_ACTOR_EYE_RADIUS 0
@@ -119,7 +118,7 @@ bool vibe_display_maze_pellet_visible(int pellet_index,
                                       int tick,
                                       int actor_count,
                                       int active_count,
-                                      int recovery_ticks);
+                                      int reset_ticks);
 void vibe_display_animation_actor_shape(const vibe_display_animation_frame_t *frame, vibe_display_animation_actor_t *actor);
 
 #ifdef __cplusplus
