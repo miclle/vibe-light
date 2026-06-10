@@ -50,7 +50,7 @@ CYAN = (0, 255, 255)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REFERENCE_MAZE_HEADER = REPO_ROOT / "projects/esp32/main/vibe_reference_maze.h"
-DISPLAY_MODEL_SOURCE = REPO_ROOT / "projects/esp32/main/vibe_display_model.c"
+DISPLAY_MAZE_DATA_SOURCE = REPO_ROOT / "projects/esp32/main/vibe_display_maze_data.c"
 DISPLAY_MODEL_HEADER = REPO_ROOT / "projects/esp32/main/vibe_display_model.h"
 RGB565_TO_RGB = {
     0x047F: BUSY,
@@ -377,8 +377,8 @@ def load_reference_maze_runs() -> list[tuple[int, int, int, tuple[int, int, int]
 
 
 def load_reference_pellets() -> list[tuple[int, int]]:
-    text = DISPLAY_MODEL_SOURCE.read_text()
-    match = re.search(r"reference_pellets\[.*?\] = \{(.*?)\};", text, re.S)
+    text = DISPLAY_MAZE_DATA_SOURCE.read_text()
+    match = re.search(r"vibe_display_reference_pellets\[.*?\] = \{(.*?)\};", text, re.S)
     if match is None:
         return []
     return [(int(x), int(y)) for x, y in re.findall(r"\{(\d+), (\d+)\}", match.group(1))]

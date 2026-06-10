@@ -45,6 +45,7 @@ clang \
   "$ROOT_DIR/tests/vibe_status_parser_test.c" \
   "$ROOT_DIR/main/vibe_cjk_font.c" \
   "$ROOT_DIR/main/vibe_display_model.c" \
+  "$ROOT_DIR/main/vibe_display_maze_data.c" \
   "$ROOT_DIR/main/vibe_status.c" \
   "$CJSON_DIR/cJSON.c" \
   -o "$BINARY"

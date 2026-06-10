@@ -9,6 +9,7 @@ idf_component_register(
         "vibe_cjk_font.c"
         "vibe_display.c"
         "vibe_display_model.c"
+        "vibe_display_maze_data.c"
         "vibe_status.c"
     INCLUDE_DIRS
         "."

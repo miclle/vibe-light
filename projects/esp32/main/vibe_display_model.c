@@ -1,12 +1,8 @@
 #include "vibe_display_model.h"
+#include "vibe_display_maze_data.h"
 
 #include <stdio.h>
 #include <string.h>
-
-typedef struct {
-    int16_t x;
-    int16_t y;
-} maze_point_t;
 
 static uint32_t fnv1a_update(uint32_t hash, const void *data, size_t length);
 static uint32_t fnv1a_update_text(uint32_t hash, const char *text);
@@ -15,7 +11,7 @@ static void maze_pellet_at_index(int index, vibe_display_animation_frame_t *fram
 static void maze_frame_at_tick(int tick, int phase_offset, bool mouth_open, vibe_display_animation_frame_t *frame);
 static bool maze_pellet_eaten_since_round_start(int pellet_index, int phase_offset, int elapsed_tick);
 static bool maze_pellet_eaten_on_segment(int pellet_index, int from_path_position, int substep);
-static bool maze_pellet_between_points(int pellet_index, const maze_point_t *from, int to_x, int to_y);
+static bool maze_pellet_between_points(int pellet_index, const vibe_display_maze_point_t *from, int to_x, int to_y);
 static int maze_pellet_round_ticks(int actor_count);
 static void copy_text(char *dest, size_t dest_size, const char *source);
 static void append_text(char *dest, size_t dest_size, const char *source);
@@ -23,76 +19,6 @@ static void format_count(char *dest, size_t dest_size, char label, int count);
 static void format_maze_count(char *dest, size_t dest_size, const char *label, int count);
 static void format_percent(char *dest, size_t dest_size, const char *label, int percent);
 static int positive_mod(int value, int modulus);
-
-// Extracted from docs/Pac-Man-Mini-320x320.png and scaled to the 320px maze stage.
-static const maze_point_t reference_pellets[VIBE_DISPLAY_MAZE_PELLET_COUNT] = {
-    {29, 43}, {38, 43}, {48, 43}, {57, 43}, {66, 43}, {76, 43},
-    {85, 43}, {95, 43}, {105, 43}, {114, 43}, {124, 43}, {133, 43},
-    {143, 43}, {176, 43}, {186, 43}, {195, 43}, {204, 43}, {214, 43},
-    {223, 43}, {233, 43}, {242, 43}, {252, 43}, {261, 43}, {271, 43},
-    {280, 43}, {290, 43}, {235, 52}, {85, 53}, {143, 53}, {176, 53},
-    {30, 56}, {290, 56}, {85, 61}, {143, 61}, {176, 61}, {235, 61},
-    {29, 71}, {39, 71}, {48, 71}, {57, 71}, {67, 71}, {76, 71},
-    {85, 71}, {95, 71}, {104, 71}, {114, 71}, {124, 71}, {133, 71},
-    {143, 71}, {153, 71}, {166, 71}, {175, 71}, {185, 71}, {195, 71},
-    {205, 71}, {215, 71}, {225, 71}, {235, 71}, {243, 71}, {252, 71},
-    {262, 71}, {271, 71}, {281, 71}, {290, 71}, {29, 80}, {85, 80},
-    {114, 80}, {206, 80}, {235, 80}, {290, 80}, {29, 90}, {85, 90},
-    {114, 90}, {206, 90}, {235, 90}, {290, 90}, {29, 99}, {39, 99},
-    {48, 99}, {57, 99}, {67, 99}, {76, 99}, {85, 99}, {114, 99},
-    {124, 99}, {133, 99}, {143, 99}, {176, 99}, {186, 99}, {195, 99},
-    {205, 99}, {235, 99}, {244, 99}, {253, 99}, {262, 99}, {271, 99},
-    {281, 99}, {290, 99}, {85, 108}, {235, 108}, {85, 118}, {235, 118},
-    {85, 127}, {235, 127}, {85, 137}, {235, 137}, {85, 146}, {235, 146},
-    {85, 155}, {235, 155}, {85, 164}, {235, 164}, {85, 174}, {235, 174},
-    {85, 184}, {235, 184}, {85, 193}, {235, 193}, {29, 196}, {39, 196},
-    {48, 196}, {57, 196}, {67, 196}, {76, 196}, {95, 196}, {105, 196},
-    {114, 196}, {124, 196}, {133, 196}, {178, 196}, {187, 196}, {196, 196},
-    {205, 196}, {214, 196}, {224, 196}, {243, 196}, {253, 196}, {262, 196},
-    {271, 196}, {281, 196}, {290, 196}, {85, 203}, {235, 203}, {29, 205},
-    {178, 205}, {290, 205}, {85, 213}, {235, 213}, {178, 214}, {30, 219},
-    {290, 219}, {85, 222}, {235, 222}, {40, 223}, {50, 223}, {95, 223},
-    {104, 223}, {114, 223}, {124, 223}, {133, 223}, {143, 223}, {158, 223},
-    {167, 223}, {177, 223}, {187, 223}, {196, 223}, {206, 223}, {216, 223},
-    {225, 223}, {270, 223}, {279, 223}, {50, 232}, {85, 232}, {114, 232},
-    {205, 232}, {235, 232}, {270, 232}, {50, 241}, {85, 241}, {114, 241},
-    {206, 241}, {235, 241}, {270, 241}, {29, 250}, {39, 250}, {48, 250},
-    {57, 250}, {67, 250}, {76, 250}, {85, 250}, {114, 250}, {124, 250},
-    {133, 250}, {143, 250}, {177, 250}, {186, 250}, {196, 250}, {205, 250},
-    {235, 250}, {244, 250}, {253, 250}, {262, 250}, {271, 250}, {281, 250},
-    {290, 250}, {29, 259}, {143, 259}, {177, 259}, {290, 259}, {29, 268},
-    {143, 268}, {177, 268}, {290, 268},
-};
-
-static const uint16_t reference_path[VIBE_DISPLAY_ANIMATION_PATH_STEPS] = {
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 28, 33, 48,
-    44, 40, 36, 30, 64, 70, 76, 77, 78, 79, 80, 81, 41, 37, 38, 39,
-    42, 27, 32, 65, 71, 82, 98, 100, 102, 104, 106, 108, 110, 112, 114, 116,
-    141, 146, 151, 155, 156, 157, 158, 159, 128, 124, 121, 118, 119, 120, 122, 123,
-    125, 126, 127, 126, 125, 123, 122, 120, 119, 118, 143, 149, 143, 118, 121, 124,
-    128, 159, 160, 161, 162, 163, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138,
-    139, 140, 145, 150, 145, 140, 139, 138, 137, 136, 135, 134, 133, 132, 131, 130,
-    164, 165, 152, 115, 107, 99, 57, 19, 15, 13, 14, 16, 17, 18, 20, 21,
-    22, 23, 24, 25, 31, 63, 59, 55, 51, 29, 34, 29, 51, 47, 43, 45,
-    46, 49, 50, 52, 53, 54, 56, 58, 60, 61, 62, 61, 60, 58, 92, 91,
-    35, 26, 68, 74, 101, 103, 105, 109, 111, 113, 117, 142, 147, 175, 181, 182,
-    169, 170, 169, 176, 202, 198, 199, 200, 201, 203, 204, 208, 212, 208, 204, 203,
-    201, 200, 199, 198, 202, 176, 169, 182, 181, 175, 147, 142, 117, 113, 111, 109,
-    105, 103, 101, 74, 68, 26, 35, 91, 93, 94, 95, 96, 97, 69, 75, 69,
-    97, 96, 95, 94, 93, 91, 92, 58, 56, 54, 67, 73, 90, 87, 88, 89,
-    88, 87, 90, 73, 67, 54, 53, 52, 50, 49, 46, 45, 66, 72, 83, 84,
-    85, 86, 85, 84, 83, 72, 66, 45, 43, 47, 51, 55, 59, 63, 31, 25,
-    24, 23, 22, 21, 20, 18, 17, 16, 14, 13, 15, 19, 57, 99, 107, 115,
-    152, 166, 167, 168, 167, 166, 174, 180, 197, 194, 195, 196, 195, 194, 207, 211,
-    210, 193, 190, 173, 179, 173, 190, 191, 192, 191, 190, 193, 206, 193, 210, 211,
-    207, 194, 197, 180, 174, 166, 152, 165, 164, 130, 129, 144, 148, 144, 129, 163,
-    162, 161, 160, 159, 158, 157, 156, 155, 151, 172, 178, 177, 154, 153, 154, 171,
-    185, 183, 184, 186, 187, 188, 189, 188, 187, 186, 184, 183, 205, 209, 205, 183,
-    185, 171, 154, 177, 178, 172, 151, 146, 141, 116, 114, 112, 110, 108, 106, 104,
-    102, 100, 98, 82, 71, 65, 32, 27, 42, 39, 38, 37, 41, 81, 80, 79,
-    78, 77, 76, 70, 64, 30, 36, 40, 44, 48, 33, 28, 12, 11, 10, 9,
-    8, 7, 6, 5, 4, 3, 2, 1, 0,
-};
 
 void vibe_display_signature_reset(vibe_display_signature_t *signature)
 {
@@ -425,10 +351,10 @@ static bool maze_pellet_eaten_since_round_start(int pellet_index, int phase_offs
 
 static bool maze_pellet_eaten_on_segment(int pellet_index, int from_path_position, int substep)
 {
-    int from_index = reference_path[positive_mod(from_path_position, VIBE_DISPLAY_ANIMATION_PATH_STEPS)];
-    int to_index = reference_path[positive_mod(from_path_position + 1, VIBE_DISPLAY_ANIMATION_PATH_STEPS)];
-    const maze_point_t *from = &reference_pellets[from_index];
-    const maze_point_t *to = &reference_pellets[to_index];
+    int from_index = vibe_display_reference_path[positive_mod(from_path_position, VIBE_DISPLAY_ANIMATION_PATH_STEPS)];
+    int to_index = vibe_display_reference_path[positive_mod(from_path_position + 1, VIBE_DISPLAY_ANIMATION_PATH_STEPS)];
+    const vibe_display_maze_point_t *from = &vibe_display_reference_pellets[from_index];
+    const vibe_display_maze_point_t *to = &vibe_display_reference_pellets[to_index];
     int clamped_substep = substep;
 
     if (clamped_substep < 0) {
@@ -443,10 +369,10 @@ static bool maze_pellet_eaten_on_segment(int pellet_index, int from_path_positio
     return maze_pellet_between_points(pellet_index, from, current_x, current_y);
 }
 
-static bool maze_pellet_between_points(int pellet_index, const maze_point_t *from, int to_x, int to_y)
+static bool maze_pellet_between_points(int pellet_index, const vibe_display_maze_point_t *from, int to_x, int to_y)
 {
     int index = positive_mod(pellet_index, VIBE_DISPLAY_MAZE_PELLET_COUNT);
-    const maze_point_t *pellet = &reference_pellets[index];
+    const vibe_display_maze_point_t *pellet = &vibe_display_reference_pellets[index];
     int dx = to_x - from->x;
     int dy = to_y - from->y;
     int px = pellet->x - from->x;
@@ -546,10 +472,10 @@ static void maze_frame_at_tick(int tick, int phase_offset, bool mouth_open, vibe
     int total_position = positive_mod(tick + phase_offset * VIBE_DISPLAY_ANIMATION_SUBSTEPS, total_ticks);
     int position = total_position / VIBE_DISPLAY_ANIMATION_SUBSTEPS;
     int substep = total_position % VIBE_DISPLAY_ANIMATION_SUBSTEPS;
-    int index = reference_path[position];
-    int next_index = reference_path[(position + 1) % VIBE_DISPLAY_ANIMATION_PATH_STEPS];
-    const maze_point_t *point = &reference_pellets[index];
-    const maze_point_t *next = &reference_pellets[next_index];
+    int index = vibe_display_reference_path[position];
+    int next_index = vibe_display_reference_path[(position + 1) % VIBE_DISPLAY_ANIMATION_PATH_STEPS];
+    const vibe_display_maze_point_t *point = &vibe_display_reference_pellets[index];
+    const vibe_display_maze_point_t *next = &vibe_display_reference_pellets[next_index];
     int ax = vibe_display_maze_display_x(point->x);
     int bx = vibe_display_maze_display_x(next->x);
     int ay = VIBE_DISPLAY_MAZE_STAGE_Y + point->y;
@@ -579,8 +505,8 @@ static void maze_pellet_at_index(int index, vibe_display_animation_frame_t *fram
         local_index += VIBE_DISPLAY_MAZE_PELLET_COUNT;
     }
 
-    frame->x = vibe_display_maze_display_x(reference_pellets[local_index].x);
-    frame->y = VIBE_DISPLAY_MAZE_STAGE_Y + reference_pellets[local_index].y;
+    frame->x = vibe_display_maze_display_x(vibe_display_reference_pellets[local_index].x);
+    frame->y = VIBE_DISPLAY_MAZE_STAGE_Y + vibe_display_reference_pellets[local_index].y;
     frame->direction = VIBE_DISPLAY_DIRECTION_RIGHT;
     frame->mouth_open = false;
 }
