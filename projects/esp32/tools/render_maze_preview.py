@@ -194,6 +194,7 @@ LETTER_GLYPHS = {
     "8": ("111", "101", "111", "101", "111"),
     "9": ("111", "101", "111", "001", "111"),
     "%": ("101", "001", "010", "100", "101"),
+    ":": ("000", "010", "000", "010", "000"),
     ".": ("000", "000", "000", "000", "010"),
     "A": ("010", "101", "111", "101", "101"),
     "B": ("110", "101", "110", "101", "110"),
@@ -405,9 +406,8 @@ def draw_full_screen(image: Image) -> None:
     fill_rect(image, 0, MAZE_STAGE_Y, 320, MAZE_PREVIEW_HEIGHT, BLACK)
     fill_rect(image, TASK_PANEL_X, TASK_PANEL_Y, TASK_PANEL_W, TASK_PANEL_H, PANEL)
 
-    draw_text(image, 24, 22, "VIBE LIGHT", 3, WHITE)
-    draw_text(image, 24, 56, "5H 88%", 2, WHITE)
-    draw_text(image, 132, 56, "7D 60%", 2, WHITE)
+    draw_text_centered(image, 0, FULL_PREVIEW_WIDTH - 1, 22, "VIBE LIGHT", 3, WHITE)
+    draw_text(image, 24, 56, "CODEX: 5H 88% 7D 60%", 2, WHITE)
     draw_maze(image, MAZE_STAGE_Y)
 
     tasks = [

@@ -329,14 +329,22 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
                                 VIBE_DISPLAY_TASK_PANEL_H,
                                 RGB565_PANEL);
 
-    vibe_display_text_draw(24, 22, "VIBE LIGHT", 3, RGB565_WHITE);
+    const char *title = "VIBE LIGHT";
+    vibe_display_text_draw((LCD_H_RES - vibe_display_text_width(title, 3)) / 2, 22, title, 3, RGB565_WHITE);
+
     vibe_display_usage_summary_t usage;
     vibe_display_format_usage_summary(packet, &usage);
-    if (usage.five_hour[0] != '\0') {
-        vibe_display_text_draw(24, 56, usage.five_hour, 2, RGB565_WHITE);
+    char usage_line[32];
+    usage_line[0] = '\0';
+    if (usage.five_hour[0] != '\0' && usage.weekly[0] != '\0') {
+        snprintf(usage_line, sizeof(usage_line), "CODEX: %s %s", usage.five_hour, usage.weekly);
+    } else if (usage.five_hour[0] != '\0') {
+        snprintf(usage_line, sizeof(usage_line), "CODEX: %s", usage.five_hour);
+    } else if (usage.weekly[0] != '\0') {
+        snprintf(usage_line, sizeof(usage_line), "CODEX: %s", usage.weekly);
     }
-    if (usage.weekly[0] != '\0') {
-        vibe_display_text_draw(132, 56, usage.weekly, 2, RGB565_WHITE);
+    if (usage_line[0] != '\0') {
+        vibe_display_text_draw(24, 56, usage_line, 2, RGB565_WHITE);
     }
     render_maze(packet);
 
