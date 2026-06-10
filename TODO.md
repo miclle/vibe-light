@@ -9,6 +9,7 @@
 - BLE 协议当前以 `v: 2` 多任务状态包为主，保留 `v: 1` 降级路径；Codex 用量摘要会从 transcript 最新 `token_count` 事件提取，并显示 5h / 7d 剩余百分比和每条 Codex 任务的上下文已用百分比。
 - ESP32-S3 固件已接入 BLE Peripheral、状态解析、健康读取特征、ST7701 LCD 初始化、RGB565 framebuffer 绘制和 Codex 吃豆人 `busy` 迷宫动画。
 - 显示模型已从“简单任务列表”推进到 320px 参考迷宫舞台、213 个豆子、4 个能量豆、最多 5 个错相主角、底部贴边任务面板、CTX 用量尾标和渲染签名去重。
+- 屏幕任务详情会优先展示当前工具动作，例如 `Bash / make quick` 或 `Edit / README.md`，避免只显示泛化任务摘要。
 - 固件连接状态已经会主动刷新屏幕：Central 连接时显示 `idle / desktop connected`，断开时显示 `offline / desktop disconnected`。
 - 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试、生成迷宫 / 全屏 PNG 预览并执行 Git whitespace 检查；ESP32 显示闭环已完成一次实机烧录和屏幕确认。
 
@@ -45,7 +46,7 @@
    - 实机对比竖屏和横屏后，再决定是否产品化为可配置展示模式。
 
 4. **评估可追加上屏信息**
-   - 优先补充当前工具动作，例如 `Bash / make quick`、`Edit / README.md`、`Read / TaskTracker.swift`。Hook 事件已能解析 `toolName`、命令和文件路径，适合整理成短任务详情。
+   - 当前工具动作已实现基础展示，例如 `Bash / make quick`、`Edit / README.md`、`Read / TaskTracker.swift`。后续可继续优化不同工具的动作摘要规则。
    - 优化等待态文案，让 `waiting` 行优先显示审批目标，例如 `APPROVE Bash` 或 `ALLOW Edit README.md`，避免只看到泛化的等待状态。
    - 利用事件时间戳或状态包 `ts` 显示任务新鲜度和运行时长，例如 `RUN 03:12`、`WAIT 01:08` 或 `2m ago`，帮助判断任务是否仍在推进。
    - 将上下文用量从单纯 `CTX xx%` 进一步评估为 `CTX 4.2k/12k` 或高占用提示；这需要在 macOS 端保留 token 数并扩展状态包字段。

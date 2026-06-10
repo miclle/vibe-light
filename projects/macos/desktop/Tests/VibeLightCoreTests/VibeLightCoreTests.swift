@@ -131,6 +131,53 @@ import Testing
     #expect(data.count < 768)
 }
 
+@Test func taskTrackerShowsCurrentToolActionInTaskDetail() throws {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(
+            taskID: "codex:task-a",
+            source: .codex,
+            kind: .preToolUse,
+            timestamp: base,
+            summary: "Run quick verification",
+            message: "make quick",
+            toolName: "Bash",
+            workspace: "vibe-light"
+        ),
+    ]
+
+    let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(1))
+    let packet = snapshot.statusPacket
+    let data = try packet.encodedJSON()
+    let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let tasks = try #require(object["tasks"] as? [[String: Any]])
+
+    #expect(snapshot.tasks.first?.lastDetail == "Bash / make quick")
+    #expect(tasks.first?["detail"] as? String == "Bash / make quick")
+}
+
+@Test func taskTrackerCompactsToolFilePathsInTaskDetail() {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(
+            taskID: "claude:task-a",
+            source: .claude,
+            kind: .permissionRequest,
+            timestamp: base,
+            summary: "Claude wants to edit README.md",
+            message: "/Users/miclle/github/miclle/vibe-light/README.md",
+            toolName: "Edit",
+            workspace: "vibe-light"
+        ),
+    ]
+
+    let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(1))
+
+    #expect(snapshot.tasks.first?.lastDetail == "Edit / README.md")
+}
+
 @Test func hookPayloadDecoderExtractsCodexUsageFromTranscriptTokenCount() throws {
     let directory = temporaryDirectory()
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -659,10 +706,96 @@ import Testing
     let hooks = try #require(hooksRoot["hooks"] as? [String: Any])
     #expect(hooks.keys.contains("SessionStart"))
     #expect(hooks.keys.contains("PermissionRequest"))
+    #expect(hooks.keys.contains("PreToolUse"))
+    #expect(hooks.keys.contains("PostToolUse"))
 
     let config = try String(contentsOf: home.appendingPathComponent(".codex/config.toml"), encoding: .utf8)
     #expect(config.contains("[features]"))
     #expect(config.contains("hooks = true"))
+}
+
+@Test func agentInstallerReportsIncompleteCodexToolHooksAsNeedsUpdate() throws {
+    let home = temporaryDirectory()
+    let codexDirectory = home.appendingPathComponent(".codex", isDirectory: true)
+    try FileManager.default.createDirectory(at: codexDirectory, withIntermediateDirectories: true)
+    try """
+    {
+      "hooks": {
+        "SessionStart": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "vibe-light-hook --source codex",
+                "description": "Managed by Vibe Light"
+              }
+            ]
+          }
+        ],
+        "Stop": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "vibe-light-hook --source codex",
+                "description": "Managed by Vibe Light"
+              }
+            ]
+          }
+        ]
+      }
+    }
+    """.data(using: .utf8)!.write(to: codexDirectory.appendingPathComponent("hooks.json"))
+
+    let installer = AgentInstaller(homeDirectory: home)
+    let status = try installer.status(.codex)
+
+    #expect(status.isInstalled == false)
+    #expect(status.message == "需要更新 Vibe Light hook")
+}
+
+@Test func agentInstallerInstallsCodexToolHooksWithoutRemovingUserMatchers() throws {
+    let home = temporaryDirectory()
+    let codexDirectory = home.appendingPathComponent(".codex", isDirectory: true)
+    try FileManager.default.createDirectory(at: codexDirectory, withIntermediateDirectories: true)
+    let hooksURL = codexDirectory.appendingPathComponent("hooks.json")
+    try """
+    {
+      "hooks": {
+        "PreToolUse": [
+          {
+            "matcher": "Edit|Write",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "protect-files"
+              }
+            ]
+          }
+        ]
+      }
+    }
+    """.data(using: .utf8)!.write(to: hooksURL)
+
+    let installer = AgentInstaller(homeDirectory: home)
+    let hookURL = home.appendingPathComponent("bin/vibe-light-hook")
+
+    try installer.install(.codex, hookExecutableURL: hookURL)
+
+    let hooksData = try Data(contentsOf: hooksURL)
+    let hooksRoot = try #require(JSONSerialization.jsonObject(with: hooksData) as? [String: Any])
+    let hooks = try #require(hooksRoot["hooks"] as? [String: Any])
+    let preToolGroups = try #require(hooks["PreToolUse"] as? [[String: Any]])
+    let postToolGroups = try #require(hooks["PostToolUse"] as? [[String: Any]])
+
+    #expect(preToolGroups.count == 2)
+    #expect(preToolGroups.first?["matcher"] as? String == "Edit|Write")
+    #expect(postToolGroups.count == 1)
+
+    let managedPreHooks = try #require(preToolGroups.last?["hooks"] as? [[String: Any]])
+    let managedPostHooks = try #require(postToolGroups.first?["hooks"] as? [[String: Any]])
+    #expect((managedPreHooks.first?["command"] as? String)?.contains("vibe-light-hook") == true)
+    #expect((managedPostHooks.first?["command"] as? String)?.contains("vibe-light-hook") == true)
 }
 
 @Test func agentInstallerCopiesHookToStableApplicationSupportPath() throws {

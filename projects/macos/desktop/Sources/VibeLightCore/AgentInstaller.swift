@@ -45,13 +45,14 @@ public struct AgentInstaller {
     public func status(_ agent: AgentKind) throws -> AgentInstallationStatus {
         let configURL = primaryConfigURL(for: agent)
         let data = try? Data(contentsOf: configURL)
-        let installed = data.flatMap { containsManagedHook(in: $0) } ?? false
+        let hasManagedHook = data.flatMap { containsManagedHook(in: $0) } ?? false
+        let installed = data.flatMap { containsRequiredManagedHooks(in: $0, for: agent) } ?? false
 
         return AgentInstallationStatus(
             agent: agent,
             isInstalled: installed,
             configURL: configURL,
-            message: installed ? "已安装 Vibe Light hook" : "未安装"
+            message: installed ? "已安装 Vibe Light hook" : (hasManagedHook ? "需要更新 Vibe Light hook" : "未安装")
         )
     }
 
@@ -130,7 +131,7 @@ public struct AgentInstaller {
         let command = hookCommand(for: hookExecutableURL, source: .codex)
         try installHooks(
             at: hooksURL,
-            events: ["SessionStart", "UserPromptSubmit", "PermissionRequest", "Stop"],
+            events: requiredEvents(for: .codex),
             command: command
         )
         try enableCodexHooksFeature()
@@ -140,7 +141,24 @@ public struct AgentInstaller {
         let command = hookCommand(for: hookExecutableURL, source: .claude)
         try installHooks(
             at: primaryConfigURL(for: .claude),
-            events: [
+            events: requiredEvents(for: .claude),
+            command: command
+        )
+    }
+
+    private func requiredEvents(for agent: AgentKind) -> [String] {
+        switch agent {
+        case .codex:
+            [
+                "SessionStart",
+                "UserPromptSubmit",
+                "PreToolUse",
+                "PostToolUse",
+                "PermissionRequest",
+                "Stop",
+            ]
+        case .claude:
+            [
                 "SessionStart",
                 "UserPromptSubmit",
                 "PreToolUse",
@@ -150,9 +168,8 @@ public struct AgentInstaller {
                 "Stop",
                 "StopFailure",
                 "SessionEnd",
-            ],
-            command: command
-        )
+            ]
+        }
     }
 
     private func installHooks(at url: URL, events: [String], command: String) throws {
@@ -305,6 +322,30 @@ public struct AgentInstaller {
                     guard let hook = hook as? [String: Any] else { return false }
                     return isManagedHook(hook)
                 }
+            }
+        }
+    }
+
+    private func containsRequiredManagedHooks(in data: Data, for agent: AgentKind) -> Bool {
+        guard let root = try? loadRootObject(from: data),
+              let hooks = root["hooks"] as? [String: Any] else {
+            return false
+        }
+
+        return requiredEvents(for: agent).allSatisfy { event in
+            containsManagedHook(in: hooks[event] as? [Any] ?? [])
+        }
+    }
+
+    private func containsManagedHook(in groups: [Any]) -> Bool {
+        groups.contains { group in
+            guard let group = group as? [String: Any],
+                  let hookEntries = group["hooks"] as? [Any] else {
+                return false
+            }
+            return hookEntries.contains { hook in
+                guard let hook = hook as? [String: Any] else { return false }
+                return isManagedHook(hook)
             }
         }
     }

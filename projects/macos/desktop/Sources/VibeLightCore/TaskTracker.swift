@@ -140,7 +140,7 @@ public struct TaskTracker: Sendable {
                 source: event.source,
                 state: event.displayState,
                 title: title(for: event, taskID: identity.id),
-                lastDetail: event.displayDetail,
+                lastDetail: taskDetail(for: event),
                 lastUpdated: event.timestamp,
                 inclusionReason: inclusionReason(for: event, identity: identity),
                 contextUsedPercent: usage?.contextUsedPercent
@@ -292,6 +292,46 @@ public struct TaskTracker: Sendable {
             return toolName
         }
         return taskID
+    }
+
+    private func taskDetail(for event: VibeHookEvent) -> String {
+        guard let toolName = event.toolName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !toolName.isEmpty else {
+            return event.displayDetail
+        }
+
+        guard let message = event.message?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !message.isEmpty else {
+            return toolName
+        }
+
+        return "\(toolName) / \(compactToolAction(message, toolName: toolName))"
+    }
+
+    private func compactToolAction(_ message: String, toolName: String) -> String {
+        let firstLine = message
+            .split(whereSeparator: \.isNewline)
+            .first
+            .map(String.init)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? message
+
+        if shouldCompactAsPath(firstLine, toolName: toolName) {
+            let lastComponent = URL(fileURLWithPath: firstLine).lastPathComponent
+            if !lastComponent.isEmpty {
+                return lastComponent
+            }
+        }
+
+        return firstLine
+    }
+
+    private func shouldCompactAsPath(_ value: String, toolName: String) -> Bool {
+        let normalizedToolName = toolName.lowercased()
+        if normalizedToolName == "bash" {
+            return false
+        }
+
+        return !value.contains(" ") && value.contains("/")
     }
 
     private func aggregateState(for tasks: [TrackedTask]) -> DisplayState {
