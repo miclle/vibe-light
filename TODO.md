@@ -10,29 +10,32 @@
 - ESP32-S3 固件已接入 BLE Peripheral、状态解析、健康读取特征、ST7701 LCD 初始化、RGB565 framebuffer 绘制和 Codex 吃豆人 `busy` 迷宫动画。
 - 显示模型已从“简单任务列表”推进到 320px 参考迷宫舞台、213 个豆子、4 个能量豆、最多 5 个错相主角、底部贴边任务面板、CTX 用量尾标和渲染签名去重。
 - 固件连接状态已经会主动刷新屏幕：Central 连接时显示 `idle / desktop connected`，断开时显示 `offline / desktop disconnected`。
-- 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试、生成迷宫 / 全屏 PNG 预览并执行 Git whitespace 检查；实机烧录验证仍待完成。
+- 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试、生成迷宫 / 全屏 PNG 预览并执行 Git whitespace 检查；ESP32 显示闭环已完成一次实机烧录和屏幕确认。
+
+## 最近实机验证
+
+- 时间：2026-06-10。
+- 端口：`/dev/cu.usbmodem2101`。
+- 固件版本：`353426d`。
+- ESP-IDF：v5.5。
+- 芯片：ESP32-S3，8MB PSRAM。
+- 串口日志确认：应用正常启动，LCD 初始化成功，BLE 广播名为 `VibeLight-S3`，macOS 桌面端能连接并写入 `v: 2` 状态包。
+- 屏幕确认：high score、顶部 Codex 5H / 7D 用量、底部任务列表显示正常。
 
 ## 近期优先级
 
-1. **完成 ESP32 显示闭环实机验证**
-   - 烧录 `projects/esp32` 固件到 Waveshare `ESP32-S3-LCD-3.16`。
-   - 从 macOS “硬件设备”页连接 `VibeLight-S3` 并发送最近状态包。
-   - 依次发送“1 running”、“2 running + 1 waiting”、“error + busy”、“5 tasks”和“clear / idle”演示包，覆盖底部面板、角色数量、等待 / 错误状态和清空路径。
-   - 核对屏幕顶部状态、参考迷宫、底部任务面板、`idle` / `offline` 切换和 `busy` 动画是否与源码及 PNG 预览一致。
-   - 记录实际烧录端口、ESP-IDF 版本、串口日志、LCD 显示效果和任何板级差异。
-
-2. **收紧显示模型测试**
+1. **继续收紧显示模型测试**
    - 继续把动画路径、嘴型方向、重复包去重、任务行格式、未知状态降级、底部布局和整轮豆子重置保持在 host-side C 测试里。
    - 用量显示和中文任务文本也应继续保持在 Swift 测试与 host-side C 测试的组合覆盖里。
    - 新增屏幕布局或状态表现时，优先测试 `vibe_display_model.*`，避免让硬件渲染细节变成不可验证的黑盒。
    - 修改参考迷宫素材、坐标或缩放规则时，同步更新 `render_maze_preview.py` 和 parser 测试断言。
 
-3. **完善硬件实机诊断**
-   - 记录实际烧录端口、ESP-IDF 版本和实机验证结果。
-   - 确认源码当前采用的 ST7701 3-wire SPI 初始化、RGB 并口 GPIO、主动低电平背光 PWM 和 PSRAM framebuffer 在目标板上的稳定性。
+2. **完善硬件实机诊断**
+   - 继续记录后续烧录端口、ESP-IDF 版本和实机验证结果。
+   - 已确认当前固件可在目标板上启动 ST7701 LCD、BLE 广播和 PSRAM framebuffer；后续仍需在更多运行时长下观察稳定性。
    - 如果需要，将健康状态包扩展到背光、heap、渲染 tick 或最近解析错误。
 
-4. **整理产品化显示方向**
+3. **整理产品化显示方向**
    - 保持 macOS 端只发送状态和任务摘要，不传逐帧动画。
    - ESP32 端继续承担动画 tick、参考迷宫、整轮豆子重置、角色形状和屏幕局部视觉规则。
    - 中文字体已由轻量 framebuffer + GB2312 一级 2-bit 位图 asset 支持；复杂布局或设置页再评估是否引入 LVGL。
