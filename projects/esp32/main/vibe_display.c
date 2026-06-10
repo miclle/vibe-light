@@ -344,7 +344,9 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
     vibe_display_format_usage_summary(packet, &usage);
     char usage_line[32];
     usage_line[0] = '\0';
-    if (usage.five_hour[0] != '\0' && usage.weekly[0] != '\0') {
+    if (usage.reset_hint[0] != '\0') {
+        snprintf(usage_line, sizeof(usage_line), "CODEX: %s", usage.reset_hint);
+    } else if (usage.five_hour[0] != '\0' && usage.weekly[0] != '\0') {
         snprintf(usage_line, sizeof(usage_line), "CODEX: %s %s", usage.five_hour, usage.weekly);
     } else if (usage.five_hour[0] != '\0') {
         snprintf(usage_line, sizeof(usage_line), "CODEX: %s", usage.five_hour);

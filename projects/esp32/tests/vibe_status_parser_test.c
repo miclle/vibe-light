@@ -121,6 +121,31 @@ static void test_v2_usage_packet(void)
     assert(strcmp(row.trailing, "CTX 90%") == 0);
 }
 
+static void test_v2_usage_packet_formats_low_remaining_reset_hint(void)
+{
+    const char *json =
+        "{"
+        "\"source\":\"codex\","
+        "\"state\":\"busy\","
+        "\"ts\":1780300800000,"
+        "\"usage\":{\"codex5hRemainingPercent\":15,\"codex5hResetAt\":1780303500000,\"codex7dRemainingPercent\":60},"
+        "\"v\":2"
+        "}";
+
+    vibe_status_packet_t packet;
+    vibe_display_usage_summary_t usage;
+    vibe_status_default(&packet);
+
+    assert(parse(json, &packet));
+    assert(packet.codex_5h_remaining_percent == 15);
+    assert(packet.codex_5h_reset_at_ms == 1780303500000LL);
+
+    vibe_display_format_usage_summary(&packet, &usage);
+    assert(strcmp(usage.five_hour, "5H 15%") == 0);
+    assert(strcmp(usage.weekly, "7D 60%") == 0);
+    assert(strcmp(usage.reset_hint, "5H RESET 45m") == 0);
+}
+
 static void test_v2_usage_packet_accepts_legacy_context_remaining(void)
 {
     const char *json =
@@ -247,6 +272,9 @@ static void test_display_model_detects_duplicate_packets(void)
     assert(!vibe_display_should_render(&signature, &packet));
 
     packet.waiting_count = 2;
+    assert(vibe_display_should_render(&signature, &packet));
+
+    packet.timestamp_ms += 60000;
     assert(vibe_display_should_render(&signature, &packet));
 }
 
@@ -1116,6 +1144,7 @@ int main(void)
     test_v1_status_packet();
     test_v2_task_list_packet();
     test_v2_usage_packet();
+    test_v2_usage_packet_formats_low_remaining_reset_hint();
     test_v2_usage_packet_accepts_legacy_context_remaining();
     test_unknown_states_fall_back_to_idle();
     test_utf8_decoder_reads_chinese_codepoints();

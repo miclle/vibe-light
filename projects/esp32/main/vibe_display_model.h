@@ -91,6 +91,7 @@ typedef struct {
 typedef struct {
     char five_hour[12];
     char weekly[12];
+    char reset_hint[24];
 } vibe_display_usage_summary_t;
 
 typedef struct {

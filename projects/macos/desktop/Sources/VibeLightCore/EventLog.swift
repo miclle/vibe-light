@@ -153,7 +153,9 @@ public struct CodexUsageReader: Sendable {
         return CodexUsage(
             fiveHourRemainingPercent: remainingPercent(from: primary),
             weeklyRemainingPercent: remainingPercent(from: secondary),
-            contextUsedPercent: contextUsedPercent(from: info)
+            contextUsedPercent: contextUsedPercent(from: info),
+            fiveHourResetAtMilliseconds: resetAtMilliseconds(from: primary),
+            weeklyResetAtMilliseconds: resetAtMilliseconds(from: secondary)
         )
     }
 
@@ -163,6 +165,14 @@ public struct CodexUsageReader: Sendable {
         }
 
         return clampedPercent(Int((100 - usedPercent).rounded()))
+    }
+
+    private func resetAtMilliseconds(from window: [String: Any]?) -> Int64? {
+        guard let resetsAt = number(window?["resets_at"]), resetsAt > 0 else {
+            return nil
+        }
+
+        return Int64((resetsAt * 1_000).rounded())
     }
 
     private func contextUsedPercent(from info: [String: Any]?) -> Int? {

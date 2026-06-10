@@ -110,7 +110,9 @@ public struct DisplaySnapshot: Equatable, Sendable {
             usage: codexUsage.map {
                 StatusUsage(
                     codex5hRemainingPercent: $0.fiveHourRemainingPercent,
-                    codex7dRemainingPercent: $0.weeklyRemainingPercent
+                    codex7dRemainingPercent: $0.weeklyRemainingPercent,
+                    codex5hResetAt: $0.fiveHourResetAtMilliseconds,
+                    codex7dResetAt: $0.weeklyResetAtMilliseconds
                 )
             }
         )

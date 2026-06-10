@@ -42,6 +42,8 @@ typedef struct {
     int error_count;
     int codex_5h_remaining_percent;
     int codex_7d_remaining_percent;
+    int64_t codex_5h_reset_at_ms;
+    int64_t codex_7d_reset_at_ms;
     int task_count;
     vibe_status_task_t tasks[VIBE_STATUS_MAX_TASKS];
 } vibe_status_packet_t;

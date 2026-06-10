@@ -140,6 +140,8 @@ bool vibe_status_parse_json(const uint8_t *data, size_t length, vibe_status_pack
     if (cJSON_IsObject(usage)) {
         parsed->codex_5h_remaining_percent = json_percent(usage, "codex5hRemainingPercent");
         parsed->codex_7d_remaining_percent = json_percent(usage, "codex7dRemainingPercent");
+        parsed->codex_5h_reset_at_ms = json_int64(usage, "codex5hResetAt");
+        parsed->codex_7d_reset_at_ms = json_int64(usage, "codex7dResetAt");
     }
 
     cJSON *timestamp = cJSON_GetObjectItemCaseSensitive(root, "ts");

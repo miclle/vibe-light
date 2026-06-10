@@ -134,22 +134,30 @@ public struct CodexUsage: Codable, Equatable, Sendable {
     public var fiveHourRemainingPercent: Int?
     public var weeklyRemainingPercent: Int?
     public var contextUsedPercent: Int?
+    public var fiveHourResetAtMilliseconds: Int64?
+    public var weeklyResetAtMilliseconds: Int64?
 
     private enum CodingKeys: String, CodingKey {
         case fiveHourRemainingPercent
         case weeklyRemainingPercent
         case contextUsedPercent
         case contextRemainingPercent
+        case fiveHourResetAtMilliseconds
+        case weeklyResetAtMilliseconds
     }
 
     public init(
         fiveHourRemainingPercent: Int? = nil,
         weeklyRemainingPercent: Int? = nil,
-        contextUsedPercent: Int? = nil
+        contextUsedPercent: Int? = nil,
+        fiveHourResetAtMilliseconds: Int64? = nil,
+        weeklyResetAtMilliseconds: Int64? = nil
     ) {
         self.fiveHourRemainingPercent = fiveHourRemainingPercent.map(Self.clampedPercent)
         self.weeklyRemainingPercent = weeklyRemainingPercent.map(Self.clampedPercent)
         self.contextUsedPercent = contextUsedPercent.map(Self.clampedPercent)
+        self.fiveHourResetAtMilliseconds = fiveHourResetAtMilliseconds
+        self.weeklyResetAtMilliseconds = weeklyResetAtMilliseconds
     }
 
     public init(from decoder: Decoder) throws {
@@ -158,7 +166,9 @@ public struct CodexUsage: Codable, Equatable, Sendable {
         self.init(
             fiveHourRemainingPercent: try container.decodeIfPresent(Int.self, forKey: .fiveHourRemainingPercent),
             weeklyRemainingPercent: try container.decodeIfPresent(Int.self, forKey: .weeklyRemainingPercent),
-            contextUsedPercent: try container.decodeIfPresent(Int.self, forKey: .contextUsedPercent) ?? legacyRemaining.map { 100 - $0 }
+            contextUsedPercent: try container.decodeIfPresent(Int.self, forKey: .contextUsedPercent) ?? legacyRemaining.map { 100 - $0 },
+            fiveHourResetAtMilliseconds: try container.decodeIfPresent(Int64.self, forKey: .fiveHourResetAtMilliseconds),
+            weeklyResetAtMilliseconds: try container.decodeIfPresent(Int64.self, forKey: .weeklyResetAtMilliseconds)
         )
     }
 
@@ -167,6 +177,8 @@ public struct CodexUsage: Codable, Equatable, Sendable {
         try container.encodeIfPresent(fiveHourRemainingPercent, forKey: .fiveHourRemainingPercent)
         try container.encodeIfPresent(weeklyRemainingPercent, forKey: .weeklyRemainingPercent)
         try container.encodeIfPresent(contextUsedPercent, forKey: .contextUsedPercent)
+        try container.encodeIfPresent(fiveHourResetAtMilliseconds, forKey: .fiveHourResetAtMilliseconds)
+        try container.encodeIfPresent(weeklyResetAtMilliseconds, forKey: .weeklyResetAtMilliseconds)
     }
 
     private static func clampedPercent(_ value: Int) -> Int {
@@ -177,10 +189,19 @@ public struct CodexUsage: Codable, Equatable, Sendable {
 public struct StatusUsage: Codable, Equatable, Sendable {
     public var codex5hRemainingPercent: Int?
     public var codex7dRemainingPercent: Int?
+    public var codex5hResetAt: Int64?
+    public var codex7dResetAt: Int64?
 
-    public init(codex5hRemainingPercent: Int? = nil, codex7dRemainingPercent: Int? = nil) {
+    public init(
+        codex5hRemainingPercent: Int? = nil,
+        codex7dRemainingPercent: Int? = nil,
+        codex5hResetAt: Int64? = nil,
+        codex7dResetAt: Int64? = nil
+    ) {
         self.codex5hRemainingPercent = codex5hRemainingPercent
         self.codex7dRemainingPercent = codex7dRemainingPercent
+        self.codex5hResetAt = codex5hResetAt
+        self.codex7dResetAt = codex7dResetAt
     }
 }
 

@@ -22,6 +22,7 @@ static void append_text(char *dest, size_t dest_size, const char *source);
 static void format_count(char *dest, size_t dest_size, char label, int count);
 static void format_maze_count(char *dest, size_t dest_size, const char *label, int count);
 static void format_percent(char *dest, size_t dest_size, const char *label, int percent);
+static bool format_reset_hint(char *dest, size_t dest_size, const char *label, int remaining_percent, int64_t reset_at_ms, int64_t now_ms);
 static bool format_task_timing(char *dest, size_t dest_size, const vibe_status_task_t *task, int64_t now_ms);
 static int positive_mod(int value, int modulus);
 
@@ -49,11 +50,14 @@ uint32_t vibe_display_packet_signature(const vibe_status_packet_t *packet)
     hash = fnv1a_update_text(hash, packet->source);
     hash = fnv1a_update(hash, &packet->state, sizeof(packet->state));
     hash = fnv1a_update_text(hash, packet->detail);
+    hash = fnv1a_update(hash, &packet->timestamp_ms, sizeof(packet->timestamp_ms));
     hash = fnv1a_update(hash, &packet->active_count, sizeof(packet->active_count));
     hash = fnv1a_update(hash, &packet->waiting_count, sizeof(packet->waiting_count));
     hash = fnv1a_update(hash, &packet->error_count, sizeof(packet->error_count));
     hash = fnv1a_update(hash, &packet->codex_5h_remaining_percent, sizeof(packet->codex_5h_remaining_percent));
     hash = fnv1a_update(hash, &packet->codex_7d_remaining_percent, sizeof(packet->codex_7d_remaining_percent));
+    hash = fnv1a_update(hash, &packet->codex_5h_reset_at_ms, sizeof(packet->codex_5h_reset_at_ms));
+    hash = fnv1a_update(hash, &packet->codex_7d_reset_at_ms, sizeof(packet->codex_7d_reset_at_ms));
     hash = fnv1a_update(hash, &packet->task_count, sizeof(packet->task_count));
 
     int rows = packet->task_count > VIBE_STATUS_MAX_TASKS ? VIBE_STATUS_MAX_TASKS : packet->task_count;
@@ -308,6 +312,19 @@ void vibe_display_format_usage_summary(const vibe_status_packet_t *packet, vibe_
 
     format_percent(summary->five_hour, sizeof(summary->five_hour), "5H", packet->codex_5h_remaining_percent);
     format_percent(summary->weekly, sizeof(summary->weekly), "7D", packet->codex_7d_remaining_percent);
+    if (!format_reset_hint(summary->reset_hint,
+                           sizeof(summary->reset_hint),
+                           "5H",
+                           packet->codex_5h_remaining_percent,
+                           packet->codex_5h_reset_at_ms,
+                           packet->timestamp_ms)) {
+        format_reset_hint(summary->reset_hint,
+                          sizeof(summary->reset_hint),
+                          "7D",
+                          packet->codex_7d_remaining_percent,
+                          packet->codex_7d_reset_at_ms,
+                          packet->timestamp_ms);
+    }
 }
 
 void vibe_display_format_empty_state(const vibe_status_packet_t *packet, vibe_display_empty_state_t *empty)
@@ -860,6 +877,40 @@ static void format_percent(char *dest, size_t dest_size, const char *label, int 
     }
 
     snprintf(dest, dest_size, "%s %d%%", label, percent);
+}
+
+static bool format_reset_hint(char *dest, size_t dest_size, const char *label, int remaining_percent, int64_t reset_at_ms, int64_t now_ms)
+{
+    if (dest == NULL || dest_size == 0) {
+        return false;
+    }
+
+    dest[0] = '\0';
+    if (label == NULL || remaining_percent < 0 || remaining_percent > 20 || reset_at_ms <= now_ms || now_ms <= 0) {
+        return false;
+    }
+
+    int64_t remaining_minutes = (reset_at_ms - now_ms + 59999) / 60000;
+    if (remaining_minutes < 1) {
+        remaining_minutes = 1;
+    }
+    if (remaining_minutes < 60) {
+        snprintf(dest, dest_size, "%s RESET %lldm", label, (long long)remaining_minutes);
+        return true;
+    }
+
+    int64_t remaining_hours = (remaining_minutes + 59) / 60;
+    if (remaining_hours < 48) {
+        snprintf(dest, dest_size, "%s RESET %lldh", label, (long long)remaining_hours);
+        return true;
+    }
+
+    int64_t remaining_days = (remaining_hours + 23) / 24;
+    if (remaining_days > 99) {
+        remaining_days = 99;
+    }
+    snprintf(dest, dest_size, "%s RESET %lldd", label, (long long)remaining_days);
+    return true;
 }
 
 static bool format_task_timing(char *dest, size_t dest_size, const vibe_status_task_t *task, int64_t now_ms)
