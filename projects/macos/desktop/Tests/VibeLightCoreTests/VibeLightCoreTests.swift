@@ -133,6 +133,33 @@ import Testing
     #expect(data.count < 768)
 }
 
+@Test func taskTrackerSummarizesLastResultWhenNoTasksAreActive() throws {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(
+            taskID: "codex:task-a",
+            source: .codex,
+            kind: .stopFailure,
+            timestamp: base,
+            summary: "build failed",
+            workspace: "firmware"
+        ),
+    ]
+
+    let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(1))
+    let packet = snapshot.statusPacket
+    let data = try packet.encodedJSON()
+    let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let tasks = try #require(object["tasks"] as? [[String: Any]])
+
+    #expect(snapshot.state == .idle)
+    #expect(snapshot.detail == "LAST ERR firmware")
+    #expect(snapshot.tasks.isEmpty)
+    #expect(tasks.isEmpty)
+    #expect(object["detail"] as? String == "LAST ERR firmware")
+}
+
 @Test func taskTrackerShowsCurrentToolActionInTaskDetail() throws {
     let base = Date(timeIntervalSince1970: 1_780_300_800)
     let tracker = TaskTracker()

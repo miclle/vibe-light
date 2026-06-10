@@ -174,16 +174,16 @@ public struct TaskTracker: Sendable {
         }
 
         let activeTasks = tasks.filter { $0.state == .busy || $0.state == .waiting }
-        let visibleTasks = activeTasks.isEmpty ? [primary] : activeTasks
-        let state = aggregateState(for: tasks)
+        let visibleTasks = activeTasks
+        let state = activeTasks.isEmpty ? .idle : aggregateState(for: tasks)
         let waitingCount = tasks.filter { $0.state == .waiting }.count
         let busyCount = tasks.filter { $0.state == .busy }.count
         let errorCount = tasks.filter { $0.state == .error }.count
 
         return DisplaySnapshot(
-            source: aggregateSource(for: visibleTasks),
+            source: aggregateSource(for: visibleTasks.isEmpty ? [primary] : visibleTasks),
             state: state,
-            detail: detail(for: tasks, state: state, primary: primary),
+            detail: activeTasks.isEmpty ? lastResultDetail(for: primary) : detail(for: tasks, state: state, primary: primary),
             timestamp: now,
             tasks: Array(visibleTasks.prefix(5)),
             staleAfter: staleAfter,
@@ -293,6 +293,17 @@ public struct TaskTracker: Sendable {
             return toolName
         }
         return taskID
+    }
+
+    private func lastResultDetail(for task: TrackedTask) -> String {
+        switch task.state {
+        case .success:
+            return "LAST OK \(task.title)"
+        case .error:
+            return "LAST ERR \(task.title)"
+        default:
+            return "no active tasks"
+        }
     }
 
     private func taskDetail(for event: VibeHookEvent) -> String {

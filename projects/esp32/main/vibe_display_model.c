@@ -310,6 +310,22 @@ void vibe_display_format_usage_summary(const vibe_status_packet_t *packet, vibe_
     format_percent(summary->weekly, sizeof(summary->weekly), "7D", packet->codex_7d_remaining_percent);
 }
 
+void vibe_display_format_empty_state(const vibe_status_packet_t *packet, vibe_display_empty_state_t *empty)
+{
+    if (empty == NULL) {
+        return;
+    }
+
+    memset(empty, 0, sizeof(*empty));
+    copy_text(empty->label, sizeof(empty->label), "NO ACTIVE TASKS");
+    if (packet == NULL || packet->detail[0] == '\0' || strcmp(packet->detail, "no active tasks") == 0) {
+        copy_text(empty->detail, sizeof(empty->detail), vibe_display_state_to_title(packet == NULL ? VIBE_DISPLAY_IDLE : packet->state));
+        return;
+    }
+
+    copy_text(empty->detail, sizeof(empty->detail), packet->detail);
+}
+
 void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, size_t text_size)
 {
     (void)packet;

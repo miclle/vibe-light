@@ -94,6 +94,11 @@ typedef struct {
 } vibe_display_usage_summary_t;
 
 typedef struct {
+    char label[24];
+    char detail[VIBE_STATUS_TEXT_MAX];
+} vibe_display_empty_state_t;
+
+typedef struct {
     int value;
     bool dirty;
 } vibe_display_maze_high_score_t;
@@ -148,6 +153,7 @@ void vibe_display_maze_high_score_init(vibe_display_maze_high_score_t *high_scor
 bool vibe_display_maze_high_score_update(vibe_display_maze_high_score_t *high_score, int score);
 void vibe_display_maze_ghost_frame(int tick, vibe_display_maze_ghost_frame_t *frame);
 void vibe_display_format_usage_summary(const vibe_status_packet_t *packet, vibe_display_usage_summary_t *summary);
+void vibe_display_format_empty_state(const vibe_status_packet_t *packet, vibe_display_empty_state_t *empty);
 void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, size_t text_size);
 bool vibe_display_animation_enabled(vibe_display_state_t state);
 bool vibe_display_should_preserve_animation_tick(vibe_display_state_t previous_state,

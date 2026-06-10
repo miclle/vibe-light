@@ -268,6 +268,20 @@ static void test_display_model_formats_task_rows(void)
     assert(strcmp(row.subtitle, "codex / needs confirm") == 0);
 }
 
+static void test_display_model_formats_empty_state_with_last_result(void)
+{
+    vibe_status_packet_t packet;
+    vibe_display_empty_state_t empty;
+    vibe_status_default(&packet);
+    packet.state = VIBE_DISPLAY_IDLE;
+    snprintf(packet.detail, sizeof(packet.detail), "%s", "LAST ERR firmware");
+
+    vibe_display_format_empty_state(&packet, &empty);
+
+    assert(strcmp(empty.label, "NO ACTIVE TASKS") == 0);
+    assert(strcmp(empty.detail, "LAST ERR firmware") == 0);
+}
+
 static void test_display_model_formats_running_task_duration(void)
 {
     vibe_status_task_t task = {
@@ -1109,6 +1123,7 @@ int main(void)
     test_invalid_packets_are_rejected_without_mutation();
     test_display_model_detects_duplicate_packets();
     test_display_model_formats_task_rows();
+    test_display_model_formats_empty_state_with_last_result();
     test_display_model_formats_running_task_duration();
     test_display_model_formats_waiting_task_duration();
     test_display_model_formats_recent_task_freshness();

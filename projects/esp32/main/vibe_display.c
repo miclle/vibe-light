@@ -359,8 +359,10 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
     if (packet->task_count > 0) {
         render_task_rows(packet);
     } else {
-        vibe_display_text_draw(16, VIBE_DISPLAY_TASK_PANEL_Y + 28, "NO ACTIVE TASKS", 2, RGB565_MUTED);
-        vibe_display_text_draw(16, VIBE_DISPLAY_TASK_PANEL_Y + 84, vibe_display_state_to_title(packet->state), 3, RGB565_WHITE);
+        vibe_display_empty_state_t empty;
+        vibe_display_format_empty_state(packet, &empty);
+        vibe_display_text_draw(16, VIBE_DISPLAY_TASK_PANEL_Y + 28, empty.label, 2, RGB565_MUTED);
+        vibe_display_text_draw(16, VIBE_DISPLAY_TASK_PANEL_Y + 84, empty.detail, 3, RGB565_WHITE);
     }
 
     char footer[48];
