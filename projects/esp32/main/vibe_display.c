@@ -19,6 +19,7 @@
 #include "esp_lcd_panel_io_additions.h"
 #include "esp_lcd_st7701.h"
 #include "vibe_cjk_font.h"
+#include "vibe_display_draw.h"
 #include "vibe_display_model.h"
 #include "vibe_reference_maze.h"
 
@@ -147,11 +148,6 @@ static void render_maze(const vibe_status_packet_t *packet);
 static void render_reference_maze_art(void);
 static void render_animation_dots(const vibe_display_animation_frame_t *frames, int actor_count);
 static void render_codex_actor(const vibe_display_animation_frame_t *frame);
-static void fill_screen(uint16_t color);
-static void fill_rect(int x, int y, int w, int h, uint16_t color);
-static void blend_pixel(int x, int y, uint16_t color, uint8_t alpha_level);
-static void fill_circle(int cx, int cy, int radius, uint16_t color);
-static void fill_triangle(int ax, int ay, int bx, int by, int cx, int cy, uint16_t color);
 static void draw_text(int x, int y, const char *text, int scale, uint16_t color);
 static void draw_text_ellipsis(int x, int y, const char *text, int scale, uint16_t color, int max_width);
 static void draw_char(int x, int y, char c, int scale, uint16_t color);
@@ -182,6 +178,7 @@ void vibe_display_init(void)
         ESP_LOGE(TAG, "failed to allocate LCD framebuffer");
         return;
     }
+    vibe_display_draw_bind(framebuffer, LCD_H_RES, LCD_V_RES);
 
     ESP_ERROR_CHECK_WITHOUT_ABORT(init_lcd_panel());
     ESP_ERROR_CHECK_WITHOUT_ABORT(init_backlight());
@@ -326,18 +323,18 @@ static esp_err_t init_lcd_panel(void)
 static void render_status(const vibe_status_packet_t *packet, int animation_phase)
 {
     uint16_t accent = color_for_state(packet->state);
-    fill_screen(RGB565_BLACK);
-    fill_rect(0, 0, LCD_H_RES, 82, accent);
-    fill_rect(VIBE_DISPLAY_MAZE_STAGE_X,
-              VIBE_DISPLAY_MAZE_STAGE_Y,
-              VIBE_DISPLAY_MAZE_STAGE_W,
-              VIBE_DISPLAY_MAZE_STAGE_H,
-              RGB565_BLACK);
-    fill_rect(VIBE_DISPLAY_TASK_PANEL_X,
-              VIBE_DISPLAY_TASK_PANEL_Y,
-              VIBE_DISPLAY_TASK_PANEL_W,
-              VIBE_DISPLAY_TASK_PANEL_H,
-              RGB565_PANEL);
+    vibe_display_draw_fill_screen(RGB565_BLACK);
+    vibe_display_draw_fill_rect(0, 0, LCD_H_RES, 82, accent);
+    vibe_display_draw_fill_rect(VIBE_DISPLAY_MAZE_STAGE_X,
+                                VIBE_DISPLAY_MAZE_STAGE_Y,
+                                VIBE_DISPLAY_MAZE_STAGE_W,
+                                VIBE_DISPLAY_MAZE_STAGE_H,
+                                RGB565_BLACK);
+    vibe_display_draw_fill_rect(VIBE_DISPLAY_TASK_PANEL_X,
+                                VIBE_DISPLAY_TASK_PANEL_Y,
+                                VIBE_DISPLAY_TASK_PANEL_W,
+                                VIBE_DISPLAY_TASK_PANEL_H,
+                                RGB565_PANEL);
 
     draw_text(24, 22, "VIBE LIGHT", 3, RGB565_WHITE);
     vibe_display_usage_summary_t usage;
@@ -383,7 +380,7 @@ static void render_task_rows(const vibe_status_packet_t *packet)
         const int trailing_x = row.trailing[0] == '\0' ? LCD_H_RES : LCD_H_RES - 4 - text_width(row.trailing, 2);
         const int title_max_width = row.trailing[0] == '\0' ? LCD_H_RES - 44 : trailing_x - 40;
 
-        fill_rect(16, y, VIBE_DISPLAY_TASK_SWATCH_W, VIBE_DISPLAY_TASK_SWATCH_H, task_color);
+        vibe_display_draw_fill_rect(16, y, VIBE_DISPLAY_TASK_SWATCH_W, VIBE_DISPLAY_TASK_SWATCH_H, task_color);
         draw_text_ellipsis(32, y, row.title, 2, RGB565_WHITE, title_max_width);
         if (row.trailing[0] != '\0') {
             draw_text(trailing_x, y, row.trailing, 2, RGB565_MUTED);
@@ -417,7 +414,7 @@ static void render_maze(const vibe_status_packet_t *packet)
     const int w = VIBE_DISPLAY_MAZE_STAGE_W;
     const int h = VIBE_DISPLAY_MAZE_FRAME_H;
 
-    fill_rect(x, y, w, h, RGB565_BLACK);
+    vibe_display_draw_fill_rect(x, y, w, h, RGB565_BLACK);
     render_reference_maze_art();
 
     vibe_display_maze_count_text_t text;
@@ -434,9 +431,9 @@ static void render_maze(const vibe_status_packet_t *packet)
     const int right_box_left = vibe_display_maze_display_x(192);
     const int right_box_right = vibe_display_maze_display_x(300);
 
-    fill_rect(left_box_left, clear_y, left_box_right - left_box_left + 1, clear_h, RGB565_BLACK);
-    fill_rect(middle_box_left, clear_y, middle_box_right - middle_box_left + 1, clear_h, RGB565_BLACK);
-    fill_rect(right_box_left, clear_y, right_box_right - right_box_left + 1, clear_h, RGB565_BLACK);
+    vibe_display_draw_fill_rect(left_box_left, clear_y, left_box_right - left_box_left + 1, clear_h, RGB565_BLACK);
+    vibe_display_draw_fill_rect(middle_box_left, clear_y, middle_box_right - middle_box_left + 1, clear_h, RGB565_BLACK);
+    vibe_display_draw_fill_rect(right_box_left, clear_y, right_box_right - right_box_left + 1, clear_h, RGB565_BLACK);
 
     draw_maze_text_centered(left_box_left, left_box_right, count_y, text.active, color_for_state(VIBE_DISPLAY_BUSY));
     draw_maze_text_centered(middle_box_left, middle_box_right, count_y, text.waiting, color_for_state(VIBE_DISPLAY_WAITING));
@@ -447,11 +444,11 @@ static void render_reference_maze_art(void)
 {
     for (int i = 0; i < VIBE_REFERENCE_MAZE_RUN_COUNT; i++) {
         const vibe_reference_maze_run_t *run = &VIBE_REFERENCE_MAZE_RUNS[i];
-        fill_rect(vibe_display_maze_display_x(run->x),
-                  VIBE_DISPLAY_MAZE_STAGE_Y + run->y,
-                  vibe_display_maze_display_run_width(run->x, run->length),
-                  1,
-                  run->color);
+        vibe_display_draw_fill_rect(vibe_display_maze_display_x(run->x),
+                                    VIBE_DISPLAY_MAZE_STAGE_Y + run->y,
+                                    vibe_display_maze_display_run_width(run->x, run->length),
+                                    1,
+                                    run->color);
     }
 }
 
@@ -488,7 +485,7 @@ static void render_animation_dots(const vibe_display_animation_frame_t *frames, 
         int radius = vibe_display_maze_is_power_pellet(i, VIBE_DISPLAY_MAZE_PELLET_COUNT)
                          ? VIBE_DISPLAY_MAZE_POWER_PELLET_RADIUS
                          : ANIMATION_DOT_RADIUS;
-        fill_circle(dot.x, dot.y, radius, RGB565_DOT);
+        vibe_display_draw_fill_circle(dot.x, dot.y, radius, RGB565_DOT);
     }
 }
 
@@ -497,112 +494,13 @@ static void render_codex_actor(const vibe_display_animation_frame_t *frame)
     vibe_display_animation_actor_t actor;
     vibe_display_animation_actor_shape(frame, &actor);
 
-    fill_circle(frame->x, frame->y, VIBE_DISPLAY_CODEX_ACTOR_RADIUS, RGB565_DOT);
-    fill_triangle(actor.mouth_tip_x, actor.mouth_tip_y,
-                  actor.mouth_a_x, actor.mouth_a_y,
-                  actor.mouth_b_x, actor.mouth_b_y,
-                  RGB565_BLACK);
+    vibe_display_draw_fill_circle(frame->x, frame->y, VIBE_DISPLAY_CODEX_ACTOR_RADIUS, RGB565_DOT);
+    vibe_display_draw_fill_triangle(actor.mouth_tip_x, actor.mouth_tip_y,
+                                    actor.mouth_a_x, actor.mouth_a_y,
+                                    actor.mouth_b_x, actor.mouth_b_y,
+                                    RGB565_BLACK);
     if (VIBE_DISPLAY_CODEX_ACTOR_EYE_RADIUS > 0) {
-        fill_circle(actor.eye_x, actor.eye_y, VIBE_DISPLAY_CODEX_ACTOR_EYE_RADIUS, RGB565_BLACK);
-    }
-}
-
-static void fill_screen(uint16_t color)
-{
-    for (int i = 0; i < LCD_H_RES * LCD_V_RES; i++) {
-        framebuffer[i] = color;
-    }
-}
-
-static void fill_rect(int x, int y, int w, int h, uint16_t color)
-{
-    if (x < 0) {
-        w += x;
-        x = 0;
-    }
-    if (y < 0) {
-        h += y;
-        y = 0;
-    }
-    if (x + w > LCD_H_RES) {
-        w = LCD_H_RES - x;
-    }
-    if (y + h > LCD_V_RES) {
-        h = LCD_V_RES - y;
-    }
-    if (w <= 0 || h <= 0) {
-        return;
-    }
-
-    for (int row = y; row < y + h; row++) {
-        uint16_t *line = framebuffer + row * LCD_H_RES + x;
-        for (int col = 0; col < w; col++) {
-            line[col] = color;
-        }
-    }
-}
-
-static void blend_pixel(int x, int y, uint16_t color, uint8_t alpha_level)
-{
-    if (alpha_level == 0 || x < 0 || y < 0 || x >= LCD_H_RES || y >= LCD_V_RES) {
-        return;
-    }
-    if (alpha_level >= 3) {
-        framebuffer[y * LCD_H_RES + x] = color;
-        return;
-    }
-
-    uint16_t bg = framebuffer[y * LCD_H_RES + x];
-    uint8_t fg_r = (uint8_t)((color >> 11) & 0x1f);
-    uint8_t fg_g = (uint8_t)((color >> 5) & 0x3f);
-    uint8_t fg_b = (uint8_t)(color & 0x1f);
-    uint8_t bg_r = (uint8_t)((bg >> 11) & 0x1f);
-    uint8_t bg_g = (uint8_t)((bg >> 5) & 0x3f);
-    uint8_t bg_b = (uint8_t)(bg & 0x1f);
-    uint8_t inv = (uint8_t)(3 - alpha_level);
-    uint8_t r = (uint8_t)((fg_r * alpha_level + bg_r * inv + 1) / 3);
-    uint8_t g = (uint8_t)((fg_g * alpha_level + bg_g * inv + 1) / 3);
-    uint8_t b = (uint8_t)((fg_b * alpha_level + bg_b * inv + 1) / 3);
-    framebuffer[y * LCD_H_RES + x] = (uint16_t)((r << 11) | (g << 5) | b);
-}
-
-static void fill_circle(int cx, int cy, int radius, uint16_t color)
-{
-    int radius_squared = radius * radius;
-    for (int y = -radius; y <= radius; y++) {
-        for (int x = -radius; x <= radius; x++) {
-            if (x * x + y * y <= radius_squared) {
-                fill_rect(cx + x, cy + y, 1, 1, color);
-            }
-        }
-    }
-}
-
-static void fill_triangle(int ax, int ay, int bx, int by, int cx, int cy, uint16_t color)
-{
-    int min_x = ax < bx ? ax : bx;
-    min_x = min_x < cx ? min_x : cx;
-    int max_x = ax > bx ? ax : bx;
-    max_x = max_x > cx ? max_x : cx;
-    int min_y = ay < by ? ay : by;
-    min_y = min_y < cy ? min_y : cy;
-    int max_y = ay > by ? ay : by;
-    max_y = max_y > cy ? max_y : cy;
-
-    int area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
-    if (area == 0) {
-        return;
-    }
-
-    for (int y = min_y; y <= max_y; y++) {
-        for (int x = min_x; x <= max_x; x++) {
-            int w0 = (bx - ax) * (y - ay) - (by - ay) * (x - ax);
-            int w1 = (cx - bx) * (y - by) - (cy - by) * (x - bx);
-            int w2 = (ax - cx) * (y - cy) - (ay - cy) * (x - cx);
-            if ((w0 >= 0 && w1 >= 0 && w2 >= 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0)) {
-                fill_rect(x, y, 1, 1, color);
-            }
-        }
+        vibe_display_draw_fill_circle(actor.eye_x, actor.eye_y, VIBE_DISPLAY_CODEX_ACTOR_EYE_RADIUS, RGB565_BLACK);
     }
 }
 
@@ -722,7 +620,7 @@ static void draw_char_xy(int x, int y, char c, int scale_x, int scale_y, uint16_
         uint8_t bits = glyph_row(c, row);
         for (int col = 0; col < 5; col++) {
             if (bits & (1 << (4 - col))) {
-                fill_rect(x + col * scale_x, y + row * scale_y, scale_x, scale_y, color);
+                vibe_display_draw_fill_rect(x + col * scale_x, y + row * scale_y, scale_x, scale_y, color);
             }
         }
     }
@@ -738,17 +636,17 @@ static void draw_cjk_char(int x, int y, const uint8_t *glyph, uint16_t color)
         for (int col = 0; col < VIBE_CJK_FONT_WIDTH; col++) {
             uint8_t packed = glyph[row * VIBE_CJK_FONT_BYTES_PER_ROW + col / 4];
             uint8_t alpha_level = (uint8_t)((packed >> (6 - (col % 4) * 2)) & 0x03);
-            blend_pixel(x + col, y + row, color, alpha_level);
+            vibe_display_draw_blend_pixel(x + col, y + row, color, alpha_level);
         }
     }
 }
 
 static void draw_missing_cjk_char(int x, int y, uint16_t color)
 {
-    fill_rect(x, y, VIBE_CJK_FONT_WIDTH, 1, color);
-    fill_rect(x, y + VIBE_CJK_FONT_HEIGHT - 1, VIBE_CJK_FONT_WIDTH, 1, color);
-    fill_rect(x, y, 1, VIBE_CJK_FONT_HEIGHT, color);
-    fill_rect(x + VIBE_CJK_FONT_WIDTH - 1, y, 1, VIBE_CJK_FONT_HEIGHT, color);
+    vibe_display_draw_fill_rect(x, y, VIBE_CJK_FONT_WIDTH, 1, color);
+    vibe_display_draw_fill_rect(x, y + VIBE_CJK_FONT_HEIGHT - 1, VIBE_CJK_FONT_WIDTH, 1, color);
+    vibe_display_draw_fill_rect(x, y, 1, VIBE_CJK_FONT_HEIGHT, color);
+    vibe_display_draw_fill_rect(x + VIBE_CJK_FONT_WIDTH - 1, y, 1, VIBE_CJK_FONT_HEIGHT, color);
     draw_char(x + 5, y + 4, '?', 1, color);
 }
 
@@ -871,7 +769,7 @@ static void draw_maze_text(int x, int y, const char *text, int scale, uint16_t c
             uint8_t bits = maze_glyph_row(c, row);
             for (int col = 0; col < 3; col++) {
                 if (bits & (1 << (2 - col))) {
-                    fill_rect(cursor + col * scale, y + row * scale, scale, scale, color);
+                    vibe_display_draw_fill_rect(cursor + col * scale, y + row * scale, scale, scale, color);
                 }
             }
         }
