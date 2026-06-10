@@ -46,6 +46,9 @@ extern "C" {
 #define VIBE_DISPLAY_MAZE_LEVEL_VALUE_X 284
 #define VIBE_DISPLAY_CODEX_ACTOR_RADIUS 7
 #define VIBE_DISPLAY_CODEX_ACTOR_EYE_RADIUS 0
+#define VIBE_DISPLAY_MAZE_GHOST_CENTER_X 160
+#define VIBE_DISPLAY_MAZE_GHOST_CENTER_Y 235
+#define VIBE_DISPLAY_MAZE_GHOST_BLINK_TICKS 20
 #define VIBE_DISPLAY_TASK_PANEL_X 0
 #define VIBE_DISPLAY_TASK_PANEL_Y 410
 #define VIBE_DISPLAY_TASK_PANEL_W 320
@@ -93,6 +96,12 @@ typedef struct {
     bool dirty;
 } vibe_display_maze_high_score_t;
 
+typedef struct {
+    int x;
+    int y;
+    bool eyes_closed;
+} vibe_display_maze_ghost_frame_t;
+
 typedef enum {
     VIBE_DISPLAY_DIRECTION_RIGHT = 0,
     VIBE_DISPLAY_DIRECTION_DOWN,
@@ -130,6 +139,7 @@ int vibe_display_maze_level(int tick, int actor_count, int reset_ticks);
 void vibe_display_format_maze_level_text(int level, char *text, size_t text_size);
 void vibe_display_maze_high_score_init(vibe_display_maze_high_score_t *high_score, int stored_value);
 bool vibe_display_maze_high_score_update(vibe_display_maze_high_score_t *high_score, int score);
+void vibe_display_maze_ghost_frame(int tick, vibe_display_maze_ghost_frame_t *frame);
 void vibe_display_format_usage_summary(const vibe_status_packet_t *packet, vibe_display_usage_summary_t *summary);
 void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, size_t text_size);
 bool vibe_display_animation_enabled(vibe_display_state_t state);

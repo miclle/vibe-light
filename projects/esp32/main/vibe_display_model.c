@@ -258,6 +258,23 @@ bool vibe_display_maze_high_score_update(vibe_display_maze_high_score_t *high_sc
     return true;
 }
 
+void vibe_display_maze_ghost_frame(int tick, vibe_display_maze_ghost_frame_t *frame)
+{
+    static const int wobble_x[] = {0, 1, 1, 0, 0, -1, -1, 0};
+    static const int wobble_y[] = {0, 0, -1, -1, 0, 0, 1, 1};
+
+    if (frame == NULL) {
+        return;
+    }
+
+    int wobble_index = positive_mod(tick, (int)(sizeof(wobble_x) / sizeof(wobble_x[0])));
+    int blink_phase = positive_mod(tick, VIBE_DISPLAY_MAZE_GHOST_BLINK_TICKS);
+
+    frame->x = VIBE_DISPLAY_MAZE_GHOST_CENTER_X + wobble_x[wobble_index];
+    frame->y = VIBE_DISPLAY_MAZE_GHOST_CENTER_Y + wobble_y[wobble_index];
+    frame->eyes_closed = blink_phase >= VIBE_DISPLAY_MAZE_GHOST_BLINK_TICKS - 2;
+}
+
 void vibe_display_format_usage_summary(const vibe_status_packet_t *packet, vibe_display_usage_summary_t *summary)
 {
     if (summary == NULL) {

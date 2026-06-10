@@ -86,6 +86,9 @@ MAZE_LEVEL_VALUE_Y = display_model_define("VIBE_DISPLAY_MAZE_LEVEL_VALUE_Y")
 MAZE_LEVEL_LEFT_X = display_model_define("VIBE_DISPLAY_MAZE_LEVEL_LEFT_X")
 MAZE_LEVEL_RIGHT_X = display_model_define("VIBE_DISPLAY_MAZE_LEVEL_RIGHT_X")
 MAZE_LEVEL_VALUE_X = display_model_define("VIBE_DISPLAY_MAZE_LEVEL_VALUE_X")
+MAZE_GHOST_CENTER_X = display_model_define("VIBE_DISPLAY_MAZE_GHOST_CENTER_X")
+MAZE_GHOST_CENTER_Y = display_model_define("VIBE_DISPLAY_MAZE_GHOST_CENTER_Y")
+MAZE_GHOST_BLINK_TICKS = display_model_define("VIBE_DISPLAY_MAZE_GHOST_BLINK_TICKS")
 
 
 def maze_display_x(reference_x: int) -> int:
@@ -444,8 +447,36 @@ def draw_reference_maze(image: Image, y_offset: int) -> None:
     pacman_x = maze_display_x(143)
     fill_circle(image, pacman_x, y_offset + 214, 7, DOT)
     fill_triangle(image, pacman_x + 10, y_offset + 214, pacman_x, y_offset + 209, pacman_x, y_offset + 219, BLACK)
+    draw_center_ghost(image, y_offset, tick=0)
     draw_score_and_level(image, y_offset)
     draw_maze_count_boxes(image, y_offset)
+
+
+def draw_center_ghost(image: Image, y_offset: int, tick: int) -> None:
+    wobble_x = (0, 1, 1, 0, 0, -1, -1, 0)
+    wobble_y = (0, 0, -1, -1, 0, 0, 1, 1)
+    phase = tick % len(wobble_x)
+    x = MAZE_GHOST_CENTER_X + wobble_x[phase]
+    y = y_offset + (MAZE_GHOST_CENTER_Y - MAZE_STAGE_Y) + wobble_y[phase]
+    eyes_closed = tick % MAZE_GHOST_BLINK_TICKS >= MAZE_GHOST_BLINK_TICKS - 2
+
+    fill_rect(image, MAZE_GHOST_CENTER_X - 24, y_offset + (MAZE_GHOST_CENTER_Y - MAZE_STAGE_Y) - 20, 48, 38, BLACK)
+    fill_circle(image, x - 9, y - 7, 8, RED)
+    fill_circle(image, x + 9, y - 7, 8, RED)
+    fill_rect(image, x - 17, y - 7, 34, 19, RED)
+    fill_rect(image, x - 15, y + 10, 8, 5, RED)
+    fill_rect(image, x - 4, y + 10, 8, 5, RED)
+    fill_rect(image, x + 7, y + 10, 8, 5, RED)
+
+    if eyes_closed:
+        fill_rect(image, x - 10, y - 8, 6, 2, WHITE)
+        fill_rect(image, x + 4, y - 8, 6, 2, WHITE)
+        return
+
+    fill_circle(image, x - 7, y - 8, 4, WHITE)
+    fill_circle(image, x + 7, y - 8, 4, WHITE)
+    fill_circle(image, x - 6, y - 7, 2, MAZE)
+    fill_circle(image, x + 8, y - 7, 2, MAZE)
 
 
 def draw_maze(image: Image, y_offset: int = 0) -> None:

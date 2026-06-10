@@ -956,6 +956,29 @@ static void test_display_model_uses_reference_pacman_actor_style(void)
     assert(VIBE_DISPLAY_MAZE_POWER_PELLET_RADIUS < VIBE_DISPLAY_CODEX_ACTOR_RADIUS);
 }
 
+static void test_display_model_animates_center_ghost_subtly(void)
+{
+    vibe_display_maze_ghost_frame_t open;
+    vibe_display_maze_ghost_frame_t shifted;
+    vibe_display_maze_ghost_frame_t blink;
+
+    vibe_display_maze_ghost_frame(0, &open);
+    vibe_display_maze_ghost_frame(1, &shifted);
+    vibe_display_maze_ghost_frame(VIBE_DISPLAY_MAZE_GHOST_BLINK_TICKS - 1, &blink);
+
+    assert(VIBE_DISPLAY_MAZE_GHOST_BLINK_TICKS == 20);
+    assert(open.x == VIBE_DISPLAY_MAZE_GHOST_CENTER_X);
+    assert(open.y == VIBE_DISPLAY_MAZE_GHOST_CENTER_Y);
+    assert(!open.eyes_closed);
+    assert(!shifted.eyes_closed);
+    assert(blink.eyes_closed);
+    assert(shifted.x >= VIBE_DISPLAY_MAZE_GHOST_CENTER_X - 1);
+    assert(shifted.x <= VIBE_DISPLAY_MAZE_GHOST_CENTER_X + 1);
+    assert(shifted.y >= VIBE_DISPLAY_MAZE_GHOST_CENTER_Y - 1);
+    assert(shifted.y <= VIBE_DISPLAY_MAZE_GHOST_CENTER_Y + 1);
+    assert(shifted.x != open.x || shifted.y != open.y);
+}
+
 static void test_display_model_hides_timestamp_footer(void)
 {
     vibe_status_packet_t packet;
@@ -1036,6 +1059,7 @@ int main(void)
     test_display_model_animation_step_stays_on_discrete_nodes();
     test_display_model_actor_shape_faces_travel_direction();
     test_display_model_uses_reference_pacman_actor_style();
+    test_display_model_animates_center_ghost_subtly();
     test_display_model_hides_timestamp_footer();
     test_display_model_keeps_task_panel_tight_to_screen_bottom();
 

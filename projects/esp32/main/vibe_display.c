@@ -155,6 +155,7 @@ static void render_maze(const vibe_status_packet_t *packet, int animation_phase)
 static void render_reference_maze_art(void);
 static void render_animation_dots(const vibe_display_animation_frame_t *frames, int actor_count);
 static void render_codex_actor(const vibe_display_animation_frame_t *frame);
+static void render_center_ghost(int animation_phase);
 static void draw_maze_text_centered(int left, int right, int y, const char *text, uint16_t color);
 static void draw_maze_text(int x, int y, const char *text, int scale, uint16_t color);
 static int maze_text_width(const char *text, int scale);
@@ -535,6 +536,7 @@ static void render_codex_animation(const vibe_status_packet_t *packet, int anima
     }
 
     render_animation_dots(frames, actor_count);
+    render_center_ghost(animation_phase);
     for (int i = 0; i < actor_count; i++) {
         render_codex_actor(&frames[i]);
     }
@@ -576,6 +578,36 @@ static void render_codex_actor(const vibe_display_animation_frame_t *frame)
     if (VIBE_DISPLAY_CODEX_ACTOR_EYE_RADIUS > 0) {
         vibe_display_draw_fill_circle(actor.eye_x, actor.eye_y, VIBE_DISPLAY_CODEX_ACTOR_EYE_RADIUS, RGB565_BLACK);
     }
+}
+
+static void render_center_ghost(int animation_phase)
+{
+    vibe_display_maze_ghost_frame_t ghost;
+    vibe_display_maze_ghost_frame(animation_phase, &ghost);
+
+    vibe_display_draw_fill_rect(VIBE_DISPLAY_MAZE_GHOST_CENTER_X - 24,
+                                VIBE_DISPLAY_MAZE_GHOST_CENTER_Y - 20,
+                                48,
+                                38,
+                                RGB565_BLACK);
+
+    vibe_display_draw_fill_circle(ghost.x - 9, ghost.y - 7, 8, RGB565_RED);
+    vibe_display_draw_fill_circle(ghost.x + 9, ghost.y - 7, 8, RGB565_RED);
+    vibe_display_draw_fill_rect(ghost.x - 17, ghost.y - 7, 34, 19, RGB565_RED);
+    vibe_display_draw_fill_rect(ghost.x - 15, ghost.y + 10, 8, 5, RGB565_RED);
+    vibe_display_draw_fill_rect(ghost.x - 4, ghost.y + 10, 8, 5, RGB565_RED);
+    vibe_display_draw_fill_rect(ghost.x + 7, ghost.y + 10, 8, 5, RGB565_RED);
+
+    if (ghost.eyes_closed) {
+        vibe_display_draw_fill_rect(ghost.x - 10, ghost.y - 8, 6, 2, RGB565_WHITE);
+        vibe_display_draw_fill_rect(ghost.x + 4, ghost.y - 8, 6, 2, RGB565_WHITE);
+        return;
+    }
+
+    vibe_display_draw_fill_circle(ghost.x - 7, ghost.y - 8, 4, RGB565_WHITE);
+    vibe_display_draw_fill_circle(ghost.x + 7, ghost.y - 8, 4, RGB565_WHITE);
+    vibe_display_draw_fill_circle(ghost.x - 6, ghost.y - 7, 2, RGB565_BLUE);
+    vibe_display_draw_fill_circle(ghost.x + 8, ghost.y - 7, 2, RGB565_BLUE);
 }
 
 static void draw_maze_text_centered(int left, int right, int y, const char *text, uint16_t color)
