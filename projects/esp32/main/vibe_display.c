@@ -383,7 +383,7 @@ static void render_task_rows(const vibe_status_packet_t *packet)
     for (int i = 0; i < rows; i++) {
         const vibe_status_task_t *task = &packet->tasks[i];
         vibe_display_task_row_t row;
-        vibe_display_format_task_row(task, i, &row);
+        vibe_display_format_task_row_at(task, packet->timestamp_ms, i, &row);
 
         uint16_t task_color = color_for_state(task->state);
         const int trailing_x = row.trailing[0] == '\0' ? LCD_H_RES : LCD_H_RES - 4 - vibe_display_text_width(row.trailing, 2);

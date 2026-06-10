@@ -20,6 +20,10 @@ public enum HardwareDemoPacketScenario: String, CaseIterable, Identifiable, Send
     }
 
     public func packet(timestamp: Date = Date()) -> StatusPacket {
+        func updated(_ secondsAgo: TimeInterval) -> Date {
+            timestamp.addingTimeInterval(-secondsAgo)
+        }
+
         switch self {
         case .oneRunning:
             return StatusPacket(
@@ -32,7 +36,7 @@ public enum HardwareDemoPacketScenario: String, CaseIterable, Identifiable, Send
                 waitingCount: 0,
                 errorCount: 0,
                 tasks: [
-                    StatusTask(title: "vibe-light", state: .busy, source: .codex, detail: "render screen")
+                    StatusTask(title: "vibe-light", state: .busy, source: .codex, detail: "render screen", updatedAt: updated(192))
                 ]
             )
         case .mixedWaiting:
@@ -46,9 +50,9 @@ public enum HardwareDemoPacketScenario: String, CaseIterable, Identifiable, Send
                 waitingCount: 1,
                 errorCount: 0,
                 tasks: [
-                    StatusTask(title: "approval", state: .waiting, source: .codex, detail: "needs confirm"),
-                    StatusTask(title: "desktop", state: .busy, source: .codex, detail: "sync BLE"),
-                    StatusTask(title: "firmware", state: .busy, source: .codex, detail: "draw list"),
+                    StatusTask(title: "approval", state: .waiting, source: .codex, detail: "needs confirm", updatedAt: updated(68)),
+                    StatusTask(title: "desktop", state: .busy, source: .codex, detail: "sync BLE", updatedAt: updated(192)),
+                    StatusTask(title: "firmware", state: .busy, source: .codex, detail: "draw list", updatedAt: updated(42)),
                 ]
             )
         case .errorBusy:
@@ -62,8 +66,8 @@ public enum HardwareDemoPacketScenario: String, CaseIterable, Identifiable, Send
                 waitingCount: 0,
                 errorCount: 1,
                 tasks: [
-                    StatusTask(title: "esp32-build", state: .error, source: .codex, detail: "build failed"),
-                    StatusTask(title: "desktop", state: .busy, source: .codex, detail: "recovering"),
+                    StatusTask(title: "esp32-build", state: .error, source: .codex, detail: "build failed", updatedAt: updated(120)),
+                    StatusTask(title: "desktop", state: .busy, source: .codex, detail: "recovering", updatedAt: updated(36)),
                 ]
             )
         case .fiveTasks:
@@ -77,11 +81,11 @@ public enum HardwareDemoPacketScenario: String, CaseIterable, Identifiable, Send
                 waitingCount: 0,
                 errorCount: 0,
                 tasks: [
-                    StatusTask(title: "vibe-light", state: .busy, source: .codex),
-                    StatusTask(title: "slideo", state: .busy, source: .codex),
-                    StatusTask(title: "gitwikitree", state: .busy, source: .codex),
-                    StatusTask(title: "firmware", state: .busy, source: .codex),
-                    StatusTask(title: "docs", state: .busy, source: .codex),
+                    StatusTask(title: "vibe-light", state: .busy, source: .codex, updatedAt: updated(12)),
+                    StatusTask(title: "slideo", state: .busy, source: .codex, updatedAt: updated(24)),
+                    StatusTask(title: "gitwikitree", state: .busy, source: .codex, updatedAt: updated(36)),
+                    StatusTask(title: "firmware", state: .busy, source: .codex, updatedAt: updated(48)),
+                    StatusTask(title: "docs", state: .busy, source: .codex, updatedAt: updated(60)),
                 ]
             )
         case .idle:

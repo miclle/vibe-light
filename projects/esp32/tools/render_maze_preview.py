@@ -494,11 +494,11 @@ def draw_full_screen(image: Image) -> None:
     draw_maze(image, MAZE_STAGE_Y)
 
     tasks = [
-        (BUSY, "VIBE-LIGHT", "打开 .SLIDEO 文件", "CTX 90%"),
-        (WAITING, "DOCS", "等待蓝牙权限", "CTX 74%"),
-        (ERROR, "FIRMWARE", "构建失败", "CTX 61%"),
-        (BUSY, "FLASH", "写入固件", "CTX 48%"),
-        (WAITING, "APPROVAL", "需要确认", "CTX 35%"),
+        (BUSY, "VIBE-LIGHT", "打开 .SLIDEO 文件", "RUN 03:12"),
+        (WAITING, "DOCS", "等待蓝牙权限", "WAIT 01:08"),
+        (ERROR, "FIRMWARE", "构建失败", "2m ago"),
+        (BUSY, "FLASH", "写入固件", "RUN 00:42"),
+        (WAITING, "APPROVAL", "需要确认", "WAIT 00:18"),
     ]
     y = TASK_ROW_Y
     for index, (color, title, detail, trailing) in enumerate(tasks):

@@ -103,7 +103,8 @@ public struct DisplaySnapshot: Equatable, Sendable {
                     state: $0.state,
                     source: $0.source,
                     detail: $0.lastDetail,
-                    contextUsedPercent: $0.contextUsedPercent
+                    contextUsedPercent: $0.contextUsedPercent,
+                    updatedAt: $0.lastUpdated
                 )
             },
             usage: codexUsage.map {
@@ -183,7 +184,7 @@ public struct TaskTracker: Sendable {
             source: aggregateSource(for: visibleTasks),
             state: state,
             detail: detail(for: tasks, state: state, primary: primary),
-            timestamp: primary.lastUpdated,
+            timestamp: now,
             tasks: Array(visibleTasks.prefix(5)),
             staleAfter: staleAfter,
             activeCount: busyCount + waitingCount,

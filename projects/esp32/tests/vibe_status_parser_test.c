@@ -58,7 +58,7 @@ static void test_v2_task_list_packet(void)
         "\"source\":\"codex\","
         "\"state\":\"waiting\","
         "\"tasks\":["
-        "{\"detail\":\"approve command\",\"source\":\"codex\",\"state\":\"waiting\",\"title\":\"vibe-light\"},"
+        "{\"detail\":\"approve command\",\"source\":\"codex\",\"state\":\"waiting\",\"title\":\"vibe-light\",\"updatedAt\":1780300732000},"
         "{\"detail\":\"render preview\",\"source\":\"claude\",\"state\":\"busy\",\"title\":\"slideo\"},"
         "{\"detail\":\"failed build\",\"source\":\"codex\",\"state\":\"error\",\"title\":\"firmware\"},"
         "{\"source\":\"codex\",\"state\":\"success\",\"title\":\"extra-1\"},"
@@ -82,6 +82,7 @@ static void test_v2_task_list_packet(void)
     assert(packet.task_count == VIBE_STATUS_MAX_TASKS);
     assert(strcmp(packet.tasks[0].title, "vibe-light") == 0);
     assert(packet.tasks[0].state == VIBE_DISPLAY_WAITING);
+    assert(packet.tasks[0].updated_at_ms == 1780300732000LL);
     assert(strcmp(packet.tasks[1].source, "claude") == 0);
     assert(packet.tasks[1].state == VIBE_DISPLAY_BUSY);
     assert(packet.tasks[2].state == VIBE_DISPLAY_ERROR);
@@ -265,6 +266,60 @@ static void test_display_model_formats_task_rows(void)
     assert(strcmp(row.badge, "WAIT") == 0);
     assert(strcmp(row.title, "approval") == 0);
     assert(strcmp(row.subtitle, "codex / needs confirm") == 0);
+}
+
+static void test_display_model_formats_running_task_duration(void)
+{
+    vibe_status_task_t task = {
+        .title = "desktop",
+        .source = "codex",
+        .state = VIBE_DISPLAY_BUSY,
+        .state_text = "busy",
+        .detail = "make quick",
+        .context_used_percent = 90,
+        .updated_at_ms = 1780300608000LL,
+    };
+    vibe_display_task_row_t row;
+
+    vibe_display_format_task_row_at(&task, 1780300800000LL, 0, &row);
+
+    assert(strcmp(row.trailing, "RUN 03:12") == 0);
+}
+
+static void test_display_model_formats_waiting_task_duration(void)
+{
+    vibe_status_task_t task = {
+        .title = "approval",
+        .source = "codex",
+        .state = VIBE_DISPLAY_WAITING,
+        .state_text = "waiting",
+        .detail = "APPROVE Bash",
+        .context_used_percent = 74,
+        .updated_at_ms = 1780300732000LL,
+    };
+    vibe_display_task_row_t row;
+
+    vibe_display_format_task_row_at(&task, 1780300800000LL, 0, &row);
+
+    assert(strcmp(row.trailing, "WAIT 01:08") == 0);
+}
+
+static void test_display_model_formats_recent_task_freshness(void)
+{
+    vibe_status_task_t task = {
+        .title = "firmware",
+        .source = "codex",
+        .state = VIBE_DISPLAY_ERROR,
+        .state_text = "error",
+        .detail = "failed build",
+        .context_used_percent = 61,
+        .updated_at_ms = 1780300680000LL,
+    };
+    vibe_display_task_row_t row;
+
+    vibe_display_format_task_row_at(&task, 1780300800000LL, 0, &row);
+
+    assert(strcmp(row.trailing, "2m ago") == 0);
 }
 
 static void test_display_model_shows_detail_for_every_task_with_detail(void)
@@ -1054,6 +1109,9 @@ int main(void)
     test_invalid_packets_are_rejected_without_mutation();
     test_display_model_detects_duplicate_packets();
     test_display_model_formats_task_rows();
+    test_display_model_formats_running_task_duration();
+    test_display_model_formats_waiting_task_duration();
+    test_display_model_formats_recent_task_freshness();
     test_display_model_shows_detail_for_every_task_with_detail();
     test_display_model_formats_compact_count_summary();
     test_display_model_formats_maze_count_text();

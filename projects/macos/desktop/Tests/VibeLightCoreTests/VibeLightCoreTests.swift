@@ -128,6 +128,8 @@ import Testing
     #expect(tasks.map { $0["state"] as? String } == ["waiting", "busy"])
     #expect(snapshot.tasks.map(\.lastDetail) == ["approve edit", "implement v2"])
     #expect(tasks.map { $0["detail"] as? String } == ["approve edit", "implement v2"])
+    #expect(tasks.map { $0["updatedAt"] as? Int64 } == [1_780_300_802_000, 1_780_300_801_000])
+    #expect(object["ts"] as? Int64 == 1_780_300_804_000)
     #expect(data.count < 768)
 }
 

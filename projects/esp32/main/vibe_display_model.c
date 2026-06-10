@@ -22,6 +22,7 @@ static void append_text(char *dest, size_t dest_size, const char *source);
 static void format_count(char *dest, size_t dest_size, char label, int count);
 static void format_maze_count(char *dest, size_t dest_size, const char *label, int count);
 static void format_percent(char *dest, size_t dest_size, const char *label, int percent);
+static bool format_task_timing(char *dest, size_t dest_size, const vibe_status_task_t *task, int64_t now_ms);
 static int positive_mod(int value, int modulus);
 
 static int16_t maze_first_eaten_ticks[VIBE_STATUS_MAX_TASKS + 1][VIBE_DISPLAY_MAZE_PELLET_COUNT];
@@ -63,6 +64,7 @@ uint32_t vibe_display_packet_signature(const vibe_status_packet_t *packet)
         hash = fnv1a_update(hash, &task->state, sizeof(task->state));
         hash = fnv1a_update_text(hash, task->detail);
         hash = fnv1a_update(hash, &task->context_used_percent, sizeof(task->context_used_percent));
+        hash = fnv1a_update(hash, &task->updated_at_ms, sizeof(task->updated_at_ms));
     }
 
     return hash;
@@ -86,6 +88,11 @@ bool vibe_display_should_render(vibe_display_signature_t *signature, const vibe_
 
 void vibe_display_format_task_row(const vibe_status_task_t *task, int index, vibe_display_task_row_t *row)
 {
+    vibe_display_format_task_row_at(task, 0, index, row);
+}
+
+void vibe_display_format_task_row_at(const vibe_status_task_t *task, int64_t now_ms, int index, vibe_display_task_row_t *row)
+{
     (void)index;
 
     if (row == NULL) {
@@ -101,7 +108,9 @@ void vibe_display_format_task_row(const vibe_status_task_t *task, int index, vib
 
     copy_text(row->badge, sizeof(row->badge), badge_for_state(task->state));
     copy_text(row->title, sizeof(row->title), task->title[0] == '\0' ? "untitled" : task->title);
-    format_percent(row->trailing, sizeof(row->trailing), "CTX", task->context_used_percent);
+    if (!format_task_timing(row->trailing, sizeof(row->trailing), task, now_ms)) {
+        format_percent(row->trailing, sizeof(row->trailing), "CTX", task->context_used_percent);
+    }
 
     if (task->source[0] != '\0' && task->detail[0] != '\0') {
         copy_text(row->subtitle, sizeof(row->subtitle), task->source);
@@ -835,4 +844,40 @@ static void format_percent(char *dest, size_t dest_size, const char *label, int 
     }
 
     snprintf(dest, dest_size, "%s %d%%", label, percent);
+}
+
+static bool format_task_timing(char *dest, size_t dest_size, const vibe_status_task_t *task, int64_t now_ms)
+{
+    if (dest == NULL || dest_size == 0 || task == NULL || now_ms <= 0 || task->updated_at_ms <= 0 ||
+        now_ms < task->updated_at_ms) {
+        return false;
+    }
+
+    int64_t elapsed_seconds = (now_ms - task->updated_at_ms) / 1000;
+    if (task->state == VIBE_DISPLAY_BUSY || task->state == VIBE_DISPLAY_WAITING) {
+        if (elapsed_seconds > 99 * 60 + 59) {
+            elapsed_seconds = 99 * 60 + 59;
+        }
+        const char *prefix = task->state == VIBE_DISPLAY_WAITING ? "WAIT" : "RUN";
+        snprintf(dest,
+                 dest_size,
+                 "%s %02lld:%02lld",
+                 prefix,
+                 (long long)(elapsed_seconds / 60),
+                 (long long)(elapsed_seconds % 60));
+        return true;
+    }
+
+    if (elapsed_seconds < 60) {
+        snprintf(dest, dest_size, "%llds ago", (long long)elapsed_seconds);
+    } else if (elapsed_seconds < 60 * 60) {
+        snprintf(dest, dest_size, "%lldm ago", (long long)(elapsed_seconds / 60));
+    } else {
+        int64_t hours = elapsed_seconds / (60 * 60);
+        if (hours > 99) {
+            hours = 99;
+        }
+        snprintf(dest, dest_size, "%lldh ago", (long long)hours);
+    }
+    return true;
 }

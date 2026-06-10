@@ -133,6 +133,10 @@ void vibe_display_signature_reset(vibe_display_signature_t *signature);
 uint32_t vibe_display_packet_signature(const vibe_status_packet_t *packet);
 bool vibe_display_should_render(vibe_display_signature_t *signature, const vibe_status_packet_t *packet);
 void vibe_display_format_task_row(const vibe_status_task_t *task, int index, vibe_display_task_row_t *row);
+void vibe_display_format_task_row_at(const vibe_status_task_t *task,
+                                     int64_t now_ms,
+                                     int index,
+                                     vibe_display_task_row_t *row);
 bool vibe_display_should_render_task_detail(const vibe_status_task_t *task);
 void vibe_display_format_count_summary(const vibe_status_packet_t *packet, vibe_display_count_summary_t *summary);
 void vibe_display_format_maze_count_text(const vibe_status_packet_t *packet, vibe_display_maze_count_text_t *text);

@@ -278,7 +278,8 @@ public struct StatusPacket: Codable, Equatable, Sendable {
                     title: $0.title,
                     state: $0.state,
                     source: $0.source,
-                    contextUsedPercent: keepContext ? $0.contextUsedPercent : nil
+                    contextUsedPercent: keepContext ? $0.contextUsedPercent : nil,
+                    updatedAtMilliseconds: $0.updatedAtMilliseconds
                 )
             }
         }
@@ -429,6 +430,7 @@ public struct StatusTask: Codable, Equatable, Sendable {
     public var source: VibeSource
     public var detail: String?
     public var contextUsedPercent: Int?
+    public var updatedAtMilliseconds: Int64?
 
     private enum CodingKeys: String, CodingKey {
         case title
@@ -437,6 +439,7 @@ public struct StatusTask: Codable, Equatable, Sendable {
         case detail
         case contextUsedPercent
         case contextRemainingPercent
+        case updatedAt
     }
 
     public init(
@@ -444,13 +447,18 @@ public struct StatusTask: Codable, Equatable, Sendable {
         state: DisplayState,
         source: VibeSource,
         detail: String? = nil,
-        contextUsedPercent: Int? = nil
+        contextUsedPercent: Int? = nil,
+        updatedAt: Date? = nil,
+        updatedAtMilliseconds: Int64? = nil
     ) {
         self.title = StatusPacket.truncatedTaskTitle(title)
         self.state = state
         self.source = source
         self.detail = detail.map { StatusPacket.truncatedTaskDetail($0) }
         self.contextUsedPercent = contextUsedPercent.map { min(100, max(0, $0)) }
+        self.updatedAtMilliseconds = updatedAtMilliseconds ?? updatedAt.map {
+            Int64(($0.timeIntervalSince1970 * 1_000).rounded())
+        }
     }
 
     public init(from decoder: Decoder) throws {
@@ -461,7 +469,8 @@ public struct StatusTask: Codable, Equatable, Sendable {
             state: try container.decode(DisplayState.self, forKey: .state),
             source: try container.decode(VibeSource.self, forKey: .source),
             detail: try container.decodeIfPresent(String.self, forKey: .detail),
-            contextUsedPercent: try container.decodeIfPresent(Int.self, forKey: .contextUsedPercent) ?? legacyRemaining.map { 100 - $0 }
+            contextUsedPercent: try container.decodeIfPresent(Int.self, forKey: .contextUsedPercent) ?? legacyRemaining.map { 100 - $0 },
+            updatedAtMilliseconds: try container.decodeIfPresent(Int64.self, forKey: .updatedAt)
         )
     }
 
@@ -472,6 +481,7 @@ public struct StatusTask: Codable, Equatable, Sendable {
         try container.encode(source, forKey: .source)
         try container.encodeIfPresent(detail, forKey: .detail)
         try container.encodeIfPresent(contextUsedPercent, forKey: .contextUsedPercent)
+        try container.encodeIfPresent(updatedAtMilliseconds, forKey: .updatedAt)
     }
 }
 
