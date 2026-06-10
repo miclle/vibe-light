@@ -300,12 +300,23 @@ public struct TaskTracker: Sendable {
             return event.displayDetail
         }
 
-        guard let message = event.message?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !message.isEmpty else {
+        let trimmedMessage = event.message?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let action = trimmedMessage.flatMap { message -> String? in
+            guard !message.isEmpty else {
+                return nil
+            }
+            return compactToolAction(message, toolName: toolName)
+        }
+
+        if event.displayState == .waiting {
+            return waitingActionDetail(toolName: toolName, action: action)
+        }
+
+        guard let action else {
             return toolName
         }
 
-        return "\(toolName) / \(compactToolAction(message, toolName: toolName))"
+        return "\(toolName) / \(action)"
     }
 
     private func compactToolAction(_ message: String, toolName: String) -> String {
@@ -332,6 +343,26 @@ public struct TaskTracker: Sendable {
         }
 
         return !value.contains(" ") && value.contains("/")
+    }
+
+    private func waitingActionDetail(toolName: String, action: String?) -> String {
+        if shouldUseAllowVerb(for: toolName) {
+            if let action {
+                return "ALLOW \(toolName) \(action)"
+            }
+            return "ALLOW \(toolName)"
+        }
+
+        return "APPROVE \(toolName)"
+    }
+
+    private func shouldUseAllowVerb(for toolName: String) -> Bool {
+        switch toolName.lowercased() {
+        case "edit", "write", "multiedit", "read":
+            true
+        default:
+            false
+        }
     }
 
     private func aggregateState(for tasks: [TrackedTask]) -> DisplayState {

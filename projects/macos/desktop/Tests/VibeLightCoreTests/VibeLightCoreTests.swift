@@ -164,7 +164,7 @@ import Testing
         .init(
             taskID: "claude:task-a",
             source: .claude,
-            kind: .permissionRequest,
+            kind: .preToolUse,
             timestamp: base,
             summary: "Claude wants to edit README.md",
             message: "/Users/miclle/github/miclle/vibe-light/README.md",
@@ -176,6 +176,71 @@ import Testing
     let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(1))
 
     #expect(snapshot.tasks.first?.lastDetail == "Edit / README.md")
+}
+
+@Test func taskTrackerShowsApprovalActionForWaitingToolTasks() {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(
+            taskID: "codex:task-a",
+            source: .codex,
+            kind: .permissionRequest,
+            timestamp: base,
+            summary: "approve shell command",
+            message: "make verify",
+            toolName: "Bash",
+            workspace: "vibe-light"
+        ),
+    ]
+
+    let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(1))
+
+    #expect(snapshot.state == .waiting)
+    #expect(snapshot.tasks.first?.lastDetail == "APPROVE Bash")
+}
+
+@Test func taskTrackerShowsApprovalActionForWaitingToolTasksWithoutMessage() {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(
+            taskID: "codex:task-a",
+            source: .codex,
+            kind: .permissionRequest,
+            timestamp: base,
+            summary: "approve shell command",
+            toolName: "Bash",
+            workspace: "vibe-light"
+        ),
+    ]
+
+    let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(1))
+
+    #expect(snapshot.state == .waiting)
+    #expect(snapshot.tasks.first?.lastDetail == "APPROVE Bash")
+}
+
+@Test func taskTrackerShowsAllowActionForWaitingFileTools() {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(
+            taskID: "claude:task-a",
+            source: .claude,
+            kind: .permissionRequest,
+            timestamp: base,
+            summary: "Claude wants to edit README.md",
+            message: "/Users/miclle/github/miclle/vibe-light/README.md",
+            toolName: "Edit",
+            workspace: "vibe-light"
+        ),
+    ]
+
+    let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(1))
+
+    #expect(snapshot.state == .waiting)
+    #expect(snapshot.tasks.first?.lastDetail == "ALLOW Edit README.md")
 }
 
 @Test func hookPayloadDecoderExtractsCodexUsageFromTranscriptTokenCount() throws {
