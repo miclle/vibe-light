@@ -157,6 +157,7 @@ int vibe_display_maze_display_x(int reference_x);
 int vibe_display_maze_display_run_width(int reference_x, int reference_length);
 void vibe_display_maze_pellet_position(int pellet_index, int pellet_count, vibe_display_animation_frame_t *frame);
 bool vibe_display_maze_is_power_pellet(int pellet_index, int pellet_count);
+void vibe_display_maze_warm_pellet_cache(int actor_count);
 bool vibe_display_maze_pellet_visible(int pellet_index,
                                       int tick,
                                       int actor_count,

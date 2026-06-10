@@ -319,6 +319,11 @@ static esp_err_t init_lcd_panel(void)
 static void render_status(const vibe_status_packet_t *packet, int animation_phase)
 {
     uint16_t accent = color_for_state(packet->state);
+    if (vibe_display_animation_enabled(packet->state)) {
+        int actor_count = vibe_display_animation_actor_count(packet->task_count, packet->active_count);
+        vibe_display_maze_warm_pellet_cache(actor_count);
+    }
+
     vibe_display_draw_fill_screen(RGB565_BLACK);
     vibe_display_draw_fill_rect(0, 0, LCD_H_RES, 82, accent);
     vibe_display_draw_fill_rect(VIBE_DISPLAY_MAZE_STAGE_X,

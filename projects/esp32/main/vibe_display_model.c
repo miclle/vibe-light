@@ -9,9 +9,12 @@ static uint32_t fnv1a_update_text(uint32_t hash, const char *text);
 static const char *badge_for_state(vibe_display_state_t state);
 static void maze_pellet_at_index(int index, vibe_display_animation_frame_t *frame);
 static void maze_frame_at_tick(int tick, int phase_offset, bool mouth_open, vibe_display_animation_frame_t *frame);
-static bool maze_pellet_eaten_since_round_start(int pellet_index, int phase_offset, int elapsed_tick);
 static bool maze_pellet_eaten_on_segment(int pellet_index, int from_path_position, int substep);
-static bool maze_pellet_between_points(int pellet_index, const vibe_display_maze_point_t *from, int to_x, int to_y);
+static bool maze_pellet_touched_between_frames(int pellet_index,
+                                               const vibe_display_animation_frame_t *from,
+                                               const vibe_display_animation_frame_t *to);
+static int maze_pellet_first_eaten_tick(int pellet_index, int actor_count);
+static void maze_build_pellet_first_eaten_ticks(int actor_count);
 static int maze_pellet_round_ticks(int actor_count);
 static int maze_total_round_score(void);
 static void copy_text(char *dest, size_t dest_size, const char *source);
@@ -20,6 +23,9 @@ static void format_count(char *dest, size_t dest_size, char label, int count);
 static void format_maze_count(char *dest, size_t dest_size, const char *label, int count);
 static void format_percent(char *dest, size_t dest_size, const char *label, int percent);
 static int positive_mod(int value, int modulus);
+
+static int16_t maze_first_eaten_ticks[VIBE_STATUS_MAX_TASKS + 1][VIBE_DISPLAY_MAZE_PELLET_COUNT];
+static bool maze_first_eaten_ticks_ready[VIBE_STATUS_MAX_TASKS + 1];
 
 void vibe_display_signature_reset(vibe_display_signature_t *signature)
 {
@@ -441,6 +447,11 @@ bool vibe_display_maze_is_power_pellet(int pellet_index, int pellet_count)
            index == pellet_count - 1;
 }
 
+void vibe_display_maze_warm_pellet_cache(int actor_count)
+{
+    maze_build_pellet_first_eaten_ticks(actor_count);
+}
+
 bool vibe_display_maze_pellet_visible(int pellet_index,
                                       int tick,
                                       int actor_count,
@@ -460,43 +471,14 @@ bool vibe_display_maze_pellet_visible(int pellet_index,
         round_ticks = reset_ticks;
     }
     int round_tick = positive_mod(tick, round_ticks);
-
-    for (int actor_index = 0; actor_index < actor_count; actor_index++) {
-        int phase_offset = (actor_index * VIBE_DISPLAY_ANIMATION_PATH_STEPS) / actor_count;
-        if (maze_pellet_eaten_since_round_start(pellet_index, phase_offset, round_tick)) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-static bool maze_pellet_eaten_since_round_start(int pellet_index, int phase_offset, int elapsed_tick)
-{
-    if (elapsed_tick < 0) {
-        return false;
-    }
-
-    int completed_segments = elapsed_tick / VIBE_DISPLAY_ANIMATION_SUBSTEPS;
-    int substep = elapsed_tick % VIBE_DISPLAY_ANIMATION_SUBSTEPS;
-
-    for (int step = 0; step < completed_segments; step++) {
-        int path_position = positive_mod(phase_offset + step, VIBE_DISPLAY_ANIMATION_PATH_STEPS);
-        if (maze_pellet_eaten_on_segment(pellet_index, path_position, VIBE_DISPLAY_ANIMATION_SUBSTEPS)) {
-            return true;
-        }
-    }
-
-    int current_path_position = positive_mod(phase_offset + completed_segments, VIBE_DISPLAY_ANIMATION_PATH_STEPS);
-    return maze_pellet_eaten_on_segment(pellet_index, current_path_position, substep);
+    int first_eaten_tick = maze_pellet_first_eaten_tick(pellet_index, actor_count);
+    return first_eaten_tick < 0 || round_tick < first_eaten_tick;
 }
 
 static bool maze_pellet_eaten_on_segment(int pellet_index, int from_path_position, int substep)
 {
-    int from_index = vibe_display_reference_path[positive_mod(from_path_position, VIBE_DISPLAY_ANIMATION_PATH_STEPS)];
-    int to_index = vibe_display_reference_path[positive_mod(from_path_position + 1, VIBE_DISPLAY_ANIMATION_PATH_STEPS)];
-    const vibe_display_maze_point_t *from = &vibe_display_reference_pellets[from_index];
-    const vibe_display_maze_point_t *to = &vibe_display_reference_pellets[to_index];
+    vibe_display_animation_frame_t from;
+    vibe_display_animation_frame_t to;
     int clamped_substep = substep;
 
     if (clamped_substep < 0) {
@@ -506,41 +488,113 @@ static bool maze_pellet_eaten_on_segment(int pellet_index, int from_path_positio
         clamped_substep = VIBE_DISPLAY_ANIMATION_SUBSTEPS;
     }
 
-    int current_x = from->x + ((to->x - from->x) * clamped_substep) / VIBE_DISPLAY_ANIMATION_SUBSTEPS;
-    int current_y = from->y + ((to->y - from->y) * clamped_substep) / VIBE_DISPLAY_ANIMATION_SUBSTEPS;
-    return maze_pellet_between_points(pellet_index, from, current_x, current_y);
+    maze_frame_at_tick(from_path_position * VIBE_DISPLAY_ANIMATION_SUBSTEPS, 0, false, &from);
+    maze_frame_at_tick(from_path_position * VIBE_DISPLAY_ANIMATION_SUBSTEPS + clamped_substep, 0, false, &to);
+    return maze_pellet_touched_between_frames(pellet_index, &from, &to);
 }
 
-static bool maze_pellet_between_points(int pellet_index, const vibe_display_maze_point_t *from, int to_x, int to_y)
+static bool maze_pellet_touched_between_frames(int pellet_index,
+                                               const vibe_display_animation_frame_t *from,
+                                               const vibe_display_animation_frame_t *to)
 {
-    int index = positive_mod(pellet_index, VIBE_DISPLAY_MAZE_PELLET_COUNT);
-    const vibe_display_maze_point_t *pellet = &vibe_display_reference_pellets[index];
-    int dx = to_x - from->x;
-    int dy = to_y - from->y;
-    int px = pellet->x - from->x;
-    int py = pellet->y - from->y;
-
-    if (px * dy != py * dx) {
+    if (from == NULL || to == NULL) {
         return false;
     }
 
-    int min_x = from->x < to_x ? from->x : to_x;
-    int max_x = from->x > to_x ? from->x : to_x;
-    int min_y = from->y < to_y ? from->y : to_y;
-    int max_y = from->y > to_y ? from->y : to_y;
-    return pellet->x >= min_x && pellet->x <= max_x &&
-           pellet->y >= min_y && pellet->y <= max_y;
+    int index = positive_mod(pellet_index, VIBE_DISPLAY_MAZE_PELLET_COUNT);
+    vibe_display_animation_frame_t pellet;
+    maze_pellet_at_index(index, &pellet);
+
+    int dx = to->x - from->x;
+    int dy = to->y - from->y;
+    int px = pellet.x - from->x;
+    int py = pellet.y - from->y;
+    int radius = VIBE_DISPLAY_CODEX_ACTOR_RADIUS;
+    int64_t radius_sq = (int64_t)radius * radius;
+    int64_t segment_len_sq = (int64_t)dx * dx + (int64_t)dy * dy;
+
+    if (segment_len_sq == 0) {
+        return (int64_t)px * px + (int64_t)py * py <= radius_sq;
+    }
+
+    int64_t dot = (int64_t)px * dx + (int64_t)py * dy;
+    if (dot <= 0) {
+        return (int64_t)px * px + (int64_t)py * py <= radius_sq;
+    }
+    if (dot >= segment_len_sq) {
+        int ex = pellet.x - to->x;
+        int ey = pellet.y - to->y;
+        return (int64_t)ex * ex + (int64_t)ey * ey <= radius_sq;
+    }
+
+    int64_t cross = (int64_t)px * dy - (int64_t)py * dx;
+    return cross * cross <= radius_sq * segment_len_sq;
+}
+
+static int maze_pellet_first_eaten_tick(int pellet_index, int actor_count)
+{
+    if (actor_count < 1) {
+        actor_count = 1;
+    }
+    if (actor_count > VIBE_STATUS_MAX_TASKS) {
+        actor_count = VIBE_STATUS_MAX_TASKS;
+    }
+
+    maze_build_pellet_first_eaten_ticks(actor_count);
+    return maze_first_eaten_ticks[actor_count][positive_mod(pellet_index, VIBE_DISPLAY_MAZE_PELLET_COUNT)];
+}
+
+static void maze_build_pellet_first_eaten_ticks(int actor_count)
+{
+    if (actor_count < 1) {
+        actor_count = 1;
+    }
+    if (actor_count > VIBE_STATUS_MAX_TASKS) {
+        actor_count = VIBE_STATUS_MAX_TASKS;
+    }
+    if (maze_first_eaten_ticks_ready[actor_count]) {
+        return;
+    }
+
+    for (int pellet_index = 0; pellet_index < VIBE_DISPLAY_MAZE_PELLET_COUNT; pellet_index++) {
+        maze_first_eaten_ticks[actor_count][pellet_index] = -1;
+    }
+
+    int remaining = VIBE_DISPLAY_MAZE_PELLET_COUNT;
+    const int max_ticks = VIBE_DISPLAY_ANIMATION_PATH_STEPS * VIBE_DISPLAY_ANIMATION_SUBSTEPS;
+    for (int tick = 0; tick < max_ticks && remaining > 0; tick++) {
+        int segment_tick = tick > 0 ? tick - 1 : 0;
+        int completed_segments = segment_tick / VIBE_DISPLAY_ANIMATION_SUBSTEPS;
+        int substep = tick > 0 ? (segment_tick % VIBE_DISPLAY_ANIMATION_SUBSTEPS) + 1 : 0;
+
+        for (int actor_index = 0; actor_index < actor_count && remaining > 0; actor_index++) {
+            int phase_offset = (actor_index * VIBE_DISPLAY_ANIMATION_PATH_STEPS) / actor_count;
+            int path_position = positive_mod(phase_offset + completed_segments, VIBE_DISPLAY_ANIMATION_PATH_STEPS);
+
+            for (int pellet_index = 0; pellet_index < VIBE_DISPLAY_MAZE_PELLET_COUNT; pellet_index++) {
+                if (maze_first_eaten_ticks[actor_count][pellet_index] >= 0) {
+                    continue;
+                }
+                if (maze_pellet_eaten_on_segment(pellet_index, path_position, substep)) {
+                    maze_first_eaten_ticks[actor_count][pellet_index] = (int16_t)tick;
+                    remaining--;
+                }
+            }
+        }
+    }
+
+    maze_first_eaten_ticks_ready[actor_count] = true;
 }
 
 static int maze_pellet_round_ticks(int actor_count)
 {
     static const int round_ticks_by_actor_count[VIBE_STATUS_MAX_TASKS + 1] = {
         0,
-        731,
-        377,
-        277,
-        199,
-        165,
+        730,
+        376,
+        275,
+        198,
+        164,
     };
 
     if (actor_count < 1) {

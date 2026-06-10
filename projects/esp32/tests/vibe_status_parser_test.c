@@ -335,7 +335,7 @@ static void test_display_model_formats_live_maze_score(void)
     const int single_actor_start_score = vibe_display_maze_score(0, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS);
     const int single_actor_later_score = vibe_display_maze_score(44 * VIBE_DISPLAY_ANIMATION_SUBSTEPS, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS);
     const int multi_actor_score = vibe_display_maze_score(44 * VIBE_DISPLAY_ANIMATION_SUBSTEPS, 5, 5, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS);
-    const int score_after_visual_reset = vibe_display_maze_score(731, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS);
+    const int score_after_visual_reset = vibe_display_maze_score(730, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS);
 
     assert(single_actor_start_score == 10);
     assert(single_actor_later_score > single_actor_start_score);
@@ -378,9 +378,9 @@ static void test_display_model_formats_live_maze_level(void)
     char text[VIBE_DISPLAY_MAZE_LEVEL_TEXT_MAX];
 
     assert(vibe_display_maze_level(0, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS) == 1);
-    assert(vibe_display_maze_level(730, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS) == 1);
-    assert(vibe_display_maze_level(731, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS) == 2);
-    assert(vibe_display_maze_level(377, 2, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS) == 2);
+    assert(vibe_display_maze_level(729, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS) == 1);
+    assert(vibe_display_maze_level(730, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS) == 2);
+    assert(vibe_display_maze_level(376, 2, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS) == 2);
 
     vibe_display_format_maze_level_text(2, text, sizeof(text));
 
@@ -701,7 +701,7 @@ static void test_display_model_resets_pellets_after_full_path_cycle(void)
     vibe_display_animation_actor_frame(eaten_tick + VIBE_DISPLAY_ANIMATION_SUBSTEPS, 0, 1, 1, &frame);
     next_pellet_index = find_pellet_at_frame(&frame);
     assert(next_pellet_index >= 0);
-    assert(vibe_display_maze_pellet_visible(next_pellet_index, eaten_tick + 1, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS));
+    assert(!vibe_display_maze_pellet_visible(next_pellet_index, eaten_tick + 1, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS));
     assert(!vibe_display_maze_pellet_visible(next_pellet_index, eaten_tick + VIBE_DISPLAY_ANIMATION_SUBSTEPS, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS));
     assert(!vibe_display_maze_pellet_visible(pellet_index, eaten_tick, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS));
 
@@ -713,8 +713,8 @@ static void test_display_model_resets_pellets_after_full_path_cycle(void)
     }
 
     assert(reset_tick > eaten_tick);
-    assert(vibe_display_maze_pellet_visible(pellet_index, reset_tick + eaten_tick - 1, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS));
-    assert(!vibe_display_maze_pellet_visible(pellet_index, reset_tick + eaten_tick, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS));
+    assert(vibe_display_maze_pellet_visible(pellet_index, reset_tick + eaten_tick - 2, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS));
+    assert(!vibe_display_maze_pellet_visible(pellet_index, reset_tick + eaten_tick - 1, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS));
 }
 
 static void test_display_model_starts_multi_actor_round_with_visible_pellets(void)
@@ -728,6 +728,7 @@ static void test_display_model_eats_pellets_crossed_between_path_nodes(void)
 {
     const int tick_crossing_top_lane = 15 * VIBE_DISPLAY_ANIMATION_SUBSTEPS + 1;
 
+    assert(!vibe_display_maze_pellet_visible(1, 1, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS));
     assert(!vibe_display_maze_pellet_visible(48, tick_crossing_top_lane, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS));
     assert(!vibe_display_maze_pellet_visible(47, tick_crossing_top_lane, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS));
     assert(!vibe_display_maze_pellet_visible(46, tick_crossing_top_lane, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS));
@@ -752,7 +753,7 @@ static void test_display_model_resets_multi_actor_round_when_all_pellets_are_eat
 
 static void test_display_model_uses_expected_reset_ticks_per_actor_count(void)
 {
-    const int expected_reset_ticks[] = {0, 731, 377, 277, 199, 165};
+    const int expected_reset_ticks[] = {0, 730, 376, 275, 198, 164};
 
     for (int actor_count = 1; actor_count <= VIBE_STATUS_MAX_TASKS; actor_count++) {
         int all_eaten_tick = -1;
