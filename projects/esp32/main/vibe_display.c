@@ -12,6 +12,7 @@
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_panel_rgb.h"
 #include "esp_timer.h"
+#include "nvs.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -79,6 +80,9 @@ static const char *TAG = "vibe_display";
 
 #define ANIMATION_PERIOD_MS VIBE_DISPLAY_ANIMATION_PERIOD_MS
 #define ANIMATION_DOT_RADIUS 1
+#define SCORE_STORAGE_NAMESPACE "vibe"
+#define SCORE_STORAGE_KEY "maze_hi"
+#define SCORE_PERSIST_STEP 1000
 
 static esp_lcd_panel_handle_t panel_handle;
 static uint16_t *framebuffer;
@@ -89,6 +93,8 @@ static vibe_status_packet_t last_render_packet;
 static esp_timer_handle_t animation_timer;
 static int animation_tick;
 static bool animation_running;
+static vibe_display_maze_high_score_t maze_high_score;
+static int last_persisted_maze_high_score;
 
 static const st7701_lcd_init_cmd_t lcd_init_cmds[] = {
     {0xFF, (uint8_t[]){0x77, 0x01, 0x00, 0x00, 0x13}, 5, 0},
@@ -145,7 +151,7 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
 static void render_task_rows(const vibe_status_packet_t *packet);
 static bool should_render_task_detail(const vibe_status_task_t *task, int index);
 static void render_codex_animation(const vibe_status_packet_t *packet, int animation_phase);
-static void render_maze(const vibe_status_packet_t *packet);
+static void render_maze(const vibe_status_packet_t *packet, int animation_phase);
 static void render_reference_maze_art(void);
 static void render_animation_dots(const vibe_display_animation_frame_t *frames, int actor_count);
 static void render_codex_actor(const vibe_display_animation_frame_t *frame);
@@ -154,6 +160,8 @@ static void draw_maze_text(int x, int y, const char *text, int scale, uint16_t c
 static int maze_text_width(const char *text, int scale);
 static uint8_t maze_glyph_row(char c, int row);
 static uint16_t color_for_state(vibe_display_state_t state);
+static int load_maze_high_score(void);
+static void save_maze_high_score_if_dirty(bool force);
 static void animation_timer_callback(void *arg);
 static void update_animation_timer(vibe_display_state_t state);
 
@@ -177,6 +185,8 @@ void vibe_display_init(void)
     ESP_ERROR_CHECK_WITHOUT_ABORT(init_backlight());
     vibe_display_signature_reset(&last_render_signature);
     vibe_status_default(&last_render_packet);
+    last_persisted_maze_high_score = load_maze_high_score();
+    vibe_display_maze_high_score_init(&maze_high_score, last_persisted_maze_high_score);
 
     const esp_timer_create_args_t timer_args = {
         .callback = animation_timer_callback,
@@ -205,9 +215,14 @@ void vibe_display_show_status(const vibe_status_packet_t *packet)
              (long long)packet->timestamp_ms);
 
     if (display_ready && xSemaphoreTake(display_mutex, pdMS_TO_TICKS(500)) == pdTRUE) {
+        bool preserve_animation_tick = vibe_display_should_preserve_animation_tick(last_render_packet.state,
+                                                                                  packet->state,
+                                                                                  animation_running);
         last_render_packet = *packet;
         if (vibe_display_should_render(&last_render_signature, packet)) {
-            animation_tick = 0;
+            if (!preserve_animation_tick) {
+                animation_tick = 0;
+            }
             render_status(packet, animation_tick);
         }
         xSemaphoreGive(display_mutex);
@@ -346,7 +361,7 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
     if (usage_line[0] != '\0') {
         vibe_display_text_draw(24, 56, usage_line, 2, RGB565_WHITE);
     }
-    render_maze(packet);
+    render_maze(packet, animation_phase);
 
     if (packet->task_count > 0) {
         render_task_rows(packet);
@@ -408,7 +423,7 @@ static bool should_render_task_detail(const vibe_status_task_t *task, int index)
     return index == 0 || task->state == VIBE_DISPLAY_WAITING || task->state == VIBE_DISPLAY_ERROR;
 }
 
-static void render_maze(const vibe_status_packet_t *packet)
+static void render_maze(const vibe_status_packet_t *packet, int animation_phase)
 {
     const int x = VIBE_DISPLAY_MAZE_STAGE_X;
     const int y = VIBE_DISPLAY_MAZE_STAGE_Y;
@@ -420,6 +435,64 @@ static void render_maze(const vibe_status_packet_t *packet)
 
     vibe_display_maze_count_text_t text;
     vibe_display_format_maze_count_text(packet, &text);
+    char score_text[VIBE_DISPLAY_MAZE_SCORE_TEXT_MAX];
+    char high_score_text[VIBE_DISPLAY_MAZE_SCORE_TEXT_MAX];
+    char level_text[VIBE_DISPLAY_MAZE_LEVEL_TEXT_MAX];
+    int actor_count = vibe_display_animation_actor_count(packet->task_count, packet->active_count);
+    int score = vibe_display_animation_enabled(packet->state)
+                    ? vibe_display_maze_score(animation_phase,
+                                              actor_count,
+                                              packet->active_count,
+                                              VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS)
+                    : 0;
+    int level = vibe_display_animation_enabled(packet->state)
+                    ? vibe_display_maze_level(animation_phase,
+                                              actor_count,
+                                              VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS)
+                    : 1;
+    if (vibe_display_animation_enabled(packet->state) &&
+        vibe_display_maze_high_score_update(&maze_high_score, score)) {
+        save_maze_high_score_if_dirty(false);
+    }
+    vibe_display_format_maze_score_text(score, score_text, sizeof(score_text));
+    vibe_display_format_maze_score_text(maze_high_score.value, high_score_text, sizeof(high_score_text));
+    vibe_display_format_maze_level_text(level, level_text, sizeof(level_text));
+
+    vibe_display_draw_fill_rect(VIBE_DISPLAY_MAZE_SCORE_LEFT_X,
+                                VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_SCORE_CLEAR_Y,
+                                VIBE_DISPLAY_MAZE_SCORE_RIGHT_X - VIBE_DISPLAY_MAZE_SCORE_LEFT_X + 1,
+                                VIBE_DISPLAY_MAZE_SCORE_CLEAR_H,
+                                RGB565_BLACK);
+    vibe_display_draw_fill_rect(VIBE_DISPLAY_MAZE_HIGH_SCORE_LEFT_X,
+                                VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_SCORE_CLEAR_Y,
+                                VIBE_DISPLAY_MAZE_HIGH_SCORE_RIGHT_X - VIBE_DISPLAY_MAZE_HIGH_SCORE_LEFT_X + 1,
+                                VIBE_DISPLAY_MAZE_SCORE_CLEAR_H,
+                                RGB565_BLACK);
+    vibe_display_draw_fill_rect(VIBE_DISPLAY_MAZE_LEVEL_LEFT_X,
+                                VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_LEVEL_CLEAR_Y,
+                                VIBE_DISPLAY_MAZE_LEVEL_RIGHT_X - VIBE_DISPLAY_MAZE_LEVEL_LEFT_X + 1,
+                                VIBE_DISPLAY_MAZE_LEVEL_CLEAR_H,
+                                RGB565_BLACK);
+    draw_maze_text(VIBE_DISPLAY_MAZE_SCORE_LEFT_X,
+                   VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_SCORE_VALUE_Y,
+                   score_text,
+                   2,
+                   RGB565_PINK);
+    draw_maze_text_centered(VIBE_DISPLAY_MAZE_HIGH_SCORE_LEFT_X,
+                            VIBE_DISPLAY_MAZE_HIGH_SCORE_RIGHT_X,
+                            VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_SCORE_VALUE_Y,
+                            high_score_text,
+                            RGB565_PINK);
+    draw_maze_text(VIBE_DISPLAY_MAZE_LEVEL_LEFT_X,
+                   VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_LEVEL_VALUE_Y,
+                   "LEVEL",
+                   2,
+                   RGB565_WHITE);
+    draw_maze_text(VIBE_DISPLAY_MAZE_LEVEL_VALUE_X,
+                   VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_LEVEL_VALUE_Y,
+                   level_text,
+                   2,
+                   RGB565_BLUE);
 
     const int count_y = VIBE_DISPLAY_MAZE_STAGE_Y + 294;
     const int clear_y = VIBE_DISPLAY_MAZE_STAGE_Y + 288;
@@ -625,6 +698,68 @@ static uint16_t color_for_state(vibe_display_state_t state)
     }
 }
 
+static int load_maze_high_score(void)
+{
+    nvs_handle_t handle;
+    int32_t stored_score = 0;
+    esp_err_t err = nvs_open(SCORE_STORAGE_NAMESPACE, NVS_READONLY, &handle);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        return 0;
+    }
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "failed to open score storage: %s", esp_err_to_name(err));
+        return 0;
+    }
+
+    err = nvs_get_i32(handle, SCORE_STORAGE_KEY, &stored_score);
+    nvs_close(handle);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        return 0;
+    }
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "failed to read high score: %s", esp_err_to_name(err));
+        return 0;
+    }
+    if (stored_score < 0) {
+        return 0;
+    }
+    return stored_score;
+}
+
+static void save_maze_high_score_if_dirty(bool force)
+{
+    nvs_handle_t handle;
+    esp_err_t err;
+
+    if (!maze_high_score.dirty) {
+        return;
+    }
+    if (!force && maze_high_score.value < last_persisted_maze_high_score + SCORE_PERSIST_STEP) {
+        return;
+    }
+
+    err = nvs_open(SCORE_STORAGE_NAMESPACE, NVS_READWRITE, &handle);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "failed to open score storage for write: %s", esp_err_to_name(err));
+        return;
+    }
+
+    err = nvs_set_i32(handle, SCORE_STORAGE_KEY, maze_high_score.value);
+    if (err == ESP_OK) {
+        err = nvs_commit(handle);
+    }
+    nvs_close(handle);
+
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "failed to save high score: %s", esp_err_to_name(err));
+        return;
+    }
+
+    last_persisted_maze_high_score = maze_high_score.value;
+    maze_high_score.dirty = false;
+    ESP_LOGI(TAG, "saved maze high score: %d", maze_high_score.value);
+}
+
 static void animation_timer_callback(void *arg)
 {
     (void)arg;
@@ -659,5 +794,6 @@ static void update_animation_timer(vibe_display_state_t state)
     if (!should_run && animation_running) {
         esp_timer_stop(animation_timer);
         animation_running = false;
+        save_maze_high_score_if_dirty(true);
     }
 }

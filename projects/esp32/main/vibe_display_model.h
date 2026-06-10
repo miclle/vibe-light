@@ -11,6 +11,8 @@ extern "C" {
 
 #define VIBE_DISPLAY_ROW_TEXT_MAX 48
 #define VIBE_DISPLAY_COUNT_TEXT_MAX 8
+#define VIBE_DISPLAY_MAZE_SCORE_TEXT_MAX 16
+#define VIBE_DISPLAY_MAZE_LEVEL_TEXT_MAX 4
 #define VIBE_DISPLAY_ANIMATION_PATH_STEPS 425
 #define VIBE_DISPLAY_ANIMATION_SUBSTEPS 2
 #define VIBE_DISPLAY_ANIMATION_PERIOD_MS 240
@@ -28,6 +30,20 @@ extern "C" {
 #define VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS \
     (VIBE_DISPLAY_ANIMATION_PATH_STEPS * VIBE_DISPLAY_ANIMATION_SUBSTEPS)
 #define VIBE_DISPLAY_MAZE_POWER_PELLET_RADIUS 3
+#define VIBE_DISPLAY_MAZE_SCORE_CLEAR_Y 16
+#define VIBE_DISPLAY_MAZE_SCORE_CLEAR_H 10
+#define VIBE_DISPLAY_MAZE_SCORE_VALUE_Y 16
+#define VIBE_DISPLAY_MAZE_SCORE_VALUE_H 10
+#define VIBE_DISPLAY_MAZE_SCORE_LEFT_X 16
+#define VIBE_DISPLAY_MAZE_SCORE_RIGHT_X 83
+#define VIBE_DISPLAY_MAZE_HIGH_SCORE_LEFT_X 126
+#define VIBE_DISPLAY_MAZE_HIGH_SCORE_RIGHT_X 193
+#define VIBE_DISPLAY_MAZE_LEVEL_CLEAR_Y 12
+#define VIBE_DISPLAY_MAZE_LEVEL_CLEAR_H 14
+#define VIBE_DISPLAY_MAZE_LEVEL_VALUE_Y 14
+#define VIBE_DISPLAY_MAZE_LEVEL_LEFT_X 238
+#define VIBE_DISPLAY_MAZE_LEVEL_RIGHT_X 303
+#define VIBE_DISPLAY_MAZE_LEVEL_VALUE_X 284
 #define VIBE_DISPLAY_CODEX_ACTOR_RADIUS 7
 #define VIBE_DISPLAY_CODEX_ACTOR_EYE_RADIUS 0
 #define VIBE_DISPLAY_TASK_PANEL_X 0
@@ -72,6 +88,11 @@ typedef struct {
     char weekly[12];
 } vibe_display_usage_summary_t;
 
+typedef struct {
+    int value;
+    bool dirty;
+} vibe_display_maze_high_score_t;
+
 typedef enum {
     VIBE_DISPLAY_DIRECTION_RIGHT = 0,
     VIBE_DISPLAY_DIRECTION_DOWN,
@@ -103,9 +124,18 @@ bool vibe_display_should_render(vibe_display_signature_t *signature, const vibe_
 void vibe_display_format_task_row(const vibe_status_task_t *task, int index, vibe_display_task_row_t *row);
 void vibe_display_format_count_summary(const vibe_status_packet_t *packet, vibe_display_count_summary_t *summary);
 void vibe_display_format_maze_count_text(const vibe_status_packet_t *packet, vibe_display_maze_count_text_t *text);
+int vibe_display_maze_score(int tick, int actor_count, int active_count, int reset_ticks);
+void vibe_display_format_maze_score_text(int score, char *text, size_t text_size);
+int vibe_display_maze_level(int tick, int actor_count, int reset_ticks);
+void vibe_display_format_maze_level_text(int level, char *text, size_t text_size);
+void vibe_display_maze_high_score_init(vibe_display_maze_high_score_t *high_score, int stored_value);
+bool vibe_display_maze_high_score_update(vibe_display_maze_high_score_t *high_score, int score);
 void vibe_display_format_usage_summary(const vibe_status_packet_t *packet, vibe_display_usage_summary_t *summary);
 void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, size_t text_size);
 bool vibe_display_animation_enabled(vibe_display_state_t state);
+bool vibe_display_should_preserve_animation_tick(vibe_display_state_t previous_state,
+                                                 vibe_display_state_t next_state,
+                                                 bool animation_running);
 int vibe_display_animation_step(int active_count);
 int vibe_display_animation_actor_count(int task_count, int active_count);
 void vibe_display_animation_frame(int tick, int active_count, vibe_display_animation_frame_t *frame);

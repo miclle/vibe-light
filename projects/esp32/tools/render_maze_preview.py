@@ -73,6 +73,19 @@ def display_model_define(name: str) -> int:
 
 MAZE_REFERENCE_MIN_X = display_model_define("VIBE_DISPLAY_MAZE_REFERENCE_MIN_X")
 MAZE_REFERENCE_MAX_X = display_model_define("VIBE_DISPLAY_MAZE_REFERENCE_MAX_X")
+MAZE_SCORE_CLEAR_Y = display_model_define("VIBE_DISPLAY_MAZE_SCORE_CLEAR_Y")
+MAZE_SCORE_CLEAR_H = display_model_define("VIBE_DISPLAY_MAZE_SCORE_CLEAR_H")
+MAZE_SCORE_VALUE_Y = display_model_define("VIBE_DISPLAY_MAZE_SCORE_VALUE_Y")
+MAZE_SCORE_LEFT_X = display_model_define("VIBE_DISPLAY_MAZE_SCORE_LEFT_X")
+MAZE_SCORE_RIGHT_X = display_model_define("VIBE_DISPLAY_MAZE_SCORE_RIGHT_X")
+MAZE_HIGH_SCORE_LEFT_X = display_model_define("VIBE_DISPLAY_MAZE_HIGH_SCORE_LEFT_X")
+MAZE_HIGH_SCORE_RIGHT_X = display_model_define("VIBE_DISPLAY_MAZE_HIGH_SCORE_RIGHT_X")
+MAZE_LEVEL_CLEAR_Y = display_model_define("VIBE_DISPLAY_MAZE_LEVEL_CLEAR_Y")
+MAZE_LEVEL_CLEAR_H = display_model_define("VIBE_DISPLAY_MAZE_LEVEL_CLEAR_H")
+MAZE_LEVEL_VALUE_Y = display_model_define("VIBE_DISPLAY_MAZE_LEVEL_VALUE_Y")
+MAZE_LEVEL_LEFT_X = display_model_define("VIBE_DISPLAY_MAZE_LEVEL_LEFT_X")
+MAZE_LEVEL_RIGHT_X = display_model_define("VIBE_DISPLAY_MAZE_LEVEL_RIGHT_X")
+MAZE_LEVEL_VALUE_X = display_model_define("VIBE_DISPLAY_MAZE_LEVEL_VALUE_X")
 
 
 def maze_display_x(reference_x: int) -> int:
@@ -166,20 +179,56 @@ def draw_rects(image: Image, rects: list[tuple[int, int, int, int, tuple[int, in
         fill_rect(image, *rect)
 
 
-def draw_digit(image: Image, digit: str, x: int, y: int, color: tuple[int, int, int]) -> None:
-    glyphs = {
-        "0": ("111", "101", "101", "101", "111"),
-        "1": ("010", "110", "010", "010", "111"),
-    }
-    for row_index, row in enumerate(glyphs[digit]):
-        for col_index, pixel in enumerate(row):
-            if pixel == "1":
-                fill_rect(image, x + col_index * 2, y + row_index * 2, 1, 1, color)
-
-
-def draw_score(image: Image, y_offset: int) -> None:
-    draw_digit(image, "1", 8, y_offset + 5, WHITE)
-    draw_digit(image, "0", 16, y_offset + 5, WHITE)
+def draw_score_and_level(
+    image: Image,
+    y_offset: int,
+    score: int = 530,
+    high_score: int = 2300,
+    level: int = 2,
+) -> None:
+    fill_rect(
+        image,
+        MAZE_SCORE_LEFT_X,
+        y_offset + MAZE_SCORE_CLEAR_Y,
+        MAZE_SCORE_RIGHT_X - MAZE_SCORE_LEFT_X + 1,
+        MAZE_SCORE_CLEAR_H,
+        BLACK,
+    )
+    fill_rect(
+        image,
+        MAZE_HIGH_SCORE_LEFT_X,
+        y_offset + MAZE_SCORE_CLEAR_Y,
+        MAZE_HIGH_SCORE_RIGHT_X - MAZE_HIGH_SCORE_LEFT_X + 1,
+        MAZE_SCORE_CLEAR_H,
+        BLACK,
+    )
+    fill_rect(
+        image,
+        MAZE_LEVEL_LEFT_X,
+        y_offset + MAZE_LEVEL_CLEAR_Y,
+        MAZE_LEVEL_RIGHT_X - MAZE_LEVEL_LEFT_X + 1,
+        MAZE_LEVEL_CLEAR_H,
+        BLACK,
+    )
+    draw_text(
+        image,
+        MAZE_SCORE_LEFT_X,
+        y_offset + MAZE_SCORE_VALUE_Y,
+        f"{max(score, 0):06d}",
+        2,
+        PINK,
+    )
+    draw_text(image, MAZE_LEVEL_LEFT_X, y_offset + MAZE_LEVEL_VALUE_Y, "LEVEL", 2, WHITE)
+    draw_text(image, MAZE_LEVEL_VALUE_X, y_offset + MAZE_LEVEL_VALUE_Y, f"{max(1, min(level, 99))}", 2, BUSY)
+    draw_text_centered(
+        image,
+        MAZE_HIGH_SCORE_LEFT_X,
+        MAZE_HIGH_SCORE_RIGHT_X,
+        y_offset + MAZE_SCORE_VALUE_Y,
+        f"{max(score, high_score, 0):06d}",
+        2,
+        PINK,
+    )
 
 
 LETTER_GLYPHS = {
@@ -395,6 +444,7 @@ def draw_reference_maze(image: Image, y_offset: int) -> None:
     pacman_x = maze_display_x(143)
     fill_circle(image, pacman_x, y_offset + 214, 7, DOT)
     fill_triangle(image, pacman_x + 10, y_offset + 214, pacman_x, y_offset + 209, pacman_x, y_offset + 219, BLACK)
+    draw_score_and_level(image, y_offset)
     draw_maze_count_boxes(image, y_offset)
 
 

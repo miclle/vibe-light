@@ -1,6 +1,7 @@
 #include "vibe_status.h"
 #include "vibe_cjk_font.h"
 #include "vibe_display_model.h"
+#include "vibe_reference_maze.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -27,6 +28,9 @@ static bool parse(const char *json, vibe_status_packet_t *packet)
 static bool frame_matches_reference_pellet(const vibe_display_animation_frame_t *frame);
 static int find_pellet_at_frame(const vibe_display_animation_frame_t *frame);
 static int visible_pellet_count_at_tick(int tick, int actor_count);
+static bool reference_maze_color_intersects_rect(uint16_t color, int x, int y, int w, int h);
+static bool reference_maze_long_color_intersects_rect(uint16_t color, int min_length, int x, int y, int w, int h);
+static int reference_maze_min_long_color_y(uint16_t color, int min_length);
 
 static void test_v1_status_packet(void)
 {
@@ -303,6 +307,112 @@ static void test_display_model_formats_maze_count_text(void)
     assert(strlen(text.error) < sizeof(text.error));
 }
 
+static void test_display_model_formats_live_maze_score(void)
+{
+    char score[VIBE_DISPLAY_MAZE_SCORE_TEXT_MAX];
+    const int single_actor_start_score = vibe_display_maze_score(0, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS);
+    const int single_actor_later_score = vibe_display_maze_score(44 * VIBE_DISPLAY_ANIMATION_SUBSTEPS, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS);
+    const int multi_actor_score = vibe_display_maze_score(44 * VIBE_DISPLAY_ANIMATION_SUBSTEPS, 5, 5, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS);
+    const int score_after_visual_reset = vibe_display_maze_score(731, 1, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS);
+
+    assert(single_actor_start_score == 10);
+    assert(single_actor_later_score > single_actor_start_score);
+    assert(multi_actor_score > single_actor_later_score);
+    assert(score_after_visual_reset == 2300);
+
+    vibe_display_format_maze_score_text(single_actor_later_score, score, sizeof(score));
+
+    assert(strcmp(score, "000530") == 0);
+    assert(strlen(score) < VIBE_DISPLAY_MAZE_SCORE_TEXT_MAX);
+}
+
+static void test_display_model_tracks_maze_high_score(void)
+{
+    vibe_display_maze_high_score_t high_score;
+    char text[VIBE_DISPLAY_MAZE_SCORE_TEXT_MAX];
+
+    vibe_display_maze_high_score_init(&high_score, 1200);
+
+    assert(high_score.value == 1200);
+    assert(!high_score.dirty);
+    assert(!vibe_display_maze_high_score_update(&high_score, 530));
+    assert(high_score.value == 1200);
+    assert(!high_score.dirty);
+    assert(vibe_display_maze_high_score_update(&high_score, 2300));
+    assert(high_score.value == 2300);
+    assert(high_score.dirty);
+
+    vibe_display_format_maze_score_text(high_score.value, text, sizeof(text));
+
+    assert(strcmp(text, "002300") == 0);
+
+    vibe_display_format_maze_score_text(1000000, text, sizeof(text));
+
+    assert(strcmp(text, "999999") == 0);
+}
+
+static void test_display_model_formats_live_maze_level(void)
+{
+    char text[VIBE_DISPLAY_MAZE_LEVEL_TEXT_MAX];
+
+    assert(vibe_display_maze_level(0, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS) == 1);
+    assert(vibe_display_maze_level(730, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS) == 1);
+    assert(vibe_display_maze_level(731, 1, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS) == 2);
+    assert(vibe_display_maze_level(377, 2, VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS) == 2);
+
+    vibe_display_format_maze_level_text(2, text, sizeof(text));
+
+    assert(strcmp(text, "2") == 0);
+
+    vibe_display_format_maze_level_text(1000, text, sizeof(text));
+
+    assert(strcmp(text, "99") == 0);
+}
+
+static void test_display_model_preserves_animation_tick_while_busy(void)
+{
+    assert(vibe_display_should_preserve_animation_tick(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_BUSY, true));
+    assert(!vibe_display_should_preserve_animation_tick(VIBE_DISPLAY_IDLE, VIBE_DISPLAY_BUSY, false));
+    assert(!vibe_display_should_preserve_animation_tick(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_BUSY, false));
+    assert(!vibe_display_should_preserve_animation_tick(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_WAITING, true));
+}
+
+static void test_display_model_top_overlays_do_not_erase_maze_lines(void)
+{
+    const int score_y = VIBE_DISPLAY_MAZE_SCORE_CLEAR_Y;
+    const int score_h = VIBE_DISPLAY_MAZE_SCORE_CLEAR_H;
+    const int score_w = VIBE_DISPLAY_MAZE_SCORE_RIGHT_X - VIBE_DISPLAY_MAZE_SCORE_LEFT_X + 1;
+    const int high_score_w = VIBE_DISPLAY_MAZE_HIGH_SCORE_RIGHT_X - VIBE_DISPLAY_MAZE_HIGH_SCORE_LEFT_X + 1;
+    const int level_w = VIBE_DISPLAY_MAZE_LEVEL_RIGHT_X - VIBE_DISPLAY_MAZE_LEVEL_LEFT_X + 1;
+
+    assert(!reference_maze_color_intersects_rect(0x047f,
+                                                 VIBE_DISPLAY_MAZE_SCORE_LEFT_X,
+                                                 score_y,
+                                                 score_w,
+                                                 score_h));
+    assert(!reference_maze_color_intersects_rect(0x047f,
+                                                 VIBE_DISPLAY_MAZE_HIGH_SCORE_LEFT_X,
+                                                 score_y,
+                                                 high_score_w,
+                                                 score_h));
+    assert(!reference_maze_long_color_intersects_rect(0x047f,
+                                                      200,
+                                                      VIBE_DISPLAY_MAZE_LEVEL_LEFT_X,
+                                                      VIBE_DISPLAY_MAZE_LEVEL_CLEAR_Y,
+                                                      level_w,
+                                                      VIBE_DISPLAY_MAZE_LEVEL_CLEAR_H));
+}
+
+static void test_display_model_score_value_keeps_gap_above_maze_top_line(void)
+{
+    const int top_maze_line_y = reference_maze_min_long_color_y(0x047f, 200);
+
+    assert(top_maze_line_y > 0);
+    assert(VIBE_DISPLAY_MAZE_SCORE_VALUE_Y + VIBE_DISPLAY_MAZE_SCORE_VALUE_H + 2 <= top_maze_line_y);
+    assert(VIBE_DISPLAY_MAZE_SCORE_CLEAR_Y + VIBE_DISPLAY_MAZE_SCORE_CLEAR_H + 2 <= top_maze_line_y);
+    assert(VIBE_DISPLAY_MAZE_SCORE_LEFT_X == 16);
+}
+
 static void test_display_model_animates_busy_center_stage(void)
 {
     vibe_display_animation_frame_t frame0;
@@ -467,6 +577,48 @@ static int visible_pellet_count_at_tick(int tick, int actor_count)
     }
 
     return count;
+}
+
+static bool reference_maze_color_intersects_rect(uint16_t color, int x, int y, int w, int h)
+{
+    for (int i = 0; i < VIBE_REFERENCE_MAZE_RUN_COUNT; i++) {
+        const vibe_reference_maze_run_t *run = &VIBE_REFERENCE_MAZE_RUNS[i];
+        bool y_intersects = (int)run->y >= y && (int)run->y < y + h;
+        bool x_intersects = (int)run->x < x + w && (int)run->x + (int)run->length > x;
+        if (run->color == color && y_intersects && x_intersects) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool reference_maze_long_color_intersects_rect(uint16_t color, int min_length, int x, int y, int w, int h)
+{
+    for (int i = 0; i < VIBE_REFERENCE_MAZE_RUN_COUNT; i++) {
+        const vibe_reference_maze_run_t *run = &VIBE_REFERENCE_MAZE_RUNS[i];
+        bool y_intersects = (int)run->y >= y && (int)run->y < y + h;
+        bool x_intersects = (int)run->x < x + w && (int)run->x + (int)run->length > x;
+        if (run->color == color && (int)run->length >= min_length && y_intersects && x_intersects) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static int reference_maze_min_long_color_y(uint16_t color, int min_length)
+{
+    int min_y = 10000;
+
+    for (int i = 0; i < VIBE_REFERENCE_MAZE_RUN_COUNT; i++) {
+        const vibe_reference_maze_run_t *run = &VIBE_REFERENCE_MAZE_RUNS[i];
+        if (run->color == color && (int)run->length >= min_length && (int)run->y < min_y) {
+            min_y = (int)run->y;
+        }
+    }
+
+    return min_y == 10000 ? -1 : min_y;
 }
 
 static void test_display_model_animates_only_on_reference_pellets(void)
@@ -855,6 +1007,12 @@ int main(void)
     test_display_model_formats_task_rows();
     test_display_model_formats_compact_count_summary();
     test_display_model_formats_maze_count_text();
+    test_display_model_formats_live_maze_score();
+    test_display_model_tracks_maze_high_score();
+    test_display_model_formats_live_maze_level();
+    test_display_model_preserves_animation_tick_while_busy();
+    test_display_model_top_overlays_do_not_erase_maze_lines();
+    test_display_model_score_value_keeps_gap_above_maze_top_line();
     test_display_model_animates_busy_center_stage();
     test_display_model_animates_through_maze_turns();
     test_display_model_places_pellets_on_maze_centerline();

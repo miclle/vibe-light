@@ -13,6 +13,7 @@ static bool maze_pellet_eaten_since_round_start(int pellet_index, int phase_offs
 static bool maze_pellet_eaten_on_segment(int pellet_index, int from_path_position, int substep);
 static bool maze_pellet_between_points(int pellet_index, const vibe_display_maze_point_t *from, int to_x, int to_y);
 static int maze_pellet_round_ticks(int actor_count);
+static int maze_total_round_score(void);
 static void copy_text(char *dest, size_t dest_size, const char *source);
 static void append_text(char *dest, size_t dest_size, const char *source);
 static void format_count(char *dest, size_t dest_size, char label, int count);
@@ -147,6 +148,116 @@ void vibe_display_format_maze_count_text(const vibe_status_packet_t *packet, vib
     format_maze_count(text->error, sizeof(text->error), "ERR", packet->error_count);
 }
 
+int vibe_display_maze_score(int tick, int actor_count, int active_count, int reset_ticks)
+{
+    int round_ticks;
+    int completed_rounds;
+    int round_tick;
+    int score;
+
+    if (tick < 0) {
+        tick = 0;
+    }
+    if (actor_count < 1) {
+        actor_count = 1;
+    }
+    if (actor_count > VIBE_STATUS_MAX_TASKS) {
+        actor_count = VIBE_STATUS_MAX_TASKS;
+    }
+
+    round_ticks = maze_pellet_round_ticks(actor_count);
+    if (reset_ticks > 0 && reset_ticks < round_ticks) {
+        round_ticks = reset_ticks;
+    }
+    completed_rounds = tick / round_ticks;
+    round_tick = tick % round_ticks;
+    score = completed_rounds * maze_total_round_score();
+
+    for (int i = 0; i < VIBE_DISPLAY_MAZE_PELLET_COUNT; i++) {
+        if (vibe_display_maze_pellet_visible(i, round_tick, actor_count, active_count, reset_ticks)) {
+            continue;
+        }
+        score += vibe_display_maze_is_power_pellet(i, VIBE_DISPLAY_MAZE_PELLET_COUNT) ? 50 : 10;
+    }
+
+    return score;
+}
+
+void vibe_display_format_maze_score_text(int score, char *text, size_t text_size)
+{
+    if (text == NULL || text_size == 0) {
+        return;
+    }
+
+    if (score < 0) {
+        score = 0;
+    }
+    if (score > 999999) {
+        score = 999999;
+    }
+    snprintf(text, text_size, "%06d", score);
+}
+
+int vibe_display_maze_level(int tick, int actor_count, int reset_ticks)
+{
+    int round_ticks;
+
+    if (tick < 0) {
+        tick = 0;
+    }
+    if (actor_count < 1) {
+        actor_count = 1;
+    }
+    if (actor_count > VIBE_STATUS_MAX_TASKS) {
+        actor_count = VIBE_STATUS_MAX_TASKS;
+    }
+
+    round_ticks = maze_pellet_round_ticks(actor_count);
+    if (reset_ticks > 0 && reset_ticks < round_ticks) {
+        round_ticks = reset_ticks;
+    }
+    return tick / round_ticks + 1;
+}
+
+void vibe_display_format_maze_level_text(int level, char *text, size_t text_size)
+{
+    if (text == NULL || text_size == 0) {
+        return;
+    }
+
+    if (level < 1) {
+        level = 1;
+    }
+    if (level > 99) {
+        level = 99;
+    }
+    snprintf(text, text_size, "%d", level);
+}
+
+void vibe_display_maze_high_score_init(vibe_display_maze_high_score_t *high_score, int stored_value)
+{
+    if (high_score == NULL) {
+        return;
+    }
+
+    if (stored_value < 0) {
+        stored_value = 0;
+    }
+    high_score->value = stored_value;
+    high_score->dirty = false;
+}
+
+bool vibe_display_maze_high_score_update(vibe_display_maze_high_score_t *high_score, int score)
+{
+    if (high_score == NULL || score <= high_score->value) {
+        return false;
+    }
+
+    high_score->value = score;
+    high_score->dirty = true;
+    return true;
+}
+
 void vibe_display_format_usage_summary(const vibe_status_packet_t *packet, vibe_display_usage_summary_t *summary)
 {
     if (summary == NULL) {
@@ -176,6 +287,15 @@ void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, si
 bool vibe_display_animation_enabled(vibe_display_state_t state)
 {
     return state == VIBE_DISPLAY_BUSY;
+}
+
+bool vibe_display_should_preserve_animation_tick(vibe_display_state_t previous_state,
+                                                 vibe_display_state_t next_state,
+                                                 bool animation_running)
+{
+    return animation_running &&
+           vibe_display_animation_enabled(previous_state) &&
+           vibe_display_animation_enabled(next_state);
 }
 
 int vibe_display_animation_step(int active_count)
@@ -408,6 +528,17 @@ static int maze_pellet_round_ticks(int actor_count)
         actor_count = VIBE_STATUS_MAX_TASKS;
     }
     return round_ticks_by_actor_count[actor_count];
+}
+
+static int maze_total_round_score(void)
+{
+    int score = 0;
+
+    for (int i = 0; i < VIBE_DISPLAY_MAZE_PELLET_COUNT; i++) {
+        score += vibe_display_maze_is_power_pellet(i, VIBE_DISPLAY_MAZE_PELLET_COUNT) ? 50 : 10;
+    }
+
+    return score;
 }
 
 void vibe_display_animation_actor_shape(const vibe_display_animation_frame_t *frame, vibe_display_animation_actor_t *actor)
