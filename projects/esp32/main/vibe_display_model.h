@@ -97,6 +97,9 @@ typedef struct {
 typedef struct {
     char label[24];
     char detail[VIBE_STATUS_TEXT_MAX];
+    int detail_scale;
+    int detail_max_width;
+    bool quiet_header;
 } vibe_display_empty_state_t;
 
 typedef struct {
@@ -143,6 +146,11 @@ void vibe_display_format_task_row_at(const vibe_status_task_t *task,
                                      int64_t now_ms,
                                      int index,
                                      vibe_display_task_row_t *row);
+void vibe_display_format_task_row_at_phase(const vibe_status_task_t *task,
+                                           int64_t now_ms,
+                                           int index,
+                                           int phase,
+                                           vibe_display_task_row_t *row);
 bool vibe_display_should_render_task_detail(const vibe_status_task_t *task);
 void vibe_display_format_count_summary(const vibe_status_packet_t *packet, vibe_display_count_summary_t *summary);
 void vibe_display_format_maze_count_text(const vibe_status_packet_t *packet, vibe_display_maze_count_text_t *text);
@@ -157,6 +165,7 @@ void vibe_display_format_usage_summary(const vibe_status_packet_t *packet, vibe_
 void vibe_display_format_empty_state(const vibe_status_packet_t *packet, vibe_display_empty_state_t *empty);
 void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, size_t text_size);
 bool vibe_display_animation_enabled(vibe_display_state_t state);
+bool vibe_display_phase_refresh_enabled(vibe_display_state_t state);
 bool vibe_display_should_preserve_animation_tick(vibe_display_state_t previous_state,
                                                  vibe_display_state_t next_state,
                                                  bool animation_running);

@@ -30,7 +30,7 @@
 - The project is already beyond a pure concept doc: ESP32 firmware has a real ST7701 LCD path and host-side tests.
 - The current display direction is a top status band, 320px reference maze stage, bottom task panel and firmware-local Codex Pac-Man animation for `busy`.
 - Current docs should preserve the hook stdout contract: `vibe-light-hook` writes events only, keeps stdout silent, reports failures on stderr and exits fail-open.
-- Current protocol docs should include Codex usage and task timing if relevant: 5h / 7d remaining percentages, optional reset timestamps, task-level `updatedAt` timing, and `CTX` context used percentage as the trailing-label fallback.
+- Current protocol docs should include Codex usage and task timing if relevant: 5h / 7d remaining percentages, optional reset timestamps, task-level `updatedAt` timing, and `CTX` context used percentage as the trailing-label fallback or active-task rotating label.
 - Hardware facts should remain tied to Waveshare `ESP32-S3-LCD-3.16` unless the user changes target hardware.
 - Current firmware advertises as `VibeLight-S3`; document BLE examples with that concrete device name unless code changes it.
 - Display docs should mention the host-side PNG previews when layout or maze geometry changes.

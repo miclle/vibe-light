@@ -143,7 +143,7 @@ static const st7701_lcd_init_cmd_t lcd_init_cmds[] = {
 static esp_err_t init_backlight(void);
 static esp_err_t init_lcd_panel(void);
 static void render_status(const vibe_status_packet_t *packet, int animation_phase);
-static void render_task_rows(const vibe_status_packet_t *packet);
+static void render_task_rows(const vibe_status_packet_t *packet, int animation_phase);
 static void render_codex_animation(const vibe_status_packet_t *packet, int animation_phase);
 static void render_maze(const vibe_status_packet_t *packet, int animation_phase);
 static void render_reference_maze_art(void);
@@ -318,7 +318,13 @@ static esp_err_t init_lcd_panel(void)
 
 static void render_status(const vibe_status_packet_t *packet, int animation_phase)
 {
-    uint16_t accent = color_for_state(packet->state);
+    vibe_display_empty_state_t empty;
+    bool has_empty_state = packet->task_count == 0;
+    if (has_empty_state) {
+        vibe_display_format_empty_state(packet, &empty);
+    }
+
+    uint16_t accent = has_empty_state && empty.quiet_header ? RGB565_PANEL : color_for_state(packet->state);
     if (vibe_display_animation_enabled(packet->state)) {
         int actor_count = vibe_display_animation_actor_count(packet->task_count, packet->active_count);
         vibe_display_maze_warm_pellet_cache(actor_count);
@@ -359,12 +365,15 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
     render_maze(packet, animation_phase);
 
     if (packet->task_count > 0) {
-        render_task_rows(packet);
+        render_task_rows(packet, animation_phase);
     } else {
-        vibe_display_empty_state_t empty;
-        vibe_display_format_empty_state(packet, &empty);
         vibe_display_text_draw(16, VIBE_DISPLAY_TASK_PANEL_Y + 28, empty.label, 2, RGB565_MUTED);
-        vibe_display_text_draw(16, VIBE_DISPLAY_TASK_PANEL_Y + 84, empty.detail, 3, RGB565_WHITE);
+        vibe_display_text_draw_ellipsis(16,
+                                        VIBE_DISPLAY_TASK_PANEL_Y + 84,
+                                        empty.detail,
+                                        empty.detail_scale,
+                                        RGB565_WHITE,
+                                        empty.detail_max_width);
     }
 
     char footer[48];
@@ -380,14 +389,14 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
     esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, LCD_H_RES, LCD_V_RES, framebuffer);
 }
 
-static void render_task_rows(const vibe_status_packet_t *packet)
+static void render_task_rows(const vibe_status_packet_t *packet, int animation_phase)
 {
     int rows = packet->task_count > VIBE_STATUS_MAX_TASKS ? VIBE_STATUS_MAX_TASKS : packet->task_count;
     int y = VIBE_DISPLAY_TASK_ROW_Y;
     for (int i = 0; i < rows; i++) {
         const vibe_status_task_t *task = &packet->tasks[i];
         vibe_display_task_row_t row;
-        vibe_display_format_task_row_at(task, packet->timestamp_ms, i, &row);
+        vibe_display_format_task_row_at_phase(task, packet->timestamp_ms, i, animation_phase, &row);
 
         uint16_t task_color = color_for_state(task->state);
         const int trailing_x = row.trailing[0] == '\0' ? LCD_H_RES : LCD_H_RES - 4 - vibe_display_text_width(row.trailing, 2);
@@ -649,7 +658,7 @@ static void animation_timer_callback(void *arg)
         return;
     }
 
-    if (vibe_display_animation_enabled(last_render_packet.state)) {
+    if (vibe_display_phase_refresh_enabled(last_render_packet.state)) {
         animation_tick++;
         render_status(&last_render_packet, animation_tick);
     }
@@ -659,7 +668,7 @@ static void animation_timer_callback(void *arg)
 
 static void update_animation_timer(vibe_display_state_t state)
 {
-    bool should_run = display_ready && animation_timer != NULL && vibe_display_animation_enabled(state);
+    bool should_run = display_ready && animation_timer != NULL && vibe_display_phase_refresh_enabled(state);
     if (should_run && !animation_running) {
         animation_tick = 0;
         if (esp_timer_start_periodic(animation_timer, ANIMATION_PERIOD_MS * 1000) == ESP_OK) {

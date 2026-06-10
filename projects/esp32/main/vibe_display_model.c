@@ -24,6 +24,7 @@ static void format_maze_count(char *dest, size_t dest_size, const char *label, i
 static void format_percent(char *dest, size_t dest_size, const char *label, int percent);
 static bool format_reset_hint(char *dest, size_t dest_size, const char *label, int remaining_percent, int64_t reset_at_ms, int64_t now_ms);
 static bool format_task_timing(char *dest, size_t dest_size, const vibe_status_task_t *task, int64_t now_ms);
+static bool should_show_context_for_task(const vibe_status_task_t *task, int index, int phase);
 static int positive_mod(int value, int modulus);
 
 static int16_t maze_first_eaten_ticks[VIBE_STATUS_MAX_TASKS + 1][VIBE_DISPLAY_MAZE_PELLET_COUNT];
@@ -97,8 +98,11 @@ void vibe_display_format_task_row(const vibe_status_task_t *task, int index, vib
 
 void vibe_display_format_task_row_at(const vibe_status_task_t *task, int64_t now_ms, int index, vibe_display_task_row_t *row)
 {
-    (void)index;
+    vibe_display_format_task_row_at_phase(task, now_ms, index, 0, row);
+}
 
+void vibe_display_format_task_row_at_phase(const vibe_status_task_t *task, int64_t now_ms, int index, int phase, vibe_display_task_row_t *row)
+{
     if (row == NULL) {
         return;
     }
@@ -112,7 +116,10 @@ void vibe_display_format_task_row_at(const vibe_status_task_t *task, int64_t now
 
     copy_text(row->badge, sizeof(row->badge), badge_for_state(task->state));
     copy_text(row->title, sizeof(row->title), task->title[0] == '\0' ? "untitled" : task->title);
-    if (!format_task_timing(row->trailing, sizeof(row->trailing), task, now_ms)) {
+    bool has_timing = format_task_timing(row->trailing, sizeof(row->trailing), task, now_ms);
+    if (has_timing && should_show_context_for_task(task, index, phase)) {
+        format_percent(row->trailing, sizeof(row->trailing), "CTX", task->context_used_percent);
+    } else if (!has_timing) {
         format_percent(row->trailing, sizeof(row->trailing), "CTX", task->context_used_percent);
     }
 
@@ -335,6 +342,9 @@ void vibe_display_format_empty_state(const vibe_status_packet_t *packet, vibe_di
 
     memset(empty, 0, sizeof(*empty));
     copy_text(empty->label, sizeof(empty->label), "NO ACTIVE TASKS");
+    empty->detail_scale = 2;
+    empty->detail_max_width = 288;
+    empty->quiet_header = true;
     if (packet == NULL || packet->detail[0] == '\0' || strcmp(packet->detail, "no active tasks") == 0) {
         copy_text(empty->detail, sizeof(empty->detail), vibe_display_state_to_title(packet == NULL ? VIBE_DISPLAY_IDLE : packet->state));
         return;
@@ -359,13 +369,18 @@ bool vibe_display_animation_enabled(vibe_display_state_t state)
     return state == VIBE_DISPLAY_BUSY;
 }
 
+bool vibe_display_phase_refresh_enabled(vibe_display_state_t state)
+{
+    return state == VIBE_DISPLAY_BUSY || state == VIBE_DISPLAY_WAITING;
+}
+
 bool vibe_display_should_preserve_animation_tick(vibe_display_state_t previous_state,
                                                  vibe_display_state_t next_state,
                                                  bool animation_running)
 {
     return animation_running &&
-           vibe_display_animation_enabled(previous_state) &&
-           vibe_display_animation_enabled(next_state);
+           previous_state == next_state &&
+           vibe_display_phase_refresh_enabled(next_state);
 }
 
 int vibe_display_animation_step(int active_count)
@@ -947,4 +962,15 @@ static bool format_task_timing(char *dest, size_t dest_size, const vibe_status_t
         snprintf(dest, dest_size, "%lldh ago", (long long)hours);
     }
     return true;
+}
+
+static bool should_show_context_for_task(const vibe_status_task_t *task, int index, int phase)
+{
+    if (task == NULL || task->context_used_percent < 0 ||
+        (task->state != VIBE_DISPLAY_BUSY && task->state != VIBE_DISPLAY_WAITING)) {
+        return false;
+    }
+
+    int slot = positive_mod((phase / 12) + index, task->context_used_percent >= 85 ? 2 : 4);
+    return slot == (task->context_used_percent >= 85 ? 1 : 3);
 }

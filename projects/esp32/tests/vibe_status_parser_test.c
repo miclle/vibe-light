@@ -302,12 +302,15 @@ static void test_display_model_formats_empty_state_with_last_result(void)
     vibe_display_empty_state_t empty;
     vibe_status_default(&packet);
     packet.state = VIBE_DISPLAY_IDLE;
-    snprintf(packet.detail, sizeof(packet.detail), "%s", "LAST ERR firmware");
+    snprintf(packet.detail, sizeof(packet.detail), "%s", "LAST OK VIBE-LIGHT");
 
     vibe_display_format_empty_state(&packet, &empty);
 
     assert(strcmp(empty.label, "NO ACTIVE TASKS") == 0);
-    assert(strcmp(empty.detail, "LAST ERR firmware") == 0);
+    assert(strcmp(empty.detail, "LAST OK VIBE-LIGHT") == 0);
+    assert(empty.detail_scale == 2);
+    assert(empty.detail_max_width <= 288);
+    assert(empty.quiet_header);
 }
 
 static void test_display_model_formats_running_task_duration(void)
@@ -326,6 +329,46 @@ static void test_display_model_formats_running_task_duration(void)
     vibe_display_format_task_row_at(&task, 1780300800000LL, 0, &row);
 
     assert(strcmp(row.trailing, "RUN 03:12") == 0);
+}
+
+static void test_display_model_rotates_running_task_context_usage(void)
+{
+    vibe_status_task_t task = {
+        .title = "desktop",
+        .source = "codex",
+        .state = VIBE_DISPLAY_BUSY,
+        .state_text = "busy",
+        .detail = "make quick",
+        .context_used_percent = 74,
+        .updated_at_ms = 1780300608000LL,
+    };
+    vibe_display_task_row_t row;
+
+    vibe_display_format_task_row_at_phase(&task, 1780300800000LL, 0, 0, &row);
+    assert(strcmp(row.trailing, "RUN 03:12") == 0);
+
+    vibe_display_format_task_row_at_phase(&task, 1780300800000LL, 0, 36, &row);
+    assert(strcmp(row.trailing, "CTX 74%") == 0);
+}
+
+static void test_display_model_prioritizes_high_context_usage(void)
+{
+    vibe_status_task_t task = {
+        .title = "desktop",
+        .source = "codex",
+        .state = VIBE_DISPLAY_BUSY,
+        .state_text = "busy",
+        .detail = "make quick",
+        .context_used_percent = 90,
+        .updated_at_ms = 1780300608000LL,
+    };
+    vibe_display_task_row_t row;
+
+    vibe_display_format_task_row_at_phase(&task, 1780300800000LL, 0, 0, &row);
+    assert(strcmp(row.trailing, "RUN 03:12") == 0);
+
+    vibe_display_format_task_row_at_phase(&task, 1780300800000LL, 0, 12, &row);
+    assert(strcmp(row.trailing, "CTX 90%") == 0);
 }
 
 static void test_display_model_formats_waiting_task_duration(void)
@@ -491,6 +534,7 @@ static void test_display_model_formats_live_maze_level(void)
 static void test_display_model_preserves_animation_tick_while_busy(void)
 {
     assert(vibe_display_should_preserve_animation_tick(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_BUSY, true));
+    assert(vibe_display_should_preserve_animation_tick(VIBE_DISPLAY_WAITING, VIBE_DISPLAY_WAITING, true));
     assert(!vibe_display_should_preserve_animation_tick(VIBE_DISPLAY_IDLE, VIBE_DISPLAY_BUSY, false));
     assert(!vibe_display_should_preserve_animation_tick(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_BUSY, false));
     assert(!vibe_display_should_preserve_animation_tick(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_WAITING, true));
@@ -545,6 +589,9 @@ static void test_display_model_animates_busy_center_stage(void)
     assert(vibe_display_animation_enabled(VIBE_DISPLAY_BUSY));
     assert(!vibe_display_animation_enabled(VIBE_DISPLAY_WAITING));
     assert(!vibe_display_animation_enabled(VIBE_DISPLAY_IDLE));
+    assert(vibe_display_phase_refresh_enabled(VIBE_DISPLAY_BUSY));
+    assert(vibe_display_phase_refresh_enabled(VIBE_DISPLAY_WAITING));
+    assert(!vibe_display_phase_refresh_enabled(VIBE_DISPLAY_IDLE));
 
     vibe_display_animation_frame(0, 1, &frame0);
     vibe_display_animation_frame(1, 1, &frame1);
@@ -1154,6 +1201,8 @@ int main(void)
     test_display_model_formats_task_rows();
     test_display_model_formats_empty_state_with_last_result();
     test_display_model_formats_running_task_duration();
+    test_display_model_rotates_running_task_context_usage();
+    test_display_model_prioritizes_high_context_usage();
     test_display_model_formats_waiting_task_duration();
     test_display_model_formats_recent_task_freshness();
     test_display_model_shows_detail_for_every_task_with_detail();
