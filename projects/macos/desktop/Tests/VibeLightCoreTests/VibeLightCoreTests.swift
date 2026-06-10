@@ -354,6 +354,43 @@ import Testing
     #expect(object["activeCount"] == nil)
 }
 
+@Test func statusPacketCompactsV2BeforeFallingBackToV1() throws {
+    let packet = StatusPacket(
+        v: 2,
+        source: .codex,
+        state: .busy,
+        detail: "5 running",
+        timestamp: Date(timeIntervalSince1970: 1_780_300_800),
+        activeCount: 5,
+        waitingCount: 0,
+        errorCount: 0,
+        tasks: (0..<5).map { index in
+            StatusTask(
+                title: "workspace-\(index)-with-long-name",
+                state: .busy,
+                source: .codex,
+                detail: "running task \(index) with extra detail",
+                contextUsedPercent: 70 + index
+            )
+        },
+        usage: StatusUsage(codex5hRemainingPercent: 88, codex7dRemainingPercent: 60)
+    )
+
+    let fullData = try packet.encodedJSON()
+    let constrainedData = try packet.encodedJSON(maximumWriteLength: 512)
+    let object = try #require(JSONSerialization.jsonObject(with: constrainedData) as? [String: Any])
+    let tasks = try #require(object["tasks"] as? [[String: Any]])
+    let usage = try #require(object["usage"] as? [String: Any])
+
+    #expect(fullData.count > 512)
+    #expect(constrainedData.count <= 512)
+    #expect(object["v"] as? Int == 2)
+    #expect(usage["codex5hRemainingPercent"] as? Int == 88)
+    #expect(usage["codex7dRemainingPercent"] as? Int == 60)
+    #expect(tasks.count == 5)
+    #expect(tasks.map { $0["title"] as? String } == (0..<5).map { "workspace-\($0)-with-long-name" })
+}
+
 @Test func hardwareDemoPacketsProvideBoundedV2TaskScenarios() throws {
     let scenarios = HardwareDemoPacketScenario.allCases
 

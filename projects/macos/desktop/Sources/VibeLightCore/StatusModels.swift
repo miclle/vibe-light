@@ -245,6 +245,13 @@ public struct StatusPacket: Codable, Equatable, Sendable {
             return data
         }
 
+        for candidate in compactedV2Candidates() {
+            let candidateData = try candidate.encodedJSON()
+            if candidateData.count <= maximumWriteLength {
+                return candidateData
+            }
+        }
+
         var fallback = self
         fallback.v = 1
         fallback.activeCount = nil
@@ -253,6 +260,54 @@ public struct StatusPacket: Codable, Equatable, Sendable {
         fallback.tasks = nil
         fallback.usage = nil
         return try fallback.encodedJSON()
+    }
+
+    private func compactedV2Candidates() -> [StatusPacket] {
+        guard let tasks, !tasks.isEmpty else {
+            var candidate = self
+            candidate.v = 2
+            candidate.activeCount = nil
+            candidate.waitingCount = nil
+            candidate.errorCount = nil
+            return [candidate]
+        }
+
+        func tasksWithoutDetail(keepContext: Bool) -> [StatusTask] {
+            tasks.map {
+                StatusTask(
+                    title: $0.title,
+                    state: $0.state,
+                    source: $0.source,
+                    contextUsedPercent: keepContext ? $0.contextUsedPercent : nil
+                )
+            }
+        }
+
+        var withoutTaskDetail = self
+        withoutTaskDetail.v = 2
+        withoutTaskDetail.tasks = tasksWithoutDetail(keepContext: true)
+
+        var withoutTaskDetailOrContext = withoutTaskDetail
+        withoutTaskDetailOrContext.tasks = tasksWithoutDetail(keepContext: false)
+
+        var withoutCounts = withoutTaskDetailOrContext
+        withoutCounts.activeCount = nil
+        withoutCounts.waitingCount = nil
+        withoutCounts.errorCount = nil
+
+        var withoutDetail = withoutCounts
+        withoutDetail.detail = nil
+
+        var withoutUsage = withoutDetail
+        withoutUsage.usage = nil
+
+        return [
+            withoutTaskDetail,
+            withoutTaskDetailOrContext,
+            withoutCounts,
+            withoutDetail,
+            withoutUsage,
+        ]
     }
 
     private static func truncatedDetail(_ value: String) -> String {
