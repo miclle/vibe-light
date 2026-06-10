@@ -715,7 +715,7 @@ static void test_display_model_keeps_maze_path_inside_flush_border(void)
     vibe_display_animation_frame_t frame;
 
     assert(VIBE_DISPLAY_MAZE_STAGE_X == 0);
-    assert(VIBE_DISPLAY_MAZE_STAGE_Y == 82);
+    assert(VIBE_DISPLAY_MAZE_STAGE_Y == 90);
     assert(VIBE_DISPLAY_MAZE_STAGE_W == 320);
     assert(VIBE_DISPLAY_MAZE_STAGE_H == 320);
     assert(VIBE_DISPLAY_MAZE_FRAME_H == 320);
