@@ -44,6 +44,16 @@
    - 横屏原型建议采用“左侧状态 / 中间 Codex 动画 / 右侧任务列表 / 顶部或底部统计条”的信息架构。
    - 实机对比竖屏和横屏后，再决定是否产品化为可配置展示模式。
 
+4. **评估可追加上屏信息**
+   - 优先补充当前工具动作，例如 `Bash / make quick`、`Edit / README.md`、`Read / TaskTracker.swift`。Hook 事件已能解析 `toolName`、命令和文件路径，适合整理成短任务详情。
+   - 优化等待态文案，让 `waiting` 行优先显示审批目标，例如 `APPROVE Bash` 或 `ALLOW Edit README.md`，避免只看到泛化的等待状态。
+   - 利用事件时间戳或状态包 `ts` 显示任务新鲜度和运行时长，例如 `RUN 03:12`、`WAIT 01:08` 或 `2m ago`，帮助判断任务是否仍在推进。
+   - 将上下文用量从单纯 `CTX xx%` 进一步评估为 `CTX 4.2k/12k` 或高占用提示；这需要在 macOS 端保留 token 数并扩展状态包字段。
+   - 评估展示 Codex 5h / 7d reset 时间。Transcript 的 rate-limit 数据里可能包含 reset 时间，适合在顶部用量行轮播或在低余量时提示。
+   - 空闲状态可显示最近完成或最近失败的任务摘要，例如 `LAST OK vibe-light` 或 `LAST ERR firmware`，让 `NO ACTIVE TASKS` 更有上下文。
+   - 诊断模式可显示设备本地健康信息，例如运行时长、BLE 状态、heap、最近解析错误或渲染 tick；默认主屏不常驻，避免变成工程调试面板。
+   - 不建议上屏完整 prompt、完整命令输出、raw JSON、长路径、详细 token 分项或复杂多页菜单；屏幕信息应保持短、准、能指导下一步。
+
 ## 验证命令
 
 快速验证协议和桌面逻辑：
