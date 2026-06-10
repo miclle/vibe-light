@@ -8,7 +8,7 @@ The firmware lives in `projects/esp32` and targets Waveshare `ESP32-S3-LCD-3.16`
 
 - `main/vibe_ble.*`: BLE peripheral, `VibeLight-S3` advertising, status write characteristic and health read characteristic.
 - `main/vibe_status.*`: JSON packet parsing and display state conversion.
-- `main/vibe_display_model.*`: render signatures, task row formatting, compact counts, reference maze coordinates, eaten-pellet visibility reset, actor count and animation geometry that can be tested on host.
+- `main/vibe_display_model.*`: render signatures, task row formatting, task timing / freshness trailing labels, compact counts, reference maze coordinates, eaten-pellet visibility reset, actor count and animation geometry that can be tested on host.
 - `main/vibe_display.*`: LCD initialization, framebuffer drawing, backlight PWM and non-blocking animation timer.
 - `tests/vibe_status_parser_test.c`: host-side parser and display-model regression tests.
 
@@ -20,7 +20,7 @@ The firmware lives in `projects/esp32` and targets Waveshare `ESP32-S3-LCD-3.16`
 - Keep display-model logic testable in `vibe_display_model.*` when it does not require hardware handles.
 - Avoid introducing LVGL until the lightweight framebuffer path is insufficient for a concrete feature such as fonts, complex layout or richer animation.
 - `busy` animation should stay firmware-local. The desktop app sends state and counts, not animation frames.
-- Keep Codex usage display parser/model behavior testable: top-level usage maps to 5H / 7D remaining labels, task-level `contextUsedPercent` maps to the `CTX` trailing label, and legacy `contextRemainingPercent` remains accepted as a compatibility input.
+- Keep task trailing-label behavior testable: task-level `updatedAt` plus top-level `ts` maps to `RUN`, `WAIT` or freshness labels; missing or invalid timing falls back to task-level `contextUsedPercent` as the `CTX` label; legacy `contextRemainingPercent` remains accepted as a compatibility input.
 - Preserve the current connection affordance unless product direction changes: Central connect shows `idle / desktop connected`; disconnect shows `offline / desktop disconnected`.
 - Preserve active-low backlight behavior for the current board unless hardware evidence says otherwise.
 - Keep `projects/esp32/tools/render_maze_preview.py` aligned with display model constants when changing the maze, task panel or previewable layout.

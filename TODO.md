@@ -6,7 +6,7 @@
 
 - macOS SwiftPM app 已有通用、智能体安装、硬件设备和事件四个主要界面。
 - Hook CLI 会把 Codex / Claude 事件写入本地 `events.jsonl`，桌面端轮询事件并通过 `TaskTracker` 聚合多任务状态。
-- BLE 协议当前以 `v: 2` 多任务状态包为主，保留 `v: 1` 降级路径；Codex 用量摘要会从 transcript 最新 `token_count` 事件提取，并显示 5h / 7d 剩余百分比和每条 Codex 任务的上下文已用百分比。
+- BLE 协议当前以 `v: 2` 多任务状态包为主，保留 `v: 1` 降级路径；Codex 用量摘要会从 transcript 最新 `token_count` 事件提取，并提供 5h / 7d 剩余百分比和每条 Codex 任务的上下文已用百分比。
 - ESP32-S3 固件已接入 BLE Peripheral、状态解析、健康读取特征、ST7701 LCD 初始化、RGB565 framebuffer 绘制和 Codex 吃豆人 `busy` 迷宫动画。
 - 显示模型已从“简单任务列表”推进到 320px 参考迷宫舞台、213 个豆子、4 个能量豆、最多 5 个错相主角、底部贴边任务面板、任务时长 / 新鲜度尾标和渲染签名去重。
 - 屏幕任务详情会优先展示当前工具动作，例如 `Bash / make quick` 或 `Edit / README.md`，避免只显示泛化任务摘要。
