@@ -36,7 +36,7 @@
 
 ## 当前源码采用的板级连接
 
-以下来自当前 `projects/esp32/main/vibe_display.c`，是固件实现正在使用的 GPIO 配置；仍需通过实机烧录和串口日志确认板级稳定性。当前 RGB panel 配置为 16-bit data width、18MHz PCLK、PSRAM framebuffer、2 个 framebuffer 和 10 行 bounce buffer。
+以下来自当前 `projects/esp32/main/vibe_display.c`，是固件实现正在使用的 GPIO 配置。项目记录中已有一次目标板实机闭环：串口日志确认 LCD 初始化和 BLE 广播，macOS 桌面端可连接并写入 `v: 2` 状态包，屏幕可显示 high score、Codex 5H / 7D 用量和底部任务列表。当前 RGB panel 配置为 16-bit data width、18MHz PCLK、PSRAM framebuffer、2 个 framebuffer 和 10 行 bounce buffer。
 
 | 用途 | GPIO |
 | --- | --- |
@@ -57,7 +57,7 @@
 
 ## 起步路线
 
-当前源码目标已经超过“只显示 state/detail”的最小样机：固件目录已具备 BLE Peripheral、状态解析、健康读取、ST7701 LCD 初始化、PSRAM framebuffer、底部任务面板和 Codex 吃豆人参考迷宫动画。下一步重点是把这些源码能力在实机上闭环验证，而不是继续扩展板载外设。
+当前源码目标已经超过“只显示 state/detail”的最小样机：固件目录已具备 BLE Peripheral、状态解析、健康读取、ST7701 LCD 初始化、PSRAM framebuffer、底部任务面板和 Codex 吃豆人参考迷宫动画，并已有一次目标板实机闭环记录。下一步重点是延长运行观察、复核板级细节并把健康诊断补齐，而不是继续扩展板载外设。
 
 推荐按以下阶段推进：
 
@@ -99,6 +99,8 @@
 - `busy` 状态下动画 timer 非阻塞运行，角色数量、整轮豆子重置和主角方向与 host-side 测试 / PNG 预览一致。
 - 未知状态或格式错误的 JSON 不会导致固件崩溃。
 
+当前项目记录已经覆盖发现、连接、`v: 2` 写入和基础屏幕确认；后续验收应继续补充长时间运行、重复连接、低余量 reset 提示、等待态尾标轮播和错误包恢复等场景。
+
 如果先验证屏幕和板载资源，可使用官方示例工程：
 
 - `01_ADC_Test`：读取系统电压。
@@ -121,7 +123,7 @@
 ## 待确认事项
 
 - 对照原理图或官方示例复核当前源码里的 LCD、背光、SD、I2C、BOOT、电池电压检测 GPIO。
-- 在实机上确认当前源码采用的 ST7701 初始化序列是否与官方示例一致或足够稳定。
+- 继续确认当前 ST7701 初始化序列与官方示例的差异，以及长时间运行时是否足够稳定。
 - 确认 ESP-IDF 版本和项目固件目录结构。当前固件目录已经落在 `projects/esp32`，本机记录的 ESP-IDF 构建版本为 v5.5.1；当前渲染路径未引入 LVGL。
 - 确认 BLE 与 LCD 刷新并行运行时的内存占用和刷新性能。
-- 在实机上确认当前 ST7701 初始化序列、PSRAM framebuffer、主动低电平背光 PWM 和 Codex 吃豆人动画是否稳定。
+- 在实机上继续观察 PSRAM framebuffer、主动低电平背光 PWM、Codex 吃豆人动画、低余量 reset 提示和任务尾标轮播是否稳定。
