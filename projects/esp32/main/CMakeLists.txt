@@ -11,6 +11,7 @@ idf_component_register(
         "vibe_display_draw.c"
         "vibe_display_model.c"
         "vibe_display_maze_data.c"
+        "vibe_display_maze_text.c"
         "vibe_display_score.c"
         "vibe_display_text.c"
         "vibe_status.c"

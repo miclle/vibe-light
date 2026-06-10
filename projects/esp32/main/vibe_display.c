@@ -1,6 +1,5 @@
 #include "vibe_display.h"
 
-#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -20,6 +19,7 @@
 #include "esp_lcd_st7701.h"
 #include "vibe_cjk_font.h"
 #include "vibe_display_draw.h"
+#include "vibe_display_maze_text.h"
 #include "vibe_display_score.h"
 #include "vibe_display_text.h"
 #include "vibe_display_model.h"
@@ -151,10 +151,6 @@ static void render_reference_maze_art(void);
 static void render_animation_dots(const vibe_display_animation_frame_t *frames, int actor_count);
 static void render_codex_actor(const vibe_display_animation_frame_t *frame);
 static void render_center_ghost(int animation_phase);
-static void draw_maze_text_centered(int left, int right, int y, const char *text, uint16_t color);
-static void draw_maze_text(int x, int y, const char *text, int scale, uint16_t color);
-static int maze_text_width(const char *text, int scale);
-static uint8_t maze_glyph_row(char c, int row);
 static uint16_t color_for_state(vibe_display_state_t state);
 static void animation_timer_callback(void *arg);
 static void update_animation_timer(vibe_display_state_t state);
@@ -465,26 +461,30 @@ static void render_maze(const vibe_status_packet_t *packet, int animation_phase)
                                 VIBE_DISPLAY_MAZE_LEVEL_RIGHT_X - VIBE_DISPLAY_MAZE_LEVEL_LEFT_X + 1,
                                 VIBE_DISPLAY_MAZE_LEVEL_CLEAR_H,
                                 RGB565_BLACK);
-    draw_maze_text(VIBE_DISPLAY_MAZE_SCORE_LEFT_X,
-                   VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_SCORE_VALUE_Y,
-                   score_text,
-                   2,
-                   RGB565_PINK);
-    draw_maze_text_centered(VIBE_DISPLAY_MAZE_HIGH_SCORE_LEFT_X,
-                            VIBE_DISPLAY_MAZE_HIGH_SCORE_RIGHT_X,
-                            VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_SCORE_VALUE_Y,
-                            high_score_text,
-                            RGB565_PINK);
-    draw_maze_text(VIBE_DISPLAY_MAZE_LEVEL_LEFT_X,
-                   VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_LEVEL_VALUE_Y,
-                   "LEVEL",
-                   2,
-                   RGB565_WHITE);
-    draw_maze_text(VIBE_DISPLAY_MAZE_LEVEL_VALUE_X,
-                   VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_LEVEL_VALUE_Y,
-                   level_text,
-                   2,
-                   RGB565_BLUE);
+    vibe_display_maze_text_draw(VIBE_DISPLAY_MAZE_SCORE_LEFT_X,
+                                VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_SCORE_VALUE_Y,
+                                score_text,
+                                2,
+                                RGB565_PINK,
+                                LCD_H_RES);
+    vibe_display_maze_text_draw_centered(VIBE_DISPLAY_MAZE_HIGH_SCORE_LEFT_X,
+                                         VIBE_DISPLAY_MAZE_HIGH_SCORE_RIGHT_X,
+                                         VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_SCORE_VALUE_Y,
+                                         high_score_text,
+                                         RGB565_PINK,
+                                         LCD_H_RES);
+    vibe_display_maze_text_draw(VIBE_DISPLAY_MAZE_LEVEL_LEFT_X,
+                                VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_LEVEL_VALUE_Y,
+                                "LEVEL",
+                                2,
+                                RGB565_WHITE,
+                                LCD_H_RES);
+    vibe_display_maze_text_draw(VIBE_DISPLAY_MAZE_LEVEL_VALUE_X,
+                                VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_LEVEL_VALUE_Y,
+                                level_text,
+                                2,
+                                RGB565_BLUE,
+                                LCD_H_RES);
 
     const int count_y = VIBE_DISPLAY_MAZE_STAGE_Y + 294;
     const int clear_y = VIBE_DISPLAY_MAZE_STAGE_Y + 288;
@@ -501,9 +501,24 @@ static void render_maze(const vibe_status_packet_t *packet, int animation_phase)
     vibe_display_draw_fill_rect(middle_box_left, clear_y, middle_box_right - middle_box_left + 1, clear_h, RGB565_BLACK);
     vibe_display_draw_fill_rect(right_box_left, clear_y, right_box_right - right_box_left + 1, clear_h, RGB565_BLACK);
 
-    draw_maze_text_centered(left_box_left, left_box_right, count_y, text.active, color_for_state(VIBE_DISPLAY_BUSY));
-    draw_maze_text_centered(middle_box_left, middle_box_right, count_y, text.waiting, color_for_state(VIBE_DISPLAY_WAITING));
-    draw_maze_text_centered(right_box_left, right_box_right, count_y, text.error, color_for_state(VIBE_DISPLAY_ERROR));
+    vibe_display_maze_text_draw_centered(left_box_left,
+                                         left_box_right,
+                                         count_y,
+                                         text.active,
+                                         color_for_state(VIBE_DISPLAY_BUSY),
+                                         LCD_H_RES);
+    vibe_display_maze_text_draw_centered(middle_box_left,
+                                         middle_box_right,
+                                         count_y,
+                                         text.waiting,
+                                         color_for_state(VIBE_DISPLAY_WAITING),
+                                         LCD_H_RES);
+    vibe_display_maze_text_draw_centered(right_box_left,
+                                         right_box_right,
+                                         count_y,
+                                         text.error,
+                                         color_for_state(VIBE_DISPLAY_ERROR),
+                                         LCD_H_RES);
 }
 
 static void render_reference_maze_art(void)
@@ -599,107 +614,6 @@ static void render_center_ghost(int animation_phase)
     vibe_display_draw_fill_circle(ghost.x + 7, ghost.y - 8, 4, RGB565_WHITE);
     vibe_display_draw_fill_circle(ghost.x - 6, ghost.y - 7, 2, RGB565_BLUE);
     vibe_display_draw_fill_circle(ghost.x + 8, ghost.y - 7, 2, RGB565_BLUE);
-}
-
-static void draw_maze_text_centered(int left, int right, int y, const char *text, uint16_t color)
-{
-    const int scale = 2;
-    int width = maze_text_width(text, scale);
-    int x = left + ((right - left + 1) - width) / 2;
-    if (x < left) {
-        x = left;
-    }
-    draw_maze_text(x, y, text, scale, color);
-}
-
-static void draw_maze_text(int x, int y, const char *text, int scale, uint16_t color)
-{
-    if (text == NULL) {
-        return;
-    }
-
-    int cursor = x;
-    for (const char *p = text; *p != '\0' && cursor < LCD_H_RES - 4; p++) {
-        char c = (char)toupper((unsigned char)*p);
-        if (c == ' ') {
-            cursor += 4 * scale;
-            continue;
-        }
-
-        for (int row = 0; row < 5; row++) {
-            uint8_t bits = maze_glyph_row(c, row);
-            for (int col = 0; col < 3; col++) {
-                if (bits & (1 << (2 - col))) {
-                    vibe_display_draw_fill_rect(cursor + col * scale, y + row * scale, scale, scale, color);
-                }
-            }
-        }
-        cursor += 4 * scale;
-    }
-}
-
-static int maze_text_width(const char *text, int scale)
-{
-    if (text == NULL) {
-        return 0;
-    }
-
-    return (int)strlen(text) * 4 * scale;
-}
-
-static uint8_t maze_glyph_row(char c, int row)
-{
-    static const uint8_t digits[10][5] = {
-        {0x07, 0x05, 0x05, 0x05, 0x07},
-        {0x02, 0x06, 0x02, 0x02, 0x07},
-        {0x07, 0x01, 0x07, 0x04, 0x07},
-        {0x07, 0x01, 0x07, 0x01, 0x07},
-        {0x05, 0x05, 0x07, 0x01, 0x01},
-        {0x07, 0x04, 0x07, 0x01, 0x07},
-        {0x07, 0x04, 0x07, 0x05, 0x07},
-        {0x07, 0x01, 0x01, 0x01, 0x01},
-        {0x07, 0x05, 0x07, 0x05, 0x07},
-        {0x07, 0x05, 0x07, 0x01, 0x07},
-    };
-    static const uint8_t letters[26][5] = {
-        {0x02, 0x05, 0x07, 0x05, 0x05},
-        {0x06, 0x05, 0x06, 0x05, 0x06},
-        {0x07, 0x04, 0x04, 0x04, 0x07},
-        {0x06, 0x05, 0x05, 0x05, 0x06},
-        {0x07, 0x04, 0x06, 0x04, 0x07},
-        {0x07, 0x04, 0x06, 0x04, 0x04},
-        {0x07, 0x04, 0x05, 0x05, 0x07},
-        {0x05, 0x05, 0x07, 0x05, 0x05},
-        {0x07, 0x02, 0x02, 0x02, 0x07},
-        {0x01, 0x01, 0x01, 0x05, 0x07},
-        {0x05, 0x05, 0x06, 0x05, 0x05},
-        {0x04, 0x04, 0x04, 0x04, 0x07},
-        {0x05, 0x07, 0x07, 0x05, 0x05},
-        {0x05, 0x07, 0x07, 0x07, 0x05},
-        {0x07, 0x05, 0x05, 0x05, 0x07},
-        {0x07, 0x05, 0x07, 0x04, 0x04},
-        {0x07, 0x05, 0x05, 0x07, 0x01},
-        {0x06, 0x05, 0x06, 0x05, 0x05},
-        {0x07, 0x04, 0x07, 0x01, 0x07},
-        {0x07, 0x02, 0x02, 0x02, 0x02},
-        {0x05, 0x05, 0x05, 0x05, 0x07},
-        {0x05, 0x05, 0x05, 0x05, 0x02},
-        {0x05, 0x05, 0x07, 0x07, 0x05},
-        {0x05, 0x05, 0x02, 0x05, 0x05},
-        {0x05, 0x05, 0x02, 0x02, 0x02},
-        {0x07, 0x01, 0x02, 0x04, 0x07},
-    };
-
-    if (row < 0 || row >= 5) {
-        return 0;
-    }
-    if (c >= '0' && c <= '9') {
-        return digits[c - '0'][row];
-    }
-    if (c >= 'A' && c <= 'Z') {
-        return letters[c - 'A'][row];
-    }
-    return 0;
 }
 
 static uint16_t color_for_state(vibe_display_state_t state)
