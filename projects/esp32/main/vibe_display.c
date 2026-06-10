@@ -144,7 +144,6 @@ static esp_err_t init_backlight(void);
 static esp_err_t init_lcd_panel(void);
 static void render_status(const vibe_status_packet_t *packet, int animation_phase);
 static void render_task_rows(const vibe_status_packet_t *packet);
-static bool should_render_task_detail(const vibe_status_task_t *task, int index);
 static void render_codex_animation(const vibe_status_packet_t *packet, int animation_phase);
 static void render_maze(const vibe_status_packet_t *packet, int animation_phase);
 static void render_reference_maze_art(void);
@@ -383,33 +382,27 @@ static void render_task_rows(const vibe_status_packet_t *packet)
 
         uint16_t task_color = color_for_state(task->state);
         const int trailing_x = row.trailing[0] == '\0' ? LCD_H_RES : LCD_H_RES - 4 - vibe_display_text_width(row.trailing, 2);
-        const int title_max_width = row.trailing[0] == '\0' ? LCD_H_RES - 44 : trailing_x - 40;
+        const int title_max_width = row.trailing[0] == '\0'
+                                        ? LCD_H_RES - VIBE_DISPLAY_TASK_TEXT_X - 12
+                                        : trailing_x - VIBE_DISPLAY_TASK_TEXT_X - 8;
 
-        vibe_display_draw_fill_rect(16, y, VIBE_DISPLAY_TASK_SWATCH_W, VIBE_DISPLAY_TASK_SWATCH_H, task_color);
-        vibe_display_text_draw_ellipsis(32, y, row.title, 2, RGB565_WHITE, title_max_width);
+        vibe_display_draw_fill_rect(VIBE_DISPLAY_TASK_SWATCH_X, y, VIBE_DISPLAY_TASK_SWATCH_W, VIBE_DISPLAY_TASK_SWATCH_H, task_color);
+        vibe_display_text_draw_ellipsis(VIBE_DISPLAY_TASK_TEXT_X, y, row.title, 2, RGB565_WHITE, title_max_width);
         if (row.trailing[0] != '\0') {
             vibe_display_text_draw(trailing_x, y, row.trailing, 2, RGB565_MUTED);
         }
-        if (should_render_task_detail(task, i)) {
-            vibe_display_text_draw_ellipsis(32,
+        if (vibe_display_should_render_task_detail(task)) {
+            vibe_display_text_draw_ellipsis(VIBE_DISPLAY_TASK_TEXT_X,
                                y + VIBE_DISPLAY_TASK_DETAIL_Y_OFFSET,
                                task->detail,
                                2,
                                RGB565_MUTED,
-                               LCD_H_RES - 32);
+                               LCD_H_RES - VIBE_DISPLAY_TASK_TEXT_X);
             y += VIBE_DISPLAY_TASK_DETAIL_ROW_STRIDE;
         } else {
             y += VIBE_DISPLAY_TASK_ROW_STRIDE;
         }
     }
-}
-
-static bool should_render_task_detail(const vibe_status_task_t *task, int index)
-{
-    if (task == NULL || task->detail[0] == '\0') {
-        return false;
-    }
-    return index == 0 || task->state == VIBE_DISPLAY_WAITING || task->state == VIBE_DISPLAY_ERROR;
 }
 
 static void render_maze(const vibe_status_packet_t *packet, int animation_phase)

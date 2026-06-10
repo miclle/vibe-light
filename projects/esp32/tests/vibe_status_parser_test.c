@@ -267,6 +267,28 @@ static void test_display_model_formats_task_rows(void)
     assert(strcmp(row.subtitle, "codex / needs confirm") == 0);
 }
 
+static void test_display_model_shows_detail_for_every_task_with_detail(void)
+{
+    vibe_status_task_t busy_task = {
+        .title = "desktop",
+        .source = "codex",
+        .state = VIBE_DISPLAY_BUSY,
+        .state_text = "busy",
+        .detail = "sync BLE",
+    };
+    vibe_status_task_t quiet_task = {
+        .title = "docs",
+        .source = "codex",
+        .state = VIBE_DISPLAY_BUSY,
+        .state_text = "busy",
+        .detail = "",
+    };
+
+    assert(vibe_display_should_render_task_detail(&busy_task));
+    assert(!vibe_display_should_render_task_detail(&quiet_task));
+    assert(!vibe_display_should_render_task_detail(NULL));
+}
+
 static void test_display_model_formats_compact_count_summary(void)
 {
     vibe_status_packet_t packet;
@@ -1012,6 +1034,9 @@ static void test_display_model_keeps_task_panel_tight_to_screen_bottom(void)
     assert(VIBE_DISPLAY_TASK_ROW_STRIDE <= 48);
     assert(VIBE_DISPLAY_TASK_DETAIL_ROW_STRIDE <= 64);
     assert(VIBE_DISPLAY_TASK_DETAIL_Y_OFFSET > VIBE_DISPLAY_TASK_ROW_TEXT_H);
+    assert(VIBE_DISPLAY_TASK_SWATCH_X == VIBE_DISPLAY_TASK_PANEL_X);
+    assert(VIBE_DISPLAY_TASK_TEXT_X > VIBE_DISPLAY_TASK_SWATCH_X + VIBE_DISPLAY_TASK_SWATCH_W);
+    assert(VIBE_DISPLAY_TASK_TEXT_X <= 20);
     assert(VIBE_DISPLAY_TASK_SWATCH_W <= 4);
     assert(VIBE_DISPLAY_TASK_SWATCH_H <= VIBE_DISPLAY_TASK_ROW_STRIDE);
 }
@@ -1028,6 +1053,7 @@ int main(void)
     test_invalid_packets_are_rejected_without_mutation();
     test_display_model_detects_duplicate_packets();
     test_display_model_formats_task_rows();
+    test_display_model_shows_detail_for_every_task_with_detail();
     test_display_model_formats_compact_count_summary();
     test_display_model_formats_maze_count_text();
     test_display_model_formats_live_maze_score();

@@ -110,6 +110,11 @@ void vibe_display_format_task_row(const vibe_status_task_t *task, int index, vib
     }
 }
 
+bool vibe_display_should_render_task_detail(const vibe_status_task_t *task)
+{
+    return task != NULL && task->detail[0] != '\0';
+}
+
 void vibe_display_format_count_summary(const vibe_status_packet_t *packet, vibe_display_count_summary_t *summary)
 {
     if (summary == NULL) {

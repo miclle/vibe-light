@@ -27,6 +27,8 @@ TASK_ROW_Y = 426
 TASK_ROW_STRIDE = 44
 TASK_DETAIL_ROW_STRIDE = 64
 TASK_DETAIL_Y_OFFSET = 24
+TASK_SWATCH_X = 0
+TASK_TEXT_X = 16
 TASK_SWATCH_W = 4
 TASK_SWATCH_H = 18
 CJK_FONT_WIDTH = 18
@@ -495,20 +497,20 @@ def draw_full_screen(image: Image) -> None:
         (BUSY, "VIBE-LIGHT", "打开 .SLIDEO 文件", "CTX 90%"),
         (WAITING, "DOCS", "等待蓝牙权限", "CTX 74%"),
         (ERROR, "FIRMWARE", "构建失败", "CTX 61%"),
-        (BUSY, "FLASH", "", "CTX 48%"),
+        (BUSY, "FLASH", "写入固件", "CTX 48%"),
         (WAITING, "APPROVAL", "需要确认", "CTX 35%"),
     ]
     y = TASK_ROW_Y
     for index, (color, title, detail, trailing) in enumerate(tasks):
         trailing_x = FULL_PREVIEW_WIDTH - 4 - text_width(trailing, 2) if trailing else FULL_PREVIEW_WIDTH
-        title_max_width = trailing_x - 40 if trailing else FULL_PREVIEW_WIDTH - 44
-        fill_rect(image, 16, y, TASK_SWATCH_W, TASK_SWATCH_H, color)
-        draw_text_ellipsis(image, 32, y, title, 2, WHITE, title_max_width)
+        title_max_width = trailing_x - TASK_TEXT_X - 8 if trailing else FULL_PREVIEW_WIDTH - TASK_TEXT_X - 12
+        fill_rect(image, TASK_SWATCH_X, y, TASK_SWATCH_W, TASK_SWATCH_H, color)
+        draw_text_ellipsis(image, TASK_TEXT_X, y, title, 2, WHITE, title_max_width)
         if trailing:
             draw_text(image, trailing_x, y, trailing, 2, MUTED)
-        show_detail = bool(detail) and (index == 0 or color in (WAITING, ERROR))
+        show_detail = bool(detail)
         if show_detail:
-            draw_text_ellipsis(image, 32, y + TASK_DETAIL_Y_OFFSET, detail, 2, MUTED, FULL_PREVIEW_WIDTH - 32)
+            draw_text_ellipsis(image, TASK_TEXT_X, y + TASK_DETAIL_Y_OFFSET, detail, 2, MUTED, FULL_PREVIEW_WIDTH - TASK_TEXT_X)
             y += TASK_DETAIL_ROW_STRIDE
         else:
             y += TASK_ROW_STRIDE
