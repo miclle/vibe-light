@@ -379,7 +379,11 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
     char footer[48];
     vibe_display_footer_text(packet, footer, sizeof(footer));
     if (footer[0] != '\0') {
-        vibe_display_text_draw(32, 746, footer, 2, RGB565_MUTED);
+        vibe_display_text_draw(VIBE_DISPLAY_FOOTER_X,
+                               VIBE_DISPLAY_FOOTER_Y,
+                               footer,
+                               VIBE_DISPLAY_FOOTER_SCALE,
+                               RGB565_MUTED);
     }
 
     if (vibe_display_animation_enabled(packet->state)) {

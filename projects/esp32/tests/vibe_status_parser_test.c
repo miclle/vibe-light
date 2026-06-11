@@ -1197,6 +1197,10 @@ static void test_display_model_keeps_task_panel_tight_to_screen_bottom(void)
     assert(VIBE_DISPLAY_TASK_TEXT_X <= 20);
     assert(VIBE_DISPLAY_TASK_SWATCH_W <= 4);
     assert(VIBE_DISPLAY_TASK_SWATCH_H <= VIBE_DISPLAY_TASK_ROW_STRIDE);
+    assert(VIBE_DISPLAY_FOOTER_X == VIBE_DISPLAY_TASK_TEXT_X);
+    assert(VIBE_DISPLAY_FOOTER_SCALE == 2);
+    assert(VIBE_DISPLAY_FOOTER_BOTTOM_MARGIN >= 12);
+    assert(VIBE_DISPLAY_FOOTER_Y + VIBE_DISPLAY_FOOTER_TEXT_H + VIBE_DISPLAY_FOOTER_BOTTOM_MARGIN == screen_h);
 }
 
 int main(void)

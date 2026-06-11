@@ -31,6 +31,7 @@ TASK_SWATCH_X = 0
 TASK_TEXT_X = 16
 TASK_SWATCH_W = 4
 TASK_SWATCH_H = 18
+FOOTER_X = TASK_TEXT_X
 CJK_FONT_WIDTH = 18
 CJK_FONT_HEIGHT = 18
 CJK_FONT_BYTES_PER_ROW = (CJK_FONT_WIDTH + 3) // 4
@@ -91,6 +92,8 @@ MAZE_LEVEL_VALUE_X = display_model_define("VIBE_DISPLAY_MAZE_LEVEL_VALUE_X")
 MAZE_GHOST_CENTER_X = display_model_define("VIBE_DISPLAY_MAZE_GHOST_CENTER_X")
 MAZE_GHOST_CENTER_Y = display_model_define("VIBE_DISPLAY_MAZE_GHOST_CENTER_Y")
 MAZE_GHOST_BLINK_TICKS = display_model_define("VIBE_DISPLAY_MAZE_GHOST_BLINK_TICKS")
+FOOTER_Y = display_model_define("VIBE_DISPLAY_FOOTER_Y")
+FOOTER_SCALE = display_model_define("VIBE_DISPLAY_FOOTER_SCALE")
 
 
 def maze_display_x(reference_x: int) -> int:
@@ -514,6 +517,8 @@ def draw_full_screen(image: Image) -> None:
             y += TASK_DETAIL_ROW_STRIDE
         else:
             y += TASK_ROW_STRIDE
+
+    draw_text(image, FOOTER_X, FOOTER_Y, "CODEX V2 A2 W1 E1", FOOTER_SCALE, MUTED)
 
 
 def draw_maze_count_boxes(image: Image, y_offset: int) -> None:
