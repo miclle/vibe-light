@@ -165,6 +165,29 @@ import Testing
     #expect(object["detail"] as? String == "LAST ERR firmware")
 }
 
+@Test func taskTrackerExpiresLastResultAfterStaleWindow() {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker(staleAfter: 60)
+    let events: [VibeHookEvent] = [
+        .init(
+            taskID: "codex:task-a",
+            source: .codex,
+            kind: .stop,
+            timestamp: base,
+            summary: "make quick passed",
+            workspace: "vibe-light"
+        ),
+    ]
+
+    let recent = tracker.snapshot(from: events, now: base.addingTimeInterval(1))
+    let expired = tracker.snapshot(from: events, now: base.addingTimeInterval(61))
+
+    #expect(recent.detail == "LAST OK vibe-light")
+    #expect(expired.state == .idle)
+    #expect(expired.detail == "no active tasks")
+    #expect(expired.tasks.isEmpty)
+}
+
 @Test func taskTrackerShowsCurrentToolActionInTaskDetail() throws {
     let base = Date(timeIntervalSince1970: 1_780_300_800)
     let tracker = TaskTracker()

@@ -162,9 +162,7 @@ public struct TaskTracker: Sendable {
 
         let tasks = tasksByID.values
             .filter { task in
-                task.state != .busy && task.state != .waiting
-                    ? true
-                    : now.timeIntervalSince(task.lastUpdated) <= staleAfter
+                now.timeIntervalSince(task.lastUpdated) <= staleAfter
             }
             .sorted { lhs, rhs in
                 if priority(lhs.state) != priority(rhs.state) {
