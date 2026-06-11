@@ -538,6 +538,62 @@ import Testing
     #expect(tasks.map { $0["title"] as? String } == (0..<5).map { "workspace-\($0)-with-long-name" })
 }
 
+@Test func statusPacketPreservesTaskDetailsWhenCompactingV2ToBleLength() throws {
+    let packet = StatusPacket(
+        v: 2,
+        source: .codex,
+        state: .busy,
+        detail: "3 running",
+        timestamp: Date(timeIntervalSince1970: 1_780_300_800),
+        activeCount: 3,
+        waitingCount: 0,
+        errorCount: 0,
+        tasks: [
+            StatusTask(
+                title: "vibe-light",
+                state: .busy,
+                source: .codex,
+                detail: "Bash / make quick",
+                contextUsedPercent: 68,
+                updatedAt: Date(timeIntervalSince1970: 1_780_300_782)
+            ),
+            StatusTask(
+                title: "slideo",
+                state: .busy,
+                source: .codex,
+                detail: "Edit / App.tsx",
+                contextUsedPercent: 42,
+                updatedAt: Date(timeIntervalSince1970: 1_780_300_762)
+            ),
+            StatusTask(
+                title: "gitwikitree",
+                state: .busy,
+                source: .codex,
+                detail: "UserPromptSubmit",
+                contextUsedPercent: 25,
+                updatedAt: Date(timeIntervalSince1970: 1_780_300_721)
+            ),
+        ],
+        usage: StatusUsage(
+            codex5hRemainingPercent: 99,
+            codex7dRemainingPercent: 68,
+            codex5hResetAt: 1_780_304_800_000,
+            codex7dResetAt: 1_780_905_600_000
+        )
+    )
+
+    let fullData = try packet.encodedJSON()
+    let constrainedData = try packet.encodedJSON(maximumWriteLength: 512)
+    let object = try #require(JSONSerialization.jsonObject(with: constrainedData) as? [String: Any])
+    let tasks = try #require(object["tasks"] as? [[String: Any]])
+
+    #expect(fullData.count > 512)
+    #expect(constrainedData.count <= 512)
+    #expect(object["v"] as? Int == 2)
+    #expect(tasks.count == 3)
+    #expect(tasks.compactMap { $0["detail"] as? String }.count == 3)
+}
+
 @Test func hardwareDemoPacketsProvideBoundedV2TaskScenarios() throws {
     let scenarios = HardwareDemoPacketScenario.allCases
 

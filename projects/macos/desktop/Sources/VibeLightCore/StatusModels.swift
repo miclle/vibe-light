@@ -293,6 +293,38 @@ public struct StatusPacket: Codable, Equatable, Sendable {
             return [candidate]
         }
 
+        func compactedUsage(keepResetHints: Bool) -> StatusUsage? {
+            guard let usage else {
+                return nil
+            }
+
+            let fiveHourResetAt = keepResetHints && (usage.codex5hRemainingPercent ?? 100) <= 20
+                ? usage.codex5hResetAt
+                : nil
+            let sevenDayResetAt = keepResetHints && (usage.codex7dRemainingPercent ?? 100) <= 20
+                ? usage.codex7dResetAt
+                : nil
+
+            return StatusUsage(
+                codex5hRemainingPercent: usage.codex5hRemainingPercent,
+                codex7dRemainingPercent: usage.codex7dRemainingPercent,
+                codex5hResetAt: fiveHourResetAt,
+                codex7dResetAt: sevenDayResetAt
+            )
+        }
+
+        func tasksWithoutContext() -> [StatusTask] {
+            tasks.map {
+                StatusTask(
+                    title: $0.title,
+                    state: $0.state,
+                    source: $0.source,
+                    detail: $0.detail,
+                    updatedAtMilliseconds: $0.updatedAtMilliseconds
+                )
+            }
+        }
+
         func tasksWithoutDetail(keepContext: Bool) -> [StatusTask] {
             tasks.map {
                 StatusTask(
@@ -305,9 +337,20 @@ public struct StatusPacket: Codable, Equatable, Sendable {
             }
         }
 
+        var withoutUnusedResetHints = self
+        withoutUnusedResetHints.v = 2
+        withoutUnusedResetHints.usage = compactedUsage(keepResetHints: true)
+
+        var withoutContext = withoutUnusedResetHints
+        withoutContext.tasks = tasksWithoutContext()
+
+        var withoutUsageButWithDetail = withoutContext
+        withoutUsageButWithDetail.usage = nil
+
         var withoutTaskDetail = self
         withoutTaskDetail.v = 2
         withoutTaskDetail.tasks = tasksWithoutDetail(keepContext: true)
+        withoutTaskDetail.usage = compactedUsage(keepResetHints: true)
 
         var withoutTaskDetailOrContext = withoutTaskDetail
         withoutTaskDetailOrContext.tasks = tasksWithoutDetail(keepContext: false)
@@ -320,15 +363,18 @@ public struct StatusPacket: Codable, Equatable, Sendable {
         var withoutDetail = withoutCounts
         withoutDetail.detail = nil
 
-        var withoutUsage = withoutDetail
-        withoutUsage.usage = nil
+        var withoutUsageOrDetail = withoutDetail
+        withoutUsageOrDetail.usage = nil
 
         return [
+            withoutUnusedResetHints,
+            withoutContext,
+            withoutUsageButWithDetail,
             withoutTaskDetail,
             withoutTaskDetailOrContext,
             withoutCounts,
             withoutDetail,
-            withoutUsage,
+            withoutUsageOrDetail,
         ]
     }
 
