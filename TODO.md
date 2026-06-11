@@ -17,8 +17,17 @@
 - 健康状态包已经包含运行时长、BLE 连接状态、最近显示状态、heap 余量、启动后 heap 低水位、渲染 tick、背光状态和最近解析错误；macOS 硬件页会展示这些诊断信息。
 - 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试、生成迷宫 / 全屏 PNG 预览并执行 Git whitespace 检查；ESP32 显示闭环已完成一次实机烧录和屏幕确认。
 - 固件版本 `82d2180` 已在目标板完成烧录、串口启动、BLE 连接、健康特征实机读取、肉眼屏幕复核和长时间稳定性观察：LCD 初始化、BLE 广播、Central 连接、连续 `v: 2` 状态写入、token 摘要、页脚、底部余量、任务色块内缩、无边缘蓝线、macOS 硬件页健康读数和稳定性表现均正常；坏状态包后会回传 `lastParseError:"invalid JSON"`。
+- 固件版本 `524c46d` 已完成目标板烧录；macOS 演示包提交 `939583d` 增加了 `CTX color` 场景，并已通过实机肉眼复核：80% 及以上 `CTX` 黄色提示、90% 及以上红色提示显示正常。
 
 ## 最近实机验证
+
+- 时间：2026-06-11。
+- 端口：`/dev/cu.usbmodem2101`。
+- 固件版本：`524c46d`。
+- macOS 演示包提交：`939583d`。
+- `CTX color` 确认：已用演示包实机复核任务尾标颜色，82% warning 黄色和 92% critical 红色效果正常。
+
+## 历史实机验证
 
 - 时间：2026-06-11。
 - 端口：`/dev/cu.usbmodem2101`。
@@ -29,8 +38,6 @@
 - 健康特征确认：临时 CoreBluetooth 脚本读取到 `backlightOn:true`、heap、uptime 和 `animationTick`；写入坏 JSON 后，health JSON 回传 `lastParseError:"invalid JSON"`，固件保持在线。
 - 屏幕确认：已肉眼复核，token 摘要、`CODEX LIVE` / `CODEX LEGACY` 页脚、12px 底部余量、任务色块内缩、无边缘蓝线和 macOS 硬件页健康读数均正常。
 - 稳定性确认：本轮长时间观察未发现动画卡住、BLE 断连、heap 异常下降、footer / 任务尾标残影或遮挡等问题。
-
-## 历史实机验证
 
 - 时间：2026-06-11。
 - 端口：`/dev/cu.usbmodem2101`。
