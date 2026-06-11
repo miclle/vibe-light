@@ -153,6 +153,7 @@ static void render_animation_dots(const vibe_display_animation_frame_t *frames, 
 static void render_codex_actor(const vibe_display_animation_frame_t *frame);
 static void render_center_ghost(int animation_phase);
 static uint16_t color_for_state(vibe_display_state_t state);
+static uint16_t color_for_trailing_severity(vibe_display_trailing_severity_t severity);
 static void animation_timer_callback(void *arg);
 static void update_animation_timer(vibe_display_state_t state);
 
@@ -436,7 +437,7 @@ static void render_task_rows(const vibe_status_packet_t *packet, int animation_p
                                     task_color);
         vibe_display_text_draw_ellipsis(VIBE_DISPLAY_TASK_TEXT_X, y, row.title, 2, RGB565_WHITE, title_max_width);
         if (row.trailing[0] != '\0') {
-            vibe_display_text_draw(trailing_x, y, row.trailing, 2, RGB565_MUTED);
+            vibe_display_text_draw(trailing_x, y, row.trailing, 2, color_for_trailing_severity(row.trailing_severity));
         }
         if (vibe_display_should_render_task_detail(task)) {
             vibe_display_text_draw_ellipsis(VIBE_DISPLAY_TASK_TEXT_X,
@@ -672,6 +673,19 @@ static uint16_t color_for_state(vibe_display_state_t state)
     case VIBE_DISPLAY_IDLE:
     default:
         return RGB565_WHITE;
+    }
+}
+
+static uint16_t color_for_trailing_severity(vibe_display_trailing_severity_t severity)
+{
+    switch (severity) {
+    case VIBE_DISPLAY_TRAILING_WARNING:
+        return RGB565_AMBER;
+    case VIBE_DISPLAY_TRAILING_CRITICAL:
+        return RGB565_RED;
+    case VIBE_DISPLAY_TRAILING_NEUTRAL:
+    default:
+        return RGB565_MUTED;
     }
 }
 

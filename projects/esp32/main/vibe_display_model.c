@@ -5,6 +5,7 @@
 #include <string.h>
 
 #define VIBE_DISPLAY_HIGH_CONTEXT_PERCENT 80
+#define VIBE_DISPLAY_CRITICAL_CONTEXT_PERCENT 90
 
 static uint32_t fnv1a_update(uint32_t hash, const void *data, size_t length);
 static uint32_t fnv1a_update_text(uint32_t hash, const char *text);
@@ -26,6 +27,7 @@ static void format_count(char *dest, size_t dest_size, char label, int count);
 static void format_maze_count(char *dest, size_t dest_size, const char *label, int count);
 static void format_percent(char *dest, size_t dest_size, const char *label, int percent);
 static void format_context_usage(char *dest, size_t dest_size, const vibe_status_task_t *task);
+static vibe_display_trailing_severity_t context_trailing_severity(const vibe_status_task_t *task);
 static void format_compact_token_count(char *dest, size_t dest_size, int tokens);
 static bool format_reset_hint(char *dest, size_t dest_size, const char *label, int remaining_percent, int64_t reset_at_ms, int64_t now_ms);
 static bool format_task_timing(char *dest, size_t dest_size, const vibe_status_task_t *task, int64_t now_ms);
@@ -127,8 +129,10 @@ void vibe_display_format_task_row_at_phase(const vibe_status_task_t *task, int64
     bool has_timing = format_task_timing(row->trailing, sizeof(row->trailing), task, now_ms);
     if (has_timing && should_show_context_for_task(task, index, phase)) {
         format_context_usage(row->trailing, sizeof(row->trailing), task);
+        row->trailing_severity = context_trailing_severity(task);
     } else if (!has_timing) {
         format_context_usage(row->trailing, sizeof(row->trailing), task);
+        row->trailing_severity = context_trailing_severity(task);
     }
 
     if (task->source[0] != '\0' && task->detail[0] != '\0') {
@@ -952,6 +956,17 @@ static void format_context_usage(char *dest, size_t dest_size, const vibe_status
     }
 
     format_percent(dest, dest_size, "CTX", task->context_used_percent);
+}
+
+static vibe_display_trailing_severity_t context_trailing_severity(const vibe_status_task_t *task)
+{
+    if (task == NULL || task->context_used_percent < VIBE_DISPLAY_HIGH_CONTEXT_PERCENT) {
+        return VIBE_DISPLAY_TRAILING_NEUTRAL;
+    }
+    if (task->context_used_percent >= VIBE_DISPLAY_CRITICAL_CONTEXT_PERCENT) {
+        return VIBE_DISPLAY_TRAILING_CRITICAL;
+    }
+    return VIBE_DISPLAY_TRAILING_WARNING;
 }
 
 static void format_compact_token_count(char *dest, size_t dest_size, int tokens)

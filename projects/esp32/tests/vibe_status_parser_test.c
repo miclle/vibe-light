@@ -404,6 +404,34 @@ static void test_display_model_prioritizes_high_context_usage(void)
     assert(strcmp(row.trailing, "CTX 80%") == 0);
 }
 
+static void test_display_model_marks_context_usage_severity(void)
+{
+    vibe_status_task_t task = {
+        .title = "desktop",
+        .source = "codex",
+        .state = VIBE_DISPLAY_BUSY,
+        .state_text = "busy",
+        .detail = "make quick",
+        .context_used_percent = 79,
+        .updated_at_ms = 1780300608000LL,
+    };
+    vibe_display_task_row_t row;
+
+    vibe_display_format_task_row_at_phase(&task, 1780300800000LL, 0, 36, &row);
+    assert(strcmp(row.trailing, "CTX 79%") == 0);
+    assert(row.trailing_severity == VIBE_DISPLAY_TRAILING_NEUTRAL);
+
+    task.context_used_percent = 80;
+    vibe_display_format_task_row_at_phase(&task, 1780300800000LL, 0, 12, &row);
+    assert(strcmp(row.trailing, "CTX 80%") == 0);
+    assert(row.trailing_severity == VIBE_DISPLAY_TRAILING_WARNING);
+
+    task.context_used_percent = 90;
+    vibe_display_format_task_row_at_phase(&task, 1780300800000LL, 0, 12, &row);
+    assert(strcmp(row.trailing, "CTX 90%") == 0);
+    assert(row.trailing_severity == VIBE_DISPLAY_TRAILING_CRITICAL);
+}
+
 static void test_display_model_formats_waiting_task_duration(void)
 {
     vibe_status_task_t task = {
@@ -1259,6 +1287,7 @@ int main(void)
     test_display_model_formats_running_task_duration();
     test_display_model_rotates_running_task_context_usage();
     test_display_model_prioritizes_high_context_usage();
+    test_display_model_marks_context_usage_severity();
     test_display_model_formats_waiting_task_duration();
     test_display_model_formats_recent_task_freshness();
     test_display_model_shows_detail_for_every_task_with_detail();

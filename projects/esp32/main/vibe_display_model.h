@@ -76,11 +76,18 @@ typedef struct {
     bool has_value;
 } vibe_display_signature_t;
 
+typedef enum {
+    VIBE_DISPLAY_TRAILING_NEUTRAL = 0,
+    VIBE_DISPLAY_TRAILING_WARNING,
+    VIBE_DISPLAY_TRAILING_CRITICAL,
+} vibe_display_trailing_severity_t;
+
 typedef struct {
     char badge[8];
     char title[VIBE_DISPLAY_ROW_TEXT_MAX];
     char subtitle[VIBE_DISPLAY_ROW_TEXT_MAX];
     char trailing[16];
+    vibe_display_trailing_severity_t trailing_severity;
 } vibe_display_task_row_t;
 
 typedef struct {
