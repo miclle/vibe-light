@@ -16,9 +16,20 @@
 - 固件连接状态已经会主动刷新屏幕：Central 连接时显示 `idle / desktop connected`，断开时显示 `offline / desktop disconnected`。
 - 健康状态包已经包含运行时长、BLE 连接状态、最近显示状态、heap 余量、启动后 heap 低水位、渲染 tick、背光状态和最近解析错误；macOS 硬件页会展示这些诊断信息。
 - 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试、生成迷宫 / 全屏 PNG 预览并执行 Git whitespace 检查；ESP32 显示闭环已完成一次实机烧录和屏幕确认。
-- 固件版本 `61a603d` 已在目标板完成烧录、串口启动、BLE 连接和短稳定性采样：LCD 初始化、BLE 广播、Central 连接和连续 `v: 2` 状态写入均正常。后续仍需要肉眼复核最近显示修正和健康诊断扩展在屏幕 / macOS 硬件页上的实际观感。
+- 固件版本 `82d2180` 已在目标板完成烧录、串口启动、BLE 连接和健康特征实机读取：LCD 初始化、BLE 广播、Central 连接和连续 `v: 2` 状态写入均正常，health JSON 已确认包含 `backlightOn:true`，坏状态包后会回传 `lastParseError:"invalid JSON"`。后续仍需要肉眼复核最近显示修正和 macOS 硬件页上的实际观感。
 
 ## 最近实机验证
+
+- 时间：2026-06-11。
+- 端口：`/dev/cu.usbmodem2101`。
+- 固件版本：`82d2180`。
+- ESP-IDF：v5.5。
+- 芯片：ESP32-S3，8MB PSRAM。
+- 串口日志确认：应用正常启动，App version 为 `82d2180`，LCD 初始化成功，BLE 广播名为 `VibeLight-S3`，macOS 桌面端能连接并连续写入 `v: 2` 状态包。
+- 健康特征确认：临时 CoreBluetooth 脚本读取到 `backlightOn:true`、heap、uptime 和 `animationTick`；写入坏 JSON 后，health JSON 回传 `lastParseError:"invalid JSON"`，固件保持在线。
+- 屏幕确认：未在本轮自动化验证中肉眼复核；下一次需要重点看 token 摘要、`CODEX LIVE` / `CODEX LEGACY` 页脚、12px 底部余量、任务色块内缩、无边缘蓝线和 macOS 硬件页健康读数。
+
+## 历史实机验证
 
 - 时间：2026-06-11。
 - 端口：`/dev/cu.usbmodem2101`。
@@ -29,7 +40,7 @@
 - 短稳定性采样：5 分钟串口观察内 hard error 0、断连 0、状态写入 144 次、显示渲染 147 次；日志保存在本机 `/tmp/vibe-light-stability-clean-61a603d.log`。
 - 屏幕确认：未在本轮自动化验证中肉眼复核；下一次需要重点看 token 摘要、`CODEX LIVE` / `CODEX LEGACY` 页脚、12px 底部余量、任务色块内缩、无边缘蓝线和 macOS 硬件页健康读数。
 
-## 历史实机验证
+## 更早实机验证
 
 - 时间：2026-06-11。
 - 端口：`/dev/cu.usbmodem2101`。
@@ -39,7 +50,7 @@
 - 串口日志确认：应用正常启动，LCD 初始化成功，BLE 广播名为 `VibeLight-S3`，macOS 桌面端能连接并连续写入 `v: 2` 状态包。
 - 屏幕确认：未在本轮自动化验证中肉眼复核；后续显示修正提交不能视为已完成实机屏幕确认。
 
-## 更早实机验证
+## 早期实机验证
 
 - 时间：2026-06-10。
 - 端口：`/dev/cu.usbmodem2101`。
@@ -53,7 +64,7 @@
 ## 未完成事项
 
 1. **烧录并肉眼复核最近显示修正**
-   - `61a603d` 已完成烧录、串口启动、BLE 连接和连续 `v: 2` 写入确认。
+   - `82d2180` 已完成烧录、串口启动、BLE 连接、连续 `v: 2` 写入和健康特征读取确认。
    - 下一步优先肉眼复核 token 摘要、`CODEX LIVE` / `CODEX LEGACY` 页脚、12px 底部余量、任务色块内缩、无边缘蓝线和健康诊断扩展后的硬件页读数。
    - 继续记录后续屏幕观察结果；2026-06-10 的 `353426d` 屏幕确认不能代表后续提交。
 
@@ -64,8 +75,8 @@
    - 如果稳定性观察暴露问题，优先把可复现判断沉到 `vibe_display_model.*` 或 parser 测试，再处理硬件绘制层。
 
 3. **复核硬件诊断字段**
-   - 健康状态包已有 uptime、connected、lastState、heap、animationTick、backlightOn 和 lastParseError。
-   - 下一次实机闭环需要确认 macOS 硬件页能读到背光状态，并在注入坏状态包后显示最近解析错误。
+   - 固件 health JSON 已实机确认包含 uptime、connected、lastState、heap、animationTick、backlightOn 和 lastParseError。
+   - 下一次实机闭环需要确认 macOS 硬件页能展示背光状态，并在注入坏状态包后显示最近解析错误。
    - macOS 硬件页应继续保持为诊断视图，不把这些工程信息常驻到默认主屏。
 
 4. **保持显示模型测试随功能演进收紧**
@@ -94,7 +105,7 @@
    - 重点看动画是否卡住、BLE 是否断连后恢复、heap 低水位是否持续下降、footer 和任务尾标是否有残影或遮挡。
 
 3. **随后复核背光状态和最近解析错误**
-   - 代码和文档已经补齐；下一步是在实机上确认 `backlightOn` / `lastParseError` 从固件 health JSON 到 macOS 硬件页完整可见。
+   - 代码和文档已经补齐，`backlightOn` / `lastParseError` 从固件 health JSON 实机可读；下一步是在 macOS 硬件页确认它们完整可见。
    - 建议同时手动写入一次坏状态包，确认错误不会破坏上一帧显示，并能被健康页读到。
 
 4. **最后再评估横屏原型**

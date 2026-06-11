@@ -36,7 +36,7 @@
 
 ## 当前源码采用的板级连接
 
-以下来自当前 `projects/esp32/main/vibe_display.c`，是固件实现正在使用的 GPIO 配置。项目记录中已有一次目标板屏幕闭环：串口日志确认 LCD 初始化和 BLE 广播，macOS 桌面端可连接并写入 `v: 2` 状态包，屏幕可显示 high score、Codex 5H / 7D 用量和底部任务列表。固件版本 `61a603d` 已在 `/dev/cu.usbmodem2101` 完成烧录、串口启动、BLE 连接和 5 分钟短稳定性采样：LCD 初始化、BLE 广播、Central 连接和连续 `v: 2` 状态写入均正常，采样内 hard error 0、断连 0、状态写入 144 次、显示渲染 147 次；token 摘要、页脚位置、页脚去重、协议版本隐藏、边缘色块修正和 macOS 硬件页健康读数仍需要下一次肉眼看屏复核。当前 RGB panel 配置为 16-bit data width、18MHz PCLK、PSRAM framebuffer、2 个 framebuffer 和 10 行 bounce buffer。
+以下来自当前 `projects/esp32/main/vibe_display.c`，是固件实现正在使用的 GPIO 配置。项目记录中已有一次目标板屏幕闭环：串口日志确认 LCD 初始化和 BLE 广播，macOS 桌面端可连接并写入 `v: 2` 状态包，屏幕可显示 high score、Codex 5H / 7D 用量和底部任务列表。固件版本 `82d2180` 已在 `/dev/cu.usbmodem2101` 完成烧录、串口启动、BLE 连接和健康特征实机读取：LCD 初始化、BLE 广播、Central 连接和连续 `v: 2` 状态写入均正常，health JSON 已确认包含 `backlightOn:true`，坏状态包后会回传 `lastParseError:"invalid JSON"`；token 摘要、页脚位置、页脚去重、协议版本隐藏、边缘色块修正和 macOS 硬件页健康读数仍需要下一次肉眼看屏复核。当前 RGB panel 配置为 16-bit data width、18MHz PCLK、PSRAM framebuffer、2 个 framebuffer 和 10 行 bounce buffer。
 
 | 用途 | GPIO |
 | --- | --- |
@@ -99,7 +99,7 @@
 - `busy` 状态下动画 timer 非阻塞运行，角色数量、整轮豆子重置和主角方向与 host-side 测试 / PNG 预览一致。
 - 未知状态或格式错误的 JSON 不会导致固件崩溃。
 
-当前项目记录已经覆盖发现、连接、`v: 2` 写入、基础屏幕确认、`61a603d` 的 5 分钟短稳定性采样和健康诊断字段扩展；后续验收应继续补充 30-60 分钟长时间运行、重复连接、低余量 reset 提示、等待态尾标轮播、页脚 / 色块边缘修正、macOS 硬件页健康读数和错误包恢复等场景。
+当前项目记录已经覆盖发现、连接、`v: 2` 写入、基础屏幕确认、`61a603d` 的 5 分钟短稳定性采样和 `82d2180` 的健康诊断字段实机读取；后续验收应继续补充 30-60 分钟长时间运行、重复连接、低余量 reset 提示、等待态尾标轮播、页脚 / 色块边缘修正、macOS 硬件页健康读数和错误包恢复等场景。
 
 如果先验证屏幕和板载资源，可使用官方示例工程：
 
@@ -127,4 +127,4 @@
 - 确认 ESP-IDF 版本和项目固件目录结构。当前固件目录已经落在 `projects/esp32`，本机记录的 ESP-IDF 构建版本为 v5.5.1；当前渲染路径未引入 LVGL。
 - 确认 BLE 与 LCD 刷新并行运行时的内存占用和刷新性能。
 - 在实机上继续观察 PSRAM framebuffer、主动低电平背光 PWM、Codex 吃豆人动画、低余量 reset 提示和任务尾标轮播是否稳定。
-- 在下一次实机闭环中确认健康状态里的 `backlightOn` 和 `lastParseError` 能在 macOS 硬件页正确显示。
+- 健康状态里的 `backlightOn` 和 `lastParseError` 已通过临时 CoreBluetooth 脚本实机读取确认；下一次实机闭环需要确认它们在 macOS 硬件页正确显示。
