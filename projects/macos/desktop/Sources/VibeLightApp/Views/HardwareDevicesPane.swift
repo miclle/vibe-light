@@ -236,6 +236,7 @@ struct HardwareDevicesPane: View {
         case .mixedWaiting: "person.crop.circle.badge.questionmark"
         case .errorBusy: "exclamationmark.triangle"
         case .fiveTasks: "list.bullet.rectangle"
+        case .ctxColor: "gauge.with.dots.needle.67percent"
         case .idle: "moon"
         }
     }

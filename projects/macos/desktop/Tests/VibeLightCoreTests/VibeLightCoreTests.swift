@@ -709,7 +709,7 @@ import Testing
 @Test func hardwareDemoPacketsProvideBoundedV2TaskScenarios() throws {
     let scenarios = HardwareDemoPacketScenario.allCases
 
-    #expect(scenarios.map(\.id) == ["one-running", "mixed-waiting", "error-busy", "five-tasks", "idle"])
+    #expect(scenarios.map(\.id) == ["one-running", "mixed-waiting", "error-busy", "five-tasks", "ctx-color", "idle"])
 
     for scenario in scenarios {
         let packet = scenario.packet(timestamp: Date(timeIntervalSince1970: 1_780_300_800))
@@ -719,6 +719,19 @@ import Testing
         #expect((packet.tasks ?? []).count <= 5)
         #expect(data.count <= 512)
     }
+}
+
+@Test func hardwareDemoPacketIncludesContextColorScenario() {
+    let packet = HardwareDemoPacketScenario.ctxColor.packet(timestamp: Date(timeIntervalSince1970: 1_780_300_800))
+    let tasks = packet.tasks ?? []
+
+    #expect(packet.state == .busy)
+    #expect(packet.detail == "CTX color check")
+    #expect(packet.activeCount == 2)
+    #expect(tasks.map(\.title) == ["ctx-warning", "ctx-critical"])
+    #expect(tasks.map(\.contextUsedPercent) == [82, 92])
+    #expect(tasks.map(\.contextUsedTokens) == [9_840, 11_040])
+    #expect(tasks.map(\.contextWindowTokens) == [12_000, 12_000])
 }
 
 @Test func hardwareDemoPacketsExposeUsefulScreenStates() {
