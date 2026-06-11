@@ -27,6 +27,8 @@ typedef struct {
     char state_text[VIBE_STATUS_TEXT_MAX];
     char detail[VIBE_STATUS_TEXT_MAX];
     int context_used_percent;
+    int context_used_tokens;
+    int context_window_tokens;
     int64_t updated_at_ms;
 } vibe_status_task_t;
 

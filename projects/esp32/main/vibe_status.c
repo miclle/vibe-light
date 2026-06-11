@@ -53,6 +53,16 @@ static int json_percent(cJSON *root, const char *key)
     return value->valueint;
 }
 
+static int json_non_negative_int(cJSON *root, const char *key)
+{
+    cJSON *value = cJSON_GetObjectItemCaseSensitive(root, key);
+    if (!cJSON_IsNumber(value)) {
+        return -1;
+    }
+
+    return value->valueint < 0 ? 0 : value->valueint;
+}
+
 static void parse_task(cJSON *item, vibe_status_task_t *task)
 {
     if (item == NULL || task == NULL) {
@@ -70,6 +80,8 @@ static void parse_task(cJSON *item, vibe_status_task_t *task)
     }
 
     cJSON *state = cJSON_GetObjectItemCaseSensitive(item, "state");
+    task->context_used_tokens = json_non_negative_int(item, "contextUsedTokens");
+    task->context_window_tokens = json_non_negative_int(item, "contextWindowTokens");
     if (cJSON_IsString(state) && state->valuestring != NULL) {
         bool known = false;
         task->state = vibe_display_state_from_string(state->valuestring, &known);
@@ -103,6 +115,8 @@ void vibe_status_default(vibe_status_packet_t *packet)
         copy_text(packet->tasks[i].state_text, sizeof(packet->tasks[i].state_text), "idle");
         copy_text(packet->tasks[i].detail, sizeof(packet->tasks[i].detail), "");
         packet->tasks[i].context_used_percent = -1;
+        packet->tasks[i].context_used_tokens = -1;
+        packet->tasks[i].context_window_tokens = -1;
         packet->tasks[i].updated_at_ms = 0;
     }
 }

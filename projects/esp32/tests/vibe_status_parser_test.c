@@ -97,7 +97,8 @@ static void test_v2_usage_packet(void)
         "\"source\":\"codex\","
         "\"state\":\"busy\","
         "\"tasks\":["
-        "{\"contextUsedPercent\":90,\"source\":\"codex\",\"state\":\"busy\",\"title\":\"vibe-light\"}"
+        "{\"contextUsedPercent\":90,\"contextUsedTokens\":4200,\"contextWindowTokens\":12000,"
+        "\"source\":\"codex\",\"state\":\"busy\",\"title\":\"vibe-light\"}"
         "],"
         "\"usage\":{\"codex5hRemainingPercent\":88,\"codex7dRemainingPercent\":60},"
         "\"v\":2"
@@ -112,13 +113,15 @@ static void test_v2_usage_packet(void)
     assert(packet.codex_5h_remaining_percent == 88);
     assert(packet.codex_7d_remaining_percent == 60);
     assert(packet.tasks[0].context_used_percent == 90);
+    assert(packet.tasks[0].context_used_tokens == 4200);
+    assert(packet.tasks[0].context_window_tokens == 12000);
 
     vibe_display_format_usage_summary(&packet, &usage);
     assert(strcmp(usage.five_hour, "5H 88%") == 0);
     assert(strcmp(usage.weekly, "7D 60%") == 0);
 
     vibe_display_format_task_row(&packet.tasks[0], 0, &row);
-    assert(strcmp(row.trailing, "CTX 90%") == 0);
+    assert(strcmp(row.trailing, "CTX 4.2K/12K") == 0);
 }
 
 static void test_v2_usage_packet_formats_low_remaining_reset_hint(void)

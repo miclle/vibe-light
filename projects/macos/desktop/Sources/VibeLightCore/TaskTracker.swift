@@ -10,6 +10,8 @@ public struct TrackedTask: Equatable, Identifiable, Sendable {
     public var lastUpdated: Date
     public var inclusionReason: String
     public var contextUsedPercent: Int?
+    public var contextUsedTokens: Int?
+    public var contextWindowTokens: Int?
 
     public init(
         id: String,
@@ -20,7 +22,9 @@ public struct TrackedTask: Equatable, Identifiable, Sendable {
         lastDetail: String,
         lastUpdated: Date,
         inclusionReason: String,
-        contextUsedPercent: Int? = nil
+        contextUsedPercent: Int? = nil,
+        contextUsedTokens: Int? = nil,
+        contextWindowTokens: Int? = nil
     ) {
         self.id = id
         self.identityKind = identityKind
@@ -31,6 +35,8 @@ public struct TrackedTask: Equatable, Identifiable, Sendable {
         self.lastUpdated = lastUpdated
         self.inclusionReason = inclusionReason
         self.contextUsedPercent = contextUsedPercent
+        self.contextUsedTokens = contextUsedTokens
+        self.contextWindowTokens = contextWindowTokens
     }
 }
 
@@ -104,6 +110,8 @@ public struct DisplaySnapshot: Equatable, Sendable {
                     source: $0.source,
                     detail: $0.lastDetail,
                     contextUsedPercent: $0.contextUsedPercent,
+                    contextUsedTokens: $0.contextUsedTokens,
+                    contextWindowTokens: $0.contextWindowTokens,
                     updatedAt: $0.lastUpdated
                 )
             },
@@ -146,7 +154,9 @@ public struct TaskTracker: Sendable {
                 lastDetail: taskDetail(for: event),
                 lastUpdated: event.timestamp,
                 inclusionReason: inclusionReason(for: event, identity: identity),
-                contextUsedPercent: usage?.contextUsedPercent
+                contextUsedPercent: usage?.contextUsedPercent,
+                contextUsedTokens: usage?.contextUsedTokens,
+                contextWindowTokens: usage?.contextWindowTokens
             )
         }
 

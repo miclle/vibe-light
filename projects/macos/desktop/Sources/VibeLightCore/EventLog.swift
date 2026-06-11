@@ -149,11 +149,14 @@ public struct CodexUsageReader: Sendable {
         let rateLimits = payload["rate_limits"] as? [String: Any]
         let primary = rateLimits?["primary"] as? [String: Any]
         let secondary = rateLimits?["secondary"] as? [String: Any]
+        let contextTokens = contextTokenUsage(from: info)
 
         return CodexUsage(
             fiveHourRemainingPercent: remainingPercent(from: primary),
             weeklyRemainingPercent: remainingPercent(from: secondary),
-            contextUsedPercent: contextUsedPercent(from: info),
+            contextUsedPercent: contextUsedPercent(from: contextTokens),
+            contextUsedTokens: contextTokens?.used,
+            contextWindowTokens: contextTokens?.window,
             fiveHourResetAtMilliseconds: resetAtMilliseconds(from: primary),
             weeklyResetAtMilliseconds: resetAtMilliseconds(from: secondary)
         )
@@ -175,7 +178,7 @@ public struct CodexUsageReader: Sendable {
         return Int64((resetsAt * 1_000).rounded())
     }
 
-    private func contextUsedPercent(from info: [String: Any]?) -> Int? {
+    private func contextTokenUsage(from info: [String: Any]?) -> (used: Int, window: Int)? {
         guard let window = number(info?["model_context_window"]),
               window > 0 else {
             return nil
@@ -187,7 +190,18 @@ public struct CodexUsageReader: Sendable {
             return nil
         }
 
-        return clampedPercent(Int((contextTokens / window * 100).rounded()))
+        return (
+            used: max(0, Int(contextTokens.rounded())),
+            window: max(0, Int(window.rounded()))
+        )
+    }
+
+    private func contextUsedPercent(from usage: (used: Int, window: Int)?) -> Int? {
+        guard let usage, usage.window > 0 else {
+            return nil
+        }
+
+        return clampedPercent(Int((Double(usage.used) / Double(usage.window) * 100).rounded()))
     }
 
     private func number(_ value: Any?) -> Double? {

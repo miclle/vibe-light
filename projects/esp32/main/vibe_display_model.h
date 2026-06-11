@@ -73,7 +73,7 @@ typedef struct {
     char badge[8];
     char title[VIBE_DISPLAY_ROW_TEXT_MAX];
     char subtitle[VIBE_DISPLAY_ROW_TEXT_MAX];
-    char trailing[12];
+    char trailing[16];
 } vibe_display_task_row_t;
 
 typedef struct {

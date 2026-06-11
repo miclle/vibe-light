@@ -134,6 +134,8 @@ public struct CodexUsage: Codable, Equatable, Sendable {
     public var fiveHourRemainingPercent: Int?
     public var weeklyRemainingPercent: Int?
     public var contextUsedPercent: Int?
+    public var contextUsedTokens: Int?
+    public var contextWindowTokens: Int?
     public var fiveHourResetAtMilliseconds: Int64?
     public var weeklyResetAtMilliseconds: Int64?
 
@@ -142,6 +144,8 @@ public struct CodexUsage: Codable, Equatable, Sendable {
         case weeklyRemainingPercent
         case contextUsedPercent
         case contextRemainingPercent
+        case contextUsedTokens
+        case contextWindowTokens
         case fiveHourResetAtMilliseconds
         case weeklyResetAtMilliseconds
     }
@@ -150,12 +154,16 @@ public struct CodexUsage: Codable, Equatable, Sendable {
         fiveHourRemainingPercent: Int? = nil,
         weeklyRemainingPercent: Int? = nil,
         contextUsedPercent: Int? = nil,
+        contextUsedTokens: Int? = nil,
+        contextWindowTokens: Int? = nil,
         fiveHourResetAtMilliseconds: Int64? = nil,
         weeklyResetAtMilliseconds: Int64? = nil
     ) {
         self.fiveHourRemainingPercent = fiveHourRemainingPercent.map(Self.clampedPercent)
         self.weeklyRemainingPercent = weeklyRemainingPercent.map(Self.clampedPercent)
         self.contextUsedPercent = contextUsedPercent.map(Self.clampedPercent)
+        self.contextUsedTokens = contextUsedTokens.map(Self.nonNegative)
+        self.contextWindowTokens = contextWindowTokens.map(Self.nonNegative)
         self.fiveHourResetAtMilliseconds = fiveHourResetAtMilliseconds
         self.weeklyResetAtMilliseconds = weeklyResetAtMilliseconds
     }
@@ -167,6 +175,8 @@ public struct CodexUsage: Codable, Equatable, Sendable {
             fiveHourRemainingPercent: try container.decodeIfPresent(Int.self, forKey: .fiveHourRemainingPercent),
             weeklyRemainingPercent: try container.decodeIfPresent(Int.self, forKey: .weeklyRemainingPercent),
             contextUsedPercent: try container.decodeIfPresent(Int.self, forKey: .contextUsedPercent) ?? legacyRemaining.map { 100 - $0 },
+            contextUsedTokens: try container.decodeIfPresent(Int.self, forKey: .contextUsedTokens),
+            contextWindowTokens: try container.decodeIfPresent(Int.self, forKey: .contextWindowTokens),
             fiveHourResetAtMilliseconds: try container.decodeIfPresent(Int64.self, forKey: .fiveHourResetAtMilliseconds),
             weeklyResetAtMilliseconds: try container.decodeIfPresent(Int64.self, forKey: .weeklyResetAtMilliseconds)
         )
@@ -177,12 +187,18 @@ public struct CodexUsage: Codable, Equatable, Sendable {
         try container.encodeIfPresent(fiveHourRemainingPercent, forKey: .fiveHourRemainingPercent)
         try container.encodeIfPresent(weeklyRemainingPercent, forKey: .weeklyRemainingPercent)
         try container.encodeIfPresent(contextUsedPercent, forKey: .contextUsedPercent)
+        try container.encodeIfPresent(contextUsedTokens, forKey: .contextUsedTokens)
+        try container.encodeIfPresent(contextWindowTokens, forKey: .contextWindowTokens)
         try container.encodeIfPresent(fiveHourResetAtMilliseconds, forKey: .fiveHourResetAtMilliseconds)
         try container.encodeIfPresent(weeklyResetAtMilliseconds, forKey: .weeklyResetAtMilliseconds)
     }
 
     private static func clampedPercent(_ value: Int) -> Int {
         min(100, max(0, value))
+    }
+
+    private static func nonNegative(_ value: Int) -> Int {
+        max(0, value)
     }
 }
 
@@ -332,6 +348,8 @@ public struct StatusPacket: Codable, Equatable, Sendable {
                     state: $0.state,
                     source: $0.source,
                     contextUsedPercent: keepContext ? $0.contextUsedPercent : nil,
+                    contextUsedTokens: keepContext ? $0.contextUsedTokens : nil,
+                    contextWindowTokens: keepContext ? $0.contextWindowTokens : nil,
                     updatedAtMilliseconds: $0.updatedAtMilliseconds
                 )
             }
@@ -497,6 +515,8 @@ public struct StatusTask: Codable, Equatable, Sendable {
     public var source: VibeSource
     public var detail: String?
     public var contextUsedPercent: Int?
+    public var contextUsedTokens: Int?
+    public var contextWindowTokens: Int?
     public var updatedAtMilliseconds: Int64?
 
     private enum CodingKeys: String, CodingKey {
@@ -506,6 +526,8 @@ public struct StatusTask: Codable, Equatable, Sendable {
         case detail
         case contextUsedPercent
         case contextRemainingPercent
+        case contextUsedTokens
+        case contextWindowTokens
         case updatedAt
     }
 
@@ -515,6 +537,8 @@ public struct StatusTask: Codable, Equatable, Sendable {
         source: VibeSource,
         detail: String? = nil,
         contextUsedPercent: Int? = nil,
+        contextUsedTokens: Int? = nil,
+        contextWindowTokens: Int? = nil,
         updatedAt: Date? = nil,
         updatedAtMilliseconds: Int64? = nil
     ) {
@@ -523,6 +547,8 @@ public struct StatusTask: Codable, Equatable, Sendable {
         self.source = source
         self.detail = detail.map { StatusPacket.truncatedTaskDetail($0) }
         self.contextUsedPercent = contextUsedPercent.map { min(100, max(0, $0)) }
+        self.contextUsedTokens = contextUsedTokens.map { max(0, $0) }
+        self.contextWindowTokens = contextWindowTokens.map { max(0, $0) }
         self.updatedAtMilliseconds = updatedAtMilliseconds ?? updatedAt.map {
             Int64(($0.timeIntervalSince1970 * 1_000).rounded())
         }
@@ -537,6 +563,8 @@ public struct StatusTask: Codable, Equatable, Sendable {
             source: try container.decode(VibeSource.self, forKey: .source),
             detail: try container.decodeIfPresent(String.self, forKey: .detail),
             contextUsedPercent: try container.decodeIfPresent(Int.self, forKey: .contextUsedPercent) ?? legacyRemaining.map { 100 - $0 },
+            contextUsedTokens: try container.decodeIfPresent(Int.self, forKey: .contextUsedTokens),
+            contextWindowTokens: try container.decodeIfPresent(Int.self, forKey: .contextWindowTokens),
             updatedAtMilliseconds: try container.decodeIfPresent(Int64.self, forKey: .updatedAt)
         )
     }
@@ -548,6 +576,8 @@ public struct StatusTask: Codable, Equatable, Sendable {
         try container.encode(source, forKey: .source)
         try container.encodeIfPresent(detail, forKey: .detail)
         try container.encodeIfPresent(contextUsedPercent, forKey: .contextUsedPercent)
+        try container.encodeIfPresent(contextUsedTokens, forKey: .contextUsedTokens)
+        try container.encodeIfPresent(contextWindowTokens, forKey: .contextWindowTokens)
         try container.encodeIfPresent(updatedAtMilliseconds, forKey: .updatedAt)
     }
 }

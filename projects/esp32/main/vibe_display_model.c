@@ -23,8 +23,11 @@ static void append_text(char *dest, size_t dest_size, const char *source);
 static void format_count(char *dest, size_t dest_size, char label, int count);
 static void format_maze_count(char *dest, size_t dest_size, const char *label, int count);
 static void format_percent(char *dest, size_t dest_size, const char *label, int percent);
+static void format_context_usage(char *dest, size_t dest_size, const vibe_status_task_t *task);
+static void format_compact_token_count(char *dest, size_t dest_size, int tokens);
 static bool format_reset_hint(char *dest, size_t dest_size, const char *label, int remaining_percent, int64_t reset_at_ms, int64_t now_ms);
 static bool format_task_timing(char *dest, size_t dest_size, const vibe_status_task_t *task, int64_t now_ms);
+static bool task_has_context_usage(const vibe_status_task_t *task);
 static bool should_show_context_for_task(const vibe_status_task_t *task, int index, int phase);
 static int positive_mod(int value, int modulus);
 
@@ -70,6 +73,8 @@ uint32_t vibe_display_packet_signature(const vibe_status_packet_t *packet)
         hash = fnv1a_update(hash, &task->state, sizeof(task->state));
         hash = fnv1a_update_text(hash, task->detail);
         hash = fnv1a_update(hash, &task->context_used_percent, sizeof(task->context_used_percent));
+        hash = fnv1a_update(hash, &task->context_used_tokens, sizeof(task->context_used_tokens));
+        hash = fnv1a_update(hash, &task->context_window_tokens, sizeof(task->context_window_tokens));
         hash = fnv1a_update(hash, &task->updated_at_ms, sizeof(task->updated_at_ms));
     }
 
@@ -119,9 +124,9 @@ void vibe_display_format_task_row_at_phase(const vibe_status_task_t *task, int64
     copy_text(row->title, sizeof(row->title), task->title[0] == '\0' ? "untitled" : task->title);
     bool has_timing = format_task_timing(row->trailing, sizeof(row->trailing), task, now_ms);
     if (has_timing && should_show_context_for_task(task, index, phase)) {
-        format_percent(row->trailing, sizeof(row->trailing), "CTX", task->context_used_percent);
+        format_context_usage(row->trailing, sizeof(row->trailing), task);
     } else if (!has_timing) {
-        format_percent(row->trailing, sizeof(row->trailing), "CTX", task->context_used_percent);
+        format_context_usage(row->trailing, sizeof(row->trailing), task);
     }
 
     if (task->source[0] != '\0' && task->detail[0] != '\0') {
@@ -927,6 +932,60 @@ static void format_percent(char *dest, size_t dest_size, const char *label, int 
     snprintf(dest, dest_size, "%s %d%%", label, percent);
 }
 
+static void format_context_usage(char *dest, size_t dest_size, const vibe_status_task_t *task)
+{
+    if (dest == NULL || dest_size == 0) {
+        return;
+    }
+
+    dest[0] = '\0';
+    if (task == NULL) {
+        return;
+    }
+
+    if (task->context_used_tokens >= 0 && task->context_window_tokens > 0) {
+        char used[8];
+        char window[8];
+        format_compact_token_count(used, sizeof(used), task->context_used_tokens);
+        format_compact_token_count(window, sizeof(window), task->context_window_tokens);
+        int written = snprintf(dest, dest_size, "CTX %s/%s", used, window);
+        if (written >= 0 && (size_t)written < dest_size) {
+            return;
+        }
+        snprintf(dest, dest_size, "CTX %s", used);
+        return;
+    }
+
+    format_percent(dest, dest_size, "CTX", task->context_used_percent);
+}
+
+static void format_compact_token_count(char *dest, size_t dest_size, int tokens)
+{
+    if (dest == NULL || dest_size == 0) {
+        return;
+    }
+
+    if (tokens < 0) {
+        tokens = 0;
+    }
+    if (tokens < 1000) {
+        snprintf(dest, dest_size, "%d", tokens);
+        return;
+    }
+
+    int tenths = (tokens + 50) / 100;
+    if (tenths < 100) {
+        snprintf(dest, dest_size, "%d.%dK", tenths / 10, tenths % 10);
+        return;
+    }
+
+    int thousands = (tokens + 500) / 1000;
+    if (thousands > 999) {
+        thousands = 999;
+    }
+    snprintf(dest, dest_size, "%dK", thousands);
+}
+
 static bool format_reset_hint(char *dest, size_t dest_size, const char *label, int remaining_percent, int64_t reset_at_ms, int64_t now_ms)
 {
     if (dest == NULL || dest_size == 0) {
@@ -999,11 +1058,21 @@ static bool format_task_timing(char *dest, size_t dest_size, const vibe_status_t
 
 static bool should_show_context_for_task(const vibe_status_task_t *task, int index, int phase)
 {
-    if (task == NULL || task->context_used_percent < 0 ||
+    if (task == NULL || !task_has_context_usage(task) ||
         (task->state != VIBE_DISPLAY_BUSY && task->state != VIBE_DISPLAY_WAITING)) {
         return false;
     }
 
     int slot = positive_mod((phase / 12) + index, task->context_used_percent >= 85 ? 2 : 4);
     return slot == (task->context_used_percent >= 85 ? 1 : 3);
+}
+
+static bool task_has_context_usage(const vibe_status_task_t *task)
+{
+    if (task == NULL) {
+        return false;
+    }
+
+    return task->context_used_percent >= 0 ||
+           (task->context_used_tokens >= 0 && task->context_window_tokens > 0);
 }

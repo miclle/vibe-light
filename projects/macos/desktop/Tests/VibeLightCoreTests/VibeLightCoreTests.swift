@@ -327,6 +327,8 @@ import Testing
     #expect(usage.fiveHourRemainingPercent == 88)
     #expect(usage.weeklyRemainingPercent == 60)
     #expect(usage.contextUsedPercent == 10)
+    #expect(usage.contextUsedTokens == 1000)
+    #expect(usage.contextWindowTokens == 10000)
     #expect(usage.fiveHourResetAtMilliseconds == 1_781_014_908_000)
     #expect(usage.weeklyResetAtMilliseconds == 1_781_445_567_000)
 }
@@ -351,6 +353,8 @@ import Testing
     let event = try HookPayloadDecoder(defaultSource: .codex).decode(data)
 
     #expect(event.codexUsage?.contextUsedPercent == 20)
+    #expect(event.codexUsage?.contextUsedTokens == 2000)
+    #expect(event.codexUsage?.contextWindowTokens == 10000)
 }
 
 @Test func codexUsageReaderFindsLatestTokenCountNearTranscriptTail() throws {
@@ -370,6 +374,8 @@ import Testing
     #expect(usage.fiveHourRemainingPercent == 75)
     #expect(usage.weeklyRemainingPercent == 50)
     #expect(usage.contextUsedPercent == 35)
+    #expect(usage.contextUsedTokens == 4200)
+    #expect(usage.contextWindowTokens == 12000)
 }
 
 @Test func displaySnapshotAddsUsageToStatusPacketAndTasks() throws {
@@ -387,6 +393,8 @@ import Testing
                 fiveHourRemainingPercent: 88,
                 weeklyRemainingPercent: 60,
                 contextUsedPercent: 90,
+                contextUsedTokens: 10_800,
+                contextWindowTokens: 12_000,
                 fiveHourResetAtMilliseconds: 1_781_014_908_000,
                 weeklyResetAtMilliseconds: 1_781_445_567_000
             )
@@ -405,6 +413,8 @@ import Testing
     #expect(usage["codex5hResetAt"] as? Int64 == 1_781_014_908_000)
     #expect(usage["codex7dResetAt"] as? Int64 == 1_781_445_567_000)
     #expect(tasks.first?["contextUsedPercent"] as? Int == 90)
+    #expect(tasks.first?["contextUsedTokens"] as? Int == 10_800)
+    #expect(tasks.first?["contextWindowTokens"] as? Int == 12_000)
 }
 
 @Test func displaySnapshotBackfillsUsageFromStoredRawPayloadTranscript() throws {
