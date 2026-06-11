@@ -7,6 +7,7 @@
 static uint32_t fnv1a_update(uint32_t hash, const void *data, size_t length);
 static uint32_t fnv1a_update_text(uint32_t hash, const char *text);
 static const char *badge_for_state(vibe_display_state_t state);
+static const char *source_label(const char *source);
 static void maze_pellet_at_index(int index, vibe_display_animation_frame_t *frame);
 static void maze_frame_at_tick(int tick, int phase_offset, bool mouth_open, vibe_display_animation_frame_t *frame);
 static bool maze_pellet_eaten_on_segment(int pellet_index, int from_path_position, int substep);
@@ -355,13 +356,28 @@ void vibe_display_format_empty_state(const vibe_status_packet_t *packet, vibe_di
 
 void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, size_t text_size)
 {
-    (void)packet;
-
     if (text == NULL || text_size == 0) {
         return;
     }
 
     text[0] = '\0';
+    if (packet == NULL) {
+        return;
+    }
+
+    if (packet->state == VIBE_DISPLAY_OFFLINE) {
+        snprintf(text, text_size, "OFFLINE");
+        return;
+    }
+
+    snprintf(text,
+             text_size,
+             "%s V%d A%d W%d E%d",
+             source_label(packet->source),
+             packet->version,
+             packet->active_count < 0 ? 0 : packet->active_count,
+             packet->waiting_count < 0 ? 0 : packet->waiting_count,
+             packet->error_count < 0 ? 0 : packet->error_count);
 }
 
 bool vibe_display_animation_enabled(vibe_display_state_t state)
@@ -824,6 +840,23 @@ static const char *badge_for_state(vibe_display_state_t state)
     default:
         return "IDLE";
     }
+}
+
+static const char *source_label(const char *source)
+{
+    if (source == NULL || source[0] == '\0') {
+        return "SRC";
+    }
+    if (strcmp(source, "codex") == 0) {
+        return "CODEX";
+    }
+    if (strcmp(source, "claude") == 0) {
+        return "CLAUDE";
+    }
+    if (strcmp(source, "manual") == 0) {
+        return "MANUAL";
+    }
+    return "OTHER";
 }
 
 static void copy_text(char *dest, size_t dest_size, const char *source)

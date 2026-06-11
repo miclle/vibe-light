@@ -1146,16 +1146,26 @@ static void test_display_model_animates_center_ghost_subtly(void)
     assert(shifted.x != open.x || shifted.y != open.y);
 }
 
-static void test_display_model_hides_timestamp_footer(void)
+static void test_display_model_formats_status_footer(void)
 {
     vibe_status_packet_t packet;
     char footer[32];
 
     vibe_status_default(&packet);
-    packet.timestamp_ms = 1780874713000LL;
+    packet.version = 2;
+    snprintf(packet.source, sizeof(packet.source), "%s", "codex");
+    packet.state = VIBE_DISPLAY_BUSY;
+    packet.active_count = 2;
+    packet.waiting_count = 1;
+    packet.error_count = 0;
     vibe_display_footer_text(&packet, footer, sizeof(footer));
 
-    assert(strcmp(footer, "") == 0);
+    assert(strcmp(footer, "CODEX V2 A2 W1 E0") == 0);
+
+    packet.state = VIBE_DISPLAY_OFFLINE;
+    vibe_display_footer_text(&packet, footer, sizeof(footer));
+
+    assert(strcmp(footer, "OFFLINE") == 0);
 }
 
 static void test_display_model_keeps_task_panel_tight_to_screen_bottom(void)
@@ -1238,7 +1248,7 @@ int main(void)
     test_display_model_actor_shape_faces_travel_direction();
     test_display_model_uses_reference_pacman_actor_style();
     test_display_model_animates_center_ghost_subtly();
-    test_display_model_hides_timestamp_footer();
+    test_display_model_formats_status_footer();
     test_display_model_keeps_task_panel_tight_to_screen_bottom();
 
     puts("vibe_status_parser_test: ok");
