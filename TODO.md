@@ -36,11 +36,17 @@
 
 ## 未完成事项
 
-1. **保持显示模型测试随功能演进收紧**
+1. **在 macOS app 内集成 ESP32-S3 固件烧录**
+   - 目标是让普通用户只下载安装 desktop app，通过 USB 连接 Waveshare `ESP32-S3-LCD-3.16` 后即可完成固件烧录，不需要搭建 ESP-IDF 环境。
+   - 推荐路线是随 app 携带预编译 `FirmwareBundle`，由应用内 helper 基于 `flasher_args.json` 等价信息执行 `write_flash`，再用 BLE 扫描和 health packet 验证烧录结果。
+   - 需要优先验证 macOS 串口 / USB entitlement、helper 签名与 notarization、烧录工具许可证、下载模式失败提示和误刷防护。
+   - 方案细节见 `docs/desktop-firmware-flashing.md`。
+
+2. **保持显示模型测试随功能演进收紧**
    - 已有 host-side C 测试覆盖动画路径、重复包去重、任务行格式、未知状态降级、底部布局、整轮豆子重置、用量显示和中文任务文本。
    - 新增屏幕布局、状态表现、迷宫素材、坐标或缩放规则时，仍需同步更新 `vibe_display_model.*`、`render_maze_preview.py` 和 parser 测试断言。
 
-2. **横屏 layout mode 仍是实验方向**
+3. **横屏 layout mode 仍是实验方向**
    - 暂时保留竖屏作为默认稳定模式，因为当前设备外观和摆放更适合竖向状态灯。
    - 横屏原型不需要改 BLE 协议，先只调整 ESP32 渲染布局。
    - 建议原型信息架构为“左侧状态 / 中间 Codex 动画 / 右侧任务列表 / 顶部或底部统计条”。
