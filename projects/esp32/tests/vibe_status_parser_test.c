@@ -1181,7 +1181,7 @@ static void test_display_model_keeps_task_panel_tight_to_screen_bottom(void)
     const int screen_h = 820;
     const int last_compact_row_y = VIBE_DISPLAY_TASK_ROW_Y + (VIBE_STATUS_MAX_TASKS - 1) * VIBE_DISPLAY_TASK_ROW_STRIDE;
     const int row_bottom = last_compact_row_y + VIBE_DISPLAY_TASK_ROW_TEXT_H;
-    const int swatch_bottom = last_compact_row_y + VIBE_DISPLAY_TASK_SWATCH_H;
+    const int swatch_bottom = last_compact_row_y + VIBE_DISPLAY_TASK_SWATCH_Y_OFFSET + VIBE_DISPLAY_TASK_SWATCH_H;
     const int last_detail_row_y = VIBE_DISPLAY_TASK_ROW_Y + (VIBE_STATUS_MAX_TASKS - 1) * VIBE_DISPLAY_TASK_DETAIL_ROW_STRIDE;
     const int detail_bottom = last_detail_row_y + VIBE_DISPLAY_TASK_DETAIL_Y_OFFSET + VIBE_DISPLAY_TASK_DETAIL_TEXT_H;
 
@@ -1197,14 +1197,17 @@ static void test_display_model_keeps_task_panel_tight_to_screen_bottom(void)
     assert(VIBE_DISPLAY_TASK_ROW_STRIDE <= 48);
     assert(VIBE_DISPLAY_TASK_DETAIL_ROW_STRIDE <= 64);
     assert(VIBE_DISPLAY_TASK_DETAIL_Y_OFFSET > VIBE_DISPLAY_TASK_ROW_TEXT_H);
-    assert(VIBE_DISPLAY_TASK_SWATCH_X == VIBE_DISPLAY_TASK_PANEL_X);
+    assert(VIBE_DISPLAY_TASK_SWATCH_X > VIBE_DISPLAY_TASK_PANEL_X);
     assert(VIBE_DISPLAY_TASK_TEXT_X > VIBE_DISPLAY_TASK_SWATCH_X + VIBE_DISPLAY_TASK_SWATCH_W);
     assert(VIBE_DISPLAY_TASK_TEXT_X <= 20);
-    assert(VIBE_DISPLAY_TASK_SWATCH_W <= 4);
+    assert(VIBE_DISPLAY_TASK_SWATCH_Y_OFFSET > 0);
+    assert(VIBE_DISPLAY_TASK_SWATCH_W <= 6);
     assert(VIBE_DISPLAY_TASK_SWATCH_H <= VIBE_DISPLAY_TASK_ROW_STRIDE);
     assert(VIBE_DISPLAY_FOOTER_X == VIBE_DISPLAY_TASK_TEXT_X);
     assert(VIBE_DISPLAY_FOOTER_SCALE == 2);
     assert(VIBE_DISPLAY_FOOTER_BOTTOM_MARGIN >= 12);
+    assert(VIBE_DISPLAY_FOOTER_BOTTOM_CLEAR_Y == VIBE_DISPLAY_FOOTER_Y + VIBE_DISPLAY_FOOTER_TEXT_H);
+    assert(VIBE_DISPLAY_FOOTER_BOTTOM_CLEAR_Y < screen_h);
     assert(VIBE_DISPLAY_FOOTER_Y + VIBE_DISPLAY_FOOTER_TEXT_H + VIBE_DISPLAY_FOOTER_BOTTOM_MARGIN == screen_h);
 }
 

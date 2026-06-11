@@ -27,10 +27,11 @@ TASK_ROW_Y = 426
 TASK_ROW_STRIDE = 44
 TASK_DETAIL_ROW_STRIDE = 64
 TASK_DETAIL_Y_OFFSET = 24
-TASK_SWATCH_X = 0
+TASK_SWATCH_X = 6
+TASK_SWATCH_Y_OFFSET = 5
 TASK_TEXT_X = 16
-TASK_SWATCH_W = 4
-TASK_SWATCH_H = 18
+TASK_SWATCH_W = 6
+TASK_SWATCH_H = 8
 FOOTER_X = TASK_TEXT_X
 CJK_FONT_WIDTH = 18
 CJK_FONT_HEIGHT = 18
@@ -41,6 +42,7 @@ BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 PANEL = (0, 50, 60)
 MUTED = (130, 230, 255)
+FOOTER = (190, 190, 190)
 BUSY = (0, 180, 255)
 WAITING = (255, 220, 0)
 ERROR = (255, 60, 60)
@@ -94,6 +96,7 @@ MAZE_GHOST_CENTER_Y = display_model_define("VIBE_DISPLAY_MAZE_GHOST_CENTER_Y")
 MAZE_GHOST_BLINK_TICKS = display_model_define("VIBE_DISPLAY_MAZE_GHOST_BLINK_TICKS")
 FOOTER_Y = display_model_define("VIBE_DISPLAY_FOOTER_Y")
 FOOTER_SCALE = display_model_define("VIBE_DISPLAY_FOOTER_SCALE")
+FOOTER_BOTTOM_CLEAR_Y = FOOTER_Y + 8 * FOOTER_SCALE
 
 
 def maze_display_x(reference_x: int) -> int:
@@ -507,7 +510,7 @@ def draw_full_screen(image: Image) -> None:
     for index, (color, title, detail, trailing) in enumerate(tasks):
         trailing_x = FULL_PREVIEW_WIDTH - 4 - text_width(trailing, 2) if trailing else FULL_PREVIEW_WIDTH
         title_max_width = trailing_x - TASK_TEXT_X - 8 if trailing else FULL_PREVIEW_WIDTH - TASK_TEXT_X - 12
-        fill_rect(image, TASK_SWATCH_X, y, TASK_SWATCH_W, TASK_SWATCH_H, color)
+        fill_rect(image, TASK_SWATCH_X, y + TASK_SWATCH_Y_OFFSET, TASK_SWATCH_W, TASK_SWATCH_H, color)
         draw_text_ellipsis(image, TASK_TEXT_X, y, title, 2, WHITE, title_max_width)
         if trailing:
             draw_text(image, trailing_x, y, trailing, 2, MUTED)
@@ -518,7 +521,8 @@ def draw_full_screen(image: Image) -> None:
         else:
             y += TASK_ROW_STRIDE
 
-    draw_text(image, FOOTER_X, FOOTER_Y, "CODEX LIVE", FOOTER_SCALE, MUTED)
+    draw_text(image, FOOTER_X, FOOTER_Y, "CODEX LIVE", FOOTER_SCALE, FOOTER)
+    fill_rect(image, 0, FOOTER_BOTTOM_CLEAR_Y, FULL_PREVIEW_WIDTH, FULL_PREVIEW_HEIGHT - FOOTER_BOTTOM_CLEAR_Y, PANEL)
 
 
 def draw_maze_count_boxes(image: Image, y_offset: int) -> None:

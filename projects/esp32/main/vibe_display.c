@@ -67,6 +67,7 @@ static const char *TAG = "vibe_display";
 #define RGB565_BLACK 0x0000
 #define RGB565_WHITE 0xffff
 #define RGB565_MUTED 0x9cd3
+#define RGB565_FOOTER 0xbdf7
 #define RGB565_BLUE 0x047f
 #define RGB565_PURPLE 0x8010
 #define RGB565_GREEN 0x05e0
@@ -383,8 +384,13 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
                                VIBE_DISPLAY_FOOTER_Y,
                                footer,
                                VIBE_DISPLAY_FOOTER_SCALE,
-                               RGB565_MUTED);
+                               RGB565_FOOTER);
     }
+    vibe_display_draw_fill_rect(0,
+                                VIBE_DISPLAY_FOOTER_BOTTOM_CLEAR_Y,
+                                LCD_H_RES,
+                                LCD_V_RES - VIBE_DISPLAY_FOOTER_BOTTOM_CLEAR_Y,
+                                RGB565_PANEL);
 
     if (vibe_display_animation_enabled(packet->state)) {
         render_codex_animation(packet, animation_phase);
@@ -408,7 +414,11 @@ static void render_task_rows(const vibe_status_packet_t *packet, int animation_p
                                         ? LCD_H_RES - VIBE_DISPLAY_TASK_TEXT_X - 12
                                         : trailing_x - VIBE_DISPLAY_TASK_TEXT_X - 8;
 
-        vibe_display_draw_fill_rect(VIBE_DISPLAY_TASK_SWATCH_X, y, VIBE_DISPLAY_TASK_SWATCH_W, VIBE_DISPLAY_TASK_SWATCH_H, task_color);
+        vibe_display_draw_fill_rect(VIBE_DISPLAY_TASK_SWATCH_X,
+                                    y + VIBE_DISPLAY_TASK_SWATCH_Y_OFFSET,
+                                    VIBE_DISPLAY_TASK_SWATCH_W,
+                                    VIBE_DISPLAY_TASK_SWATCH_H,
+                                    task_color);
         vibe_display_text_draw_ellipsis(VIBE_DISPLAY_TASK_TEXT_X, y, row.title, 2, RGB565_WHITE, title_max_width);
         if (row.trailing[0] != '\0') {
             vibe_display_text_draw(trailing_x, y, row.trailing, 2, RGB565_MUTED);
