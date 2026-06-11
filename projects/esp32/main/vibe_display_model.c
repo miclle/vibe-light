@@ -375,14 +375,7 @@ void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, si
         return;
     }
 
-    snprintf(text,
-             text_size,
-             "%s V%d A%d W%d E%d",
-             source_label(packet->source),
-             packet->version,
-             packet->active_count < 0 ? 0 : packet->active_count,
-             packet->waiting_count < 0 ? 0 : packet->waiting_count,
-             packet->error_count < 0 ? 0 : packet->error_count);
+    snprintf(text, text_size, "%s V%d", source_label(packet->source), packet->version);
 }
 
 bool vibe_display_animation_enabled(vibe_display_state_t state)

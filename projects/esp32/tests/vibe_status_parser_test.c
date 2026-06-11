@@ -1163,7 +1163,7 @@ static void test_display_model_formats_status_footer(void)
     packet.error_count = 0;
     vibe_display_footer_text(&packet, footer, sizeof(footer));
 
-    assert(strcmp(footer, "CODEX V2 A2 W1 E0") == 0);
+    assert(strcmp(footer, "CODEX V2") == 0);
 
     packet.state = VIBE_DISPLAY_OFFLINE;
     vibe_display_footer_text(&packet, footer, sizeof(footer));
