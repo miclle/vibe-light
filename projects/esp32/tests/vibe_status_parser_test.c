@@ -392,7 +392,7 @@ static void test_display_model_prioritizes_high_context_usage(void)
         .state = VIBE_DISPLAY_BUSY,
         .state_text = "busy",
         .detail = "make quick",
-        .context_used_percent = 90,
+        .context_used_percent = 80,
         .updated_at_ms = 1780300608000LL,
     };
     vibe_display_task_row_t row;
@@ -401,7 +401,7 @@ static void test_display_model_prioritizes_high_context_usage(void)
     assert(strcmp(row.trailing, "RUN 03:12") == 0);
 
     vibe_display_format_task_row_at_phase(&task, 1780300800000LL, 0, 12, &row);
-    assert(strcmp(row.trailing, "CTX 90%") == 0);
+    assert(strcmp(row.trailing, "CTX 80%") == 0);
 }
 
 static void test_display_model_formats_waiting_task_duration(void)

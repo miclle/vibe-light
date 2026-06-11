@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#define VIBE_DISPLAY_HIGH_CONTEXT_PERCENT 80
+
 static uint32_t fnv1a_update(uint32_t hash, const void *data, size_t length);
 static uint32_t fnv1a_update_text(uint32_t hash, const char *text);
 static const char *badge_for_state(vibe_display_state_t state);
@@ -1056,8 +1058,9 @@ static bool should_show_context_for_task(const vibe_status_task_t *task, int ind
         return false;
     }
 
-    int slot = positive_mod((phase / 12) + index, task->context_used_percent >= 85 ? 2 : 4);
-    return slot == (task->context_used_percent >= 85 ? 1 : 3);
+    bool high_context = task->context_used_percent >= VIBE_DISPLAY_HIGH_CONTEXT_PERCENT;
+    int slot = positive_mod((phase / 12) + index, high_context ? 2 : 4);
+    return slot == (high_context ? 1 : 3);
 }
 
 static bool task_has_context_usage(const vibe_status_task_t *task)
