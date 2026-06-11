@@ -36,7 +36,7 @@
 
 ## 当前源码采用的板级连接
 
-以下来自当前 `projects/esp32/main/vibe_display.c`，是固件实现正在使用的 GPIO 配置。项目记录中已有一次目标板实机闭环：串口日志确认 LCD 初始化和 BLE 广播，macOS 桌面端可连接并写入 `v: 2` 状态包，屏幕可显示 high score、Codex 5H / 7D 用量和底部任务列表。该实机记录对应当时烧录的固件版本；后续显示细节提交仍需要再次刷当前 HEAD 到目标板复核。当前 RGB panel 配置为 16-bit data width、18MHz PCLK、PSRAM framebuffer、2 个 framebuffer 和 10 行 bounce buffer。
+以下来自当前 `projects/esp32/main/vibe_display.c`，是固件实现正在使用的 GPIO 配置。项目记录中已有一次目标板屏幕闭环：串口日志确认 LCD 初始化和 BLE 广播，macOS 桌面端可连接并写入 `v: 2` 状态包，屏幕可显示 high score、Codex 5H / 7D 用量和底部任务列表。当前 HEAD `090391d` 也已在 `/dev/cu.usbmodem2101` 完成串口 / BLE 链路复核：固件启动、LCD 初始化、BLE 广播、Central 连接和 `v: 2` 状态写入均正常；token 摘要、页脚位置、页脚去重、协议版本隐藏和边缘色块修正仍需要下一次肉眼看屏复核。当前 RGB panel 配置为 16-bit data width、18MHz PCLK、PSRAM framebuffer、2 个 framebuffer 和 10 行 bounce buffer。
 
 | 用途 | GPIO |
 | --- | --- |
@@ -57,7 +57,7 @@
 
 ## 起步路线
 
-当前源码目标已经超过“只显示 state/detail”的最小样机：固件目录已具备 BLE Peripheral、状态解析、健康读取、ST7701 LCD 初始化、PSRAM framebuffer、底部任务面板和 Codex 吃豆人参考迷宫动画，并已有一次目标板实机闭环记录。下一步重点是延长运行观察、复核板级细节并把健康诊断补齐，而不是继续扩展板载外设。
+当前源码目标已经超过“只显示 state/detail”的最小样机：固件目录已具备 BLE Peripheral、状态解析、健康读取、ST7701 LCD 初始化、PSRAM framebuffer、底部任务面板和 Codex 吃豆人参考迷宫动画，并已有目标板实机记录。下一步重点是延长运行观察、肉眼复核屏幕细节并把健康诊断补齐，而不是继续扩展板载外设。
 
 推荐按以下阶段推进：
 
