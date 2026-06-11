@@ -36,7 +36,7 @@
 
 ## 当前源码采用的板级连接
 
-以下来自当前 `projects/esp32/main/vibe_display.c`，是固件实现正在使用的 GPIO 配置。项目记录中已有一次目标板实机闭环：串口日志确认 LCD 初始化和 BLE 广播，macOS 桌面端可连接并写入 `v: 2` 状态包，屏幕可显示 high score、Codex 5H / 7D 用量和底部任务列表。当前 RGB panel 配置为 16-bit data width、18MHz PCLK、PSRAM framebuffer、2 个 framebuffer 和 10 行 bounce buffer。
+以下来自当前 `projects/esp32/main/vibe_display.c`，是固件实现正在使用的 GPIO 配置。项目记录中已有一次目标板实机闭环：串口日志确认 LCD 初始化和 BLE 广播，macOS 桌面端可连接并写入 `v: 2` 状态包，屏幕可显示 high score、Codex 5H / 7D 用量和底部任务列表。该实机记录对应当时烧录的固件版本；后续显示细节提交仍需要再次刷当前 HEAD 到目标板复核。当前 RGB panel 配置为 16-bit data width、18MHz PCLK、PSRAM framebuffer、2 个 framebuffer 和 10 行 bounce buffer。
 
 | 用途 | GPIO |
 | --- | --- |
@@ -99,7 +99,7 @@
 - `busy` 状态下动画 timer 非阻塞运行，角色数量、整轮豆子重置和主角方向与 host-side 测试 / PNG 预览一致。
 - 未知状态或格式错误的 JSON 不会导致固件崩溃。
 
-当前项目记录已经覆盖发现、连接、`v: 2` 写入和基础屏幕确认；后续验收应继续补充长时间运行、重复连接、低余量 reset 提示、等待态尾标轮播和错误包恢复等场景。
+当前项目记录已经覆盖发现、连接、`v: 2` 写入和基础屏幕确认；后续验收应继续补充长时间运行、重复连接、低余量 reset 提示、等待态尾标轮播、页脚 / 色块边缘修正和错误包恢复等场景。
 
 如果先验证屏幕和板载资源，可使用官方示例工程：
 
