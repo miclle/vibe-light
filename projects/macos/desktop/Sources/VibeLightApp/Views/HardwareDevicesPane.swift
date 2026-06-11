@@ -158,11 +158,17 @@ struct HardwareDevicesPane: View {
                     HealthMetricRow(title: "运行时间", value: formatUptime(health.uptimeMs), systemImage: "timer")
                     HealthMetricRow(title: "连接", value: health.connected ? "已连接" : "未连接", systemImage: "link")
                     HealthMetricRow(title: "最近状态", value: health.lastState.title, systemImage: "waveform.path.ecg")
+                    if let backlightOn = health.backlightOn {
+                        HealthMetricRow(title: "背光", value: backlightOn ? "开启" : "关闭", systemImage: "lightbulb")
+                    }
                     if let freeHeapBytes = health.freeHeapBytes {
                         HealthMetricRow(title: "可用 heap", value: formatBytes(freeHeapBytes), systemImage: "memorychip")
                     }
                     if let animationTick = health.animationTick {
                         HealthMetricRow(title: "渲染 tick", value: "\(animationTick)", systemImage: "clock.arrow.circlepath")
+                    }
+                    if let lastParseError = health.lastParseError, !lastParseError.isEmpty {
+                        HealthMetricRow(title: "最近解析错误", value: lastParseError, systemImage: "exclamationmark.triangle")
                     }
                 }
             } else {

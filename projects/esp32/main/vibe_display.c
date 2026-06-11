@@ -91,6 +91,7 @@ static vibe_status_packet_t last_render_packet;
 static esp_timer_handle_t animation_timer;
 static int animation_tick;
 static bool animation_running;
+static bool backlight_on;
 
 static const st7701_lcd_init_cmd_t lcd_init_cmds[] = {
     {0xFF, (uint8_t[]){0x77, 0x01, 0x00, 0x00, 0x13}, 5, 0},
@@ -172,7 +173,11 @@ void vibe_display_init(void)
     vibe_display_text_bind(LCD_H_RES);
 
     ESP_ERROR_CHECK_WITHOUT_ABORT(init_lcd_panel());
-    ESP_ERROR_CHECK_WITHOUT_ABORT(init_backlight());
+    esp_err_t backlight_result = init_backlight();
+    if (backlight_result == ESP_OK) {
+        backlight_on = true;
+    }
+    ESP_ERROR_CHECK_WITHOUT_ABORT(backlight_result);
     vibe_display_signature_reset(&last_render_signature);
     vibe_status_default(&last_render_packet);
     vibe_display_score_init();
@@ -227,6 +232,11 @@ void vibe_display_show_error(const char *message)
 int vibe_display_animation_tick(void)
 {
     return animation_tick;
+}
+
+bool vibe_display_backlight_on(void)
+{
+    return backlight_on;
 }
 
 static esp_err_t init_backlight(void)

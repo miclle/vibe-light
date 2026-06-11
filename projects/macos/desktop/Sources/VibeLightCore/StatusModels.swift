@@ -591,6 +591,8 @@ public struct HealthPacket: Codable, Equatable, Sendable {
     public var freeHeapBytes: Int?
     public var minFreeHeapBytes: Int?
     public var animationTick: Int?
+    public var backlightOn: Bool?
+    public var lastParseError: String?
 
     public init(
         v: Int = 1,
@@ -600,7 +602,9 @@ public struct HealthPacket: Codable, Equatable, Sendable {
         lastState: DisplayState,
         freeHeapBytes: Int? = nil,
         minFreeHeapBytes: Int? = nil,
-        animationTick: Int? = nil
+        animationTick: Int? = nil,
+        backlightOn: Bool? = nil,
+        lastParseError: String? = nil
     ) {
         self.v = v
         self.device = device
@@ -610,5 +614,7 @@ public struct HealthPacket: Codable, Equatable, Sendable {
         self.freeHeapBytes = freeHeapBytes
         self.minFreeHeapBytes = minFreeHeapBytes
         self.animationTick = animationTick
+        self.backlightOn = backlightOn
+        self.lastParseError = lastParseError
     }
 }

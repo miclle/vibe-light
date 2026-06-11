@@ -17,6 +17,7 @@
 #include "services/gatt/ble_svc_gatt.h"
 
 #include "vibe_display.h"
+#include "vibe_health.h"
 #include "vibe_status.h"
 
 static const char *TAG = "vibe_ble";
@@ -32,8 +33,10 @@ static const ble_uuid128_t VIBE_HEALTH_UUID =
 static uint16_t current_connection_handle = BLE_HS_CONN_HANDLE_NONE;
 static uint8_t own_address_type;
 static vibe_status_packet_t current_status;
+static char last_parse_error[64];
 
 static void advertise(void);
+static void remember_parse_error(const char *message);
 static void show_connection_status(bool connected);
 
 static int handle_status_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
@@ -45,6 +48,7 @@ static int handle_status_write(uint16_t conn_handle, uint16_t attr_handle, struc
     uint16_t length = OS_MBUF_PKTLEN(ctxt->om);
     if (length >= 1024) {
         ESP_LOGW(TAG, "status packet too large: %u bytes", length);
+        remember_parse_error("packet too large");
         vibe_display_show_error("packet too large");
         return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
     }
@@ -52,6 +56,7 @@ static int handle_status_write(uint16_t conn_handle, uint16_t attr_handle, struc
     uint8_t *buffer = malloc(length + 1);
     if (buffer == NULL) {
         ESP_LOGW(TAG, "failed to allocate status packet buffer: %u bytes", length + 1);
+        remember_parse_error("no memory");
         vibe_display_show_error("no memory");
         return BLE_ATT_ERR_INSUFFICIENT_RES;
     }
@@ -59,6 +64,7 @@ static int handle_status_write(uint16_t conn_handle, uint16_t attr_handle, struc
     int rc = ble_hs_mbuf_to_flat(ctxt->om, buffer, length, &length);
     if (rc != 0) {
         ESP_LOGW(TAG, "failed to read status packet: %d", rc);
+        remember_parse_error("read failed");
         vibe_display_show_error("read failed");
         free(buffer);
         return BLE_ATT_ERR_UNLIKELY;
@@ -67,6 +73,7 @@ static int handle_status_write(uint16_t conn_handle, uint16_t attr_handle, struc
 
     if (!vibe_status_parse_json(buffer, length, &current_status)) {
         ESP_LOGW(TAG, "invalid status packet: %s", (char *)buffer);
+        remember_parse_error("invalid JSON");
         vibe_display_show_error("invalid JSON");
         free(buffer);
         return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
@@ -84,22 +91,31 @@ static int handle_health_read(uint16_t conn_handle, uint16_t attr_handle, struct
     (void)attr_handle;
     (void)arg;
 
-    char payload[240];
-    snprintf(
-        payload,
-        sizeof(payload),
-        "{\"animationTick\":%d,\"connected\":%s,\"device\":\"%s\",\"freeHeapBytes\":%u,\"lastState\":\"%s\",\"minFreeHeapBytes\":%u,\"uptimeMs\":%lld,\"v\":1}",
-        vibe_display_animation_tick(),
-        current_connection_handle == BLE_HS_CONN_HANDLE_NONE ? "false" : "true",
-        DEVICE_NAME,
-        (unsigned)esp_get_free_heap_size(),
-        vibe_display_state_to_string(current_status.state),
-        (unsigned)esp_get_minimum_free_heap_size(),
-        (long long)(esp_timer_get_time() / 1000)
-    );
+    char payload[320];
+    vibe_health_snapshot_t snapshot = {
+        .animation_tick = vibe_display_animation_tick(),
+        .backlight_on = vibe_display_backlight_on(),
+        .connected = current_connection_handle != BLE_HS_CONN_HANDLE_NONE,
+        .device = DEVICE_NAME,
+        .free_heap_bytes = (unsigned)esp_get_free_heap_size(),
+        .last_parse_error = last_parse_error,
+        .last_state = vibe_display_state_to_string(current_status.state),
+        .min_free_heap_bytes = (unsigned)esp_get_minimum_free_heap_size(),
+        .uptime_ms = esp_timer_get_time() / 1000,
+    };
+    int written = vibe_health_format_json(payload, sizeof(payload), &snapshot);
+    if (written < 0) {
+        ESP_LOGW(TAG, "failed to format health packet");
+        return BLE_ATT_ERR_INSUFFICIENT_RES;
+    }
 
     int rc = os_mbuf_append(ctxt->om, payload, strlen(payload));
     return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+}
+
+static void remember_parse_error(const char *message)
+{
+    snprintf(last_parse_error, sizeof(last_parse_error), "%s", message == NULL ? "unknown" : message);
 }
 
 static const struct ble_gatt_svc_def gatt_services[] = {

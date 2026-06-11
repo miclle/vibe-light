@@ -1,6 +1,7 @@
 #include "vibe_status.h"
 #include "vibe_cjk_font.h"
 #include "vibe_display_model.h"
+#include "vibe_health.h"
 #include "vibe_reference_maze.h"
 
 #include <assert.h>
@@ -171,6 +172,35 @@ static void test_v2_usage_packet_accepts_legacy_context_remaining(void)
 
     vibe_display_format_task_row(&packet.tasks[0], 0, &row);
     assert(strcmp(row.trailing, "CTX 25%") == 0);
+}
+
+static void test_health_payload_reports_backlight_and_last_parse_error(void)
+{
+    char payload[256];
+    vibe_health_snapshot_t snapshot = {
+        .animation_tick = 42,
+        .backlight_on = true,
+        .connected = true,
+        .device = "VibeLight-S3",
+        .free_heap_bytes = 4218880,
+        .last_parse_error = "invalid JSON",
+        .last_state = "busy",
+        .min_free_heap_bytes = 3981312,
+        .uptime_ms = 12000,
+    };
+
+    int written = vibe_health_format_json(payload, sizeof(payload), &snapshot);
+
+    assert(written > 0);
+    assert(strstr(payload, "\"backlightOn\":true") != NULL);
+    assert(strstr(payload, "\"lastParseError\":\"invalid JSON\"") != NULL);
+    assert(strstr(payload, "\"lastState\":\"busy\"") != NULL);
+
+    snapshot.last_parse_error = "";
+    written = vibe_health_format_json(payload, sizeof(payload), &snapshot);
+
+    assert(written > 0);
+    assert(strstr(payload, "lastParseError") == NULL);
 }
 
 static void test_unknown_states_fall_back_to_idle(void)
@@ -1218,6 +1248,7 @@ int main(void)
     test_v2_usage_packet();
     test_v2_usage_packet_formats_low_remaining_reset_hint();
     test_v2_usage_packet_accepts_legacy_context_remaining();
+    test_health_payload_reports_backlight_and_last_parse_error();
     test_unknown_states_fall_back_to_idle();
     test_utf8_decoder_reads_chinese_codepoints();
     test_utf8_decoder_handles_truncated_sequences();
