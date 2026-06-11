@@ -182,8 +182,8 @@ import Testing
     let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
     let tasks = try #require(object["tasks"] as? [[String: Any]])
 
-    #expect(snapshot.tasks.first?.lastDetail == "Bash / make quick")
-    #expect(tasks.first?["detail"] as? String == "Bash / make quick")
+    #expect(snapshot.tasks.first?.lastDetail == "Bash / TEST make quick")
+    #expect(tasks.first?["detail"] as? String == "Bash / TEST make quick")
 }
 
 @Test func taskTrackerCompactsToolFilePathsInTaskDetail() {
@@ -226,7 +226,7 @@ import Testing
     let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(1))
 
     #expect(snapshot.state == .waiting)
-    #expect(snapshot.tasks.first?.lastDetail == "APPROVE Bash")
+    #expect(snapshot.tasks.first?.lastDetail == "APPROVE Bash TEST make verify")
 }
 
 @Test func taskTrackerShowsApprovalActionForWaitingToolTasksWithoutMessage() {
@@ -248,6 +248,38 @@ import Testing
 
     #expect(snapshot.state == .waiting)
     #expect(snapshot.tasks.first?.lastDetail == "APPROVE Bash")
+}
+
+@Test func taskTrackerCompactsShellCommandsWithEnvironmentAssignments() {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(
+            taskID: "codex:task-a",
+            source: .codex,
+            kind: .preToolUse,
+            timestamp: base,
+            message: "ESP32_PORT=/dev/cu.usbmodem2101 make esp32-flash",
+            toolName: "Bash",
+            workspace: "vibe-light"
+        ),
+        .init(
+            taskID: "codex:task-b",
+            source: .codex,
+            kind: .preToolUse,
+            timestamp: base.addingTimeInterval(1),
+            message: "rg -n \"StatusPacket\" projects/macos",
+            toolName: "Bash",
+            workspace: "docs"
+        ),
+    ]
+
+    let snapshot = tracker.snapshot(from: Array(events.reversed()), now: base.addingTimeInterval(2))
+
+    #expect(snapshot.tasks.map(\.lastDetail) == [
+        "Bash / SEARCH \"StatusPacket\"",
+        "Bash / FLASH make esp32-flash"
+    ])
 }
 
 @Test func taskTrackerShowsAllowActionForWaitingFileTools() {

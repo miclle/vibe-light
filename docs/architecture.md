@@ -228,7 +228,7 @@ macOS 应用向状态写入特征写入 UTF-8 JSON。
 | `usage` | object | 否 | Codex 用量摘要；当前包含 `codex5hRemainingPercent` 和 `codex7dRemainingPercent`，均为 0-100 的剩余百分比；可选 `codex5hResetAt` 和 `codex7dResetAt` 是对应窗口 reset 的 Unix 毫秒时间戳。 |
 | `tasks` | array | 否 | ESP32-S3 屏幕列表行，最多发送 5 条；每条包含 `title`、`source`、`state`、可选 `detail`、可选 `updatedAt` 和可选 `contextUsedPercent`。`updatedAt` 是任务最近事件的 Unix 毫秒时间戳，固件用顶层 `ts` 减去它来显示 `RUN 03:12`、`WAIT 01:08` 或 `2m ago`；缺少或无效时回退显示 `contextUsedPercent`。`contextUsedPercent` 是当前 Codex 会话上下文窗口已用百分比，固件兼容旧包的 `contextRemainingPercent` 并转换为已用百分比显示。任务标题限制为 32 个 UTF-8 字节，任务详情限制为 40 个 UTF-8 字节。 |
 
-状态写入包必须保持小而可预期。macOS 端会截断 detail 和任务文本，只发送已经归一化的短文本，不把完整 hook payload 写入硬件；ESP32-S3 固件当前拒绝 1024 字节及以上的状态写入。
+状态写入包必须保持小而可预期。macOS 端会截断 detail 和任务文本，只发送已经归一化的短文本，不把完整 hook payload 写入硬件；工具动作会压缩成 `Bash / TEST make quick`、`Bash / FLASH make esp32-flash`、`Bash / SEARCH StatusPacket`、`Edit / README.md` 或 `APPROVE Bash TEST make verify` 这类短摘要。ESP32-S3 固件当前拒绝 1024 字节及以上的状态写入。
 
 `v: 2` 状态包表示 macOS 聚合后的整体显示状态和屏幕列表，不表示单个 hook 事件的原始 payload。Codex 用量来自 hook payload 内联数据或本地 transcript 尾部最新 `token_count` 事件：5h / 7d rate-limit 使用率会转换成剩余百分比，`resets_at` 会转换成 Unix 毫秒时间戳；context 优先使用 `last_token_usage.input_tokens` 相对 `model_context_window` 的占比，缺失时回退到 `total_token_usage.total_tokens`。`tasks[]` 是展示用摘要，不是硬件侧会话生命周期模型。
 
