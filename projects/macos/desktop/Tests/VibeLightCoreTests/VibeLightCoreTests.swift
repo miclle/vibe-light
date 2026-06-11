@@ -628,6 +628,18 @@ import Testing
     #expect(idle.tasks?.isEmpty == true)
 }
 
+@Test func hardwareDemoPacketHoldSuppressesLatestStatusForwardingTemporarily() {
+    let start = Date(timeIntervalSince1970: 1_780_300_800)
+    var hold = HardwareDemoPacketHold()
+
+    #expect(hold.allowsLatestPacketForward(at: start))
+
+    hold.start(at: start)
+
+    #expect(!hold.allowsLatestPacketForward(at: start.addingTimeInterval(14.9)))
+    #expect(hold.allowsLatestPacketForward(at: start.addingTimeInterval(15)))
+}
+
 @Test func taskTrackerIgnoresCodexMemoryWritingAgent() {
     let base = Date(timeIntervalSince1970: 1_780_300_800)
     let tracker = TaskTracker()

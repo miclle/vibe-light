@@ -36,6 +36,7 @@ final class VibeLightAppModel: ObservableObject {
     private var bluetoothManager: BluetoothHardwareManager?
     private var latestPacketData: Data?
     private var lastForwardedPacketData: Data?
+    private var demoPacketHold = HardwareDemoPacketHold()
     private var didStartHardwareAutoConnect = false
 
     init(
@@ -81,7 +82,6 @@ final class VibeLightAppModel: ObservableObject {
             let snapshot = taskTracker.snapshot(from: loadedEvents)
             let packet = snapshot.statusPacket
             let packetData = try? packet.encodedJSON()
-            let packetChanged = packetData != latestPacketData
 
             displaySnapshot = snapshot
             currentState = snapshot.state
@@ -89,9 +89,7 @@ final class VibeLightAppModel: ObservableObject {
             latestPacketData = packetData
             bridgeMessage = bridgeMessage(for: snapshot, eventCount: loadedEvents.count)
 
-            if packetChanged {
-                forwardLatestPacketToHardwareIfNeeded()
-            }
+            forwardLatestPacketToHardwareIfNeeded()
         } catch {
             bridgeMessage = "读取事件失败：\(error.localizedDescription)"
         }
@@ -187,7 +185,10 @@ final class VibeLightAppModel: ObservableObject {
     }
 
     func sendHardwareDemoPacket(_ scenario: HardwareDemoPacketScenario) {
-        _ = bluetoothManager?.sendPacket(scenario.packet())
+        if bluetoothManager?.sendPacket(scenario.packet()) == true {
+            demoPacketHold.start()
+            lastForwardedPacketData = nil
+        }
     }
 
     func refreshHardwareHealth() {
@@ -220,6 +221,7 @@ final class VibeLightAppModel: ObservableObject {
     private func forwardLatestPacketToHardwareIfNeeded() {
         guard let latestPacketData,
               bluetoothManager?.canWriteStatus == true,
+              demoPacketHold.allowsLatestPacketForward(),
               latestPacketData != lastForwardedPacketData else {
             return
         }
