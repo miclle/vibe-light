@@ -246,7 +246,10 @@ ESP32-S3 通过健康状态特征返回设备状态。
   "device": "VibeLight-S3",
   "uptimeMs": 12000,
   "connected": true,
-  "lastState": "busy"
+  "lastState": "busy",
+  "freeHeapBytes": 4218880,
+  "minFreeHeapBytes": 3981312,
+  "animationTick": 42
 }
 ```
 
@@ -257,8 +260,11 @@ ESP32-S3 通过健康状态特征返回设备状态。
 | `uptimeMs` | number | 固件运行时长，单位为毫秒。 |
 | `connected` | boolean | 是否有 Central 连接。 |
 | `lastState` | string | 最近一次应用到硬件显示输出的状态。 |
+| `freeHeapBytes` | number | 可选，当前空闲 heap 字节数，用于硬件诊断。 |
+| `minFreeHeapBytes` | number | 可选，启动后最小空闲 heap 字节数，用于观察内存低水位。 |
+| `animationTick` | number | 可选，固件本地显示动画 tick，用于判断渲染循环是否仍在推进。 |
 
-macOS 应用在发现健康状态特征后会读取一次；后续每次状态写入响应成功后再读取一次，也可以由“硬件设备”页手动刷新，用于确认固件运行时间和最近显示状态。
+macOS 应用在发现健康状态特征后会读取一次；后续每次状态写入响应成功后再读取一次，也可以由“硬件设备”页手动刷新，用于确认固件运行时间、最近显示状态、heap 余量和渲染 tick。
 
 ### 协议原则
 

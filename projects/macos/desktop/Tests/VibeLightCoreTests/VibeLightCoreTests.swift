@@ -45,7 +45,7 @@ import Testing
 
 @Test func healthPacketDecodesFirmwareJson() throws {
     let data = """
-    {"connected":true,"device":"VibeLight-S3","lastState":"busy","uptimeMs":12000,"v":1}
+    {"animationTick":42,"connected":true,"device":"VibeLight-S3","freeHeapBytes":4218880,"lastState":"busy","minFreeHeapBytes":3981312,"uptimeMs":12000,"v":1}
     """.data(using: .utf8)!
 
     let packet = try JSONDecoder().decode(HealthPacket.self, from: data)
@@ -55,6 +55,9 @@ import Testing
     #expect(packet.uptimeMs == 12_000)
     #expect(packet.connected)
     #expect(packet.lastState == .busy)
+    #expect(packet.freeHeapBytes == 4_218_880)
+    #expect(packet.minFreeHeapBytes == 3_981_312)
+    #expect(packet.animationTick == 42)
 }
 
 @Test func eventStoreKeepsMostRecentEventsFirstAndUpdatesCurrentState() {

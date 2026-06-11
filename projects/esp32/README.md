@@ -22,6 +22,7 @@
 - GATT service：`7d8f0001-7b9a-4f0b-9e8a-8b4c2c7f1000`
 - 状态写入 characteristic：`7d8f0002-7b9a-4f0b-9e8a-8b4c2c7f1000`
 - 健康读取 characteristic：`7d8f0003-7b9a-4f0b-9e8a-8b4c2c7f1000`
+- 健康包会回传运行时长、连接状态、最近状态、heap 余量和渲染 tick。
 - 状态包格式：UTF-8 JSON `StatusPacket`
 
 屏幕驱动当前已接入 Waveshare `ESP32-S3-LCD-3.16` 的 ST7701 RGB LCD 初始化、主动低电平背光 PWM 和基础 RGB565 绘制。RGB panel 当前使用 16-bit data width、18MHz PCLK、PSRAM framebuffer、2 个 framebuffer 和 10 行 bounce buffer。`vibe_display_show_status` 会把状态写入串口日志，并在 LCD 上渲染顶部状态色、参考迷宫、任务计数和任务列表。

@@ -158,6 +158,12 @@ struct HardwareDevicesPane: View {
                     HealthMetricRow(title: "运行时间", value: formatUptime(health.uptimeMs), systemImage: "timer")
                     HealthMetricRow(title: "连接", value: health.connected ? "已连接" : "未连接", systemImage: "link")
                     HealthMetricRow(title: "最近状态", value: health.lastState.title, systemImage: "waveform.path.ecg")
+                    if let freeHeapBytes = health.freeHeapBytes {
+                        HealthMetricRow(title: "可用 heap", value: formatBytes(freeHeapBytes), systemImage: "memorychip")
+                    }
+                    if let animationTick = health.animationTick {
+                        HealthMetricRow(title: "渲染 tick", value: "\(animationTick)", systemImage: "clock.arrow.circlepath")
+                    }
                 }
             } else {
                 ContentUnavailableView(
@@ -206,6 +212,16 @@ struct HardwareDevicesPane: View {
             return "\(hours) 时 \(minutes) 分 \(seconds) 秒"
         }
         return "\(minutes) 分 \(seconds) 秒"
+    }
+
+    private func formatBytes(_ bytes: Int) -> String {
+        if bytes >= 1_048_576 {
+            return String(format: "%.1f MB", Double(bytes) / 1_048_576)
+        }
+        if bytes >= 1_024 {
+            return String(format: "%.0f KB", Double(bytes) / 1_024)
+        }
+        return "\(bytes) B"
     }
 
     private func icon(for scenario: HardwareDemoPacketScenario) -> String {

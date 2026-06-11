@@ -224,6 +224,11 @@ void vibe_display_show_error(const char *message)
     ESP_LOGW(TAG, "display error: %s", message == NULL ? "unknown error" : message);
 }
 
+int vibe_display_animation_tick(void)
+{
+    return animation_tick;
+}
+
 static esp_err_t init_backlight(void)
 {
     ledc_timer_config_t timer_conf = {

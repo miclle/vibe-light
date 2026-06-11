@@ -7,6 +7,7 @@
 
 #include "esp_err.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "host/ble_hs.h"
 #include "host/ble_uuid.h"
@@ -83,14 +84,17 @@ static int handle_health_read(uint16_t conn_handle, uint16_t attr_handle, struct
     (void)attr_handle;
     (void)arg;
 
-    char payload[160];
+    char payload[240];
     snprintf(
         payload,
         sizeof(payload),
-        "{\"connected\":%s,\"device\":\"%s\",\"lastState\":\"%s\",\"uptimeMs\":%lld,\"v\":1}",
+        "{\"animationTick\":%d,\"connected\":%s,\"device\":\"%s\",\"freeHeapBytes\":%u,\"lastState\":\"%s\",\"minFreeHeapBytes\":%u,\"uptimeMs\":%lld,\"v\":1}",
+        vibe_display_animation_tick(),
         current_connection_handle == BLE_HS_CONN_HANDLE_NONE ? "false" : "true",
         DEVICE_NAME,
+        (unsigned)esp_get_free_heap_size(),
         vibe_display_state_to_string(current_status.state),
+        (unsigned)esp_get_minimum_free_heap_size(),
         (long long)(esp_timer_get_time() / 1000)
     );
 

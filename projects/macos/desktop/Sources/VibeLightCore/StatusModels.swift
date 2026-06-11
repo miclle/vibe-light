@@ -588,18 +588,27 @@ public struct HealthPacket: Codable, Equatable, Sendable {
     public var uptimeMs: Int64
     public var connected: Bool
     public var lastState: DisplayState
+    public var freeHeapBytes: Int?
+    public var minFreeHeapBytes: Int?
+    public var animationTick: Int?
 
     public init(
         v: Int = 1,
         device: String,
         uptimeMs: Int64,
         connected: Bool,
-        lastState: DisplayState
+        lastState: DisplayState,
+        freeHeapBytes: Int? = nil,
+        minFreeHeapBytes: Int? = nil,
+        animationTick: Int? = nil
     ) {
         self.v = v
         self.device = device
         self.uptimeMs = uptimeMs
         self.connected = connected
         self.lastState = lastState
+        self.freeHeapBytes = freeHeapBytes
+        self.minFreeHeapBytes = minFreeHeapBytes
+        self.animationTick = animationTick
     }
 }
