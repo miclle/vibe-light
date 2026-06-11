@@ -383,6 +383,15 @@ public struct TaskTracker: Sendable {
             lowered == "make esp32-flash-only" || lowered.hasPrefix("make esp32-flash-only ") {
             return "FLASH \(normalized)"
         }
+        if lowered.hasPrefix("idf.py ") {
+            return "BUILD idf.py"
+        }
+        if lowered.hasPrefix("osascript ") {
+            return compactAppleScriptAction(from: lowered)
+        }
+        if lowered.hasPrefix("python ") || lowered.hasPrefix("python3 ") {
+            return compactPythonAction(normalized)
+        }
         if lowered.hasPrefix("swift test") || lowered.hasPrefix("npm test") ||
             lowered.hasPrefix("pnpm test") || lowered.hasPrefix("yarn test") {
             return "TEST \(firstShellWords(normalized, count: 2))"
@@ -400,6 +409,28 @@ public struct TaskTracker: Sendable {
         }
 
         return normalized
+    }
+
+    private func compactAppleScriptAction(from loweredCommand: String) -> String {
+        if loweredCommand.contains("quit app") {
+            return "APP quit"
+        }
+        if loweredCommand.contains("activate") || loweredCommand.contains("launch") {
+            return "APP open"
+        }
+        return "APP osascript"
+    }
+
+    private func compactPythonAction(_ command: String) -> String {
+        let parts = command.split(separator: " ", omittingEmptySubsequences: true)
+        let script = parts.dropFirst().first { !$0.hasPrefix("-") }.map(String.init)
+        let scriptName = script.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "python"
+
+        if command.contains("/dev/cu.") || scriptName.lowercased().contains("serial") {
+            return "SERIAL \(scriptName)"
+        }
+
+        return "PY \(scriptName)"
     }
 
     private func strippedShellPrefix(_ command: String) -> String {

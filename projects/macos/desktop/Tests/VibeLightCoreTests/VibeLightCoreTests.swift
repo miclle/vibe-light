@@ -310,6 +310,48 @@ import Testing
     ])
 }
 
+@Test func taskTrackerCompactsCommonRuntimeAndDeviceCommands() {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(
+            taskID: "codex:task-a",
+            source: .codex,
+            kind: .preToolUse,
+            timestamp: base,
+            message: "python3 projects/esp32/tools/read_serial.py --port /dev/cu.usbmodem2101 --seconds 300",
+            toolName: "Bash",
+            workspace: "serial"
+        ),
+        .init(
+            taskID: "codex:task-b",
+            source: .codex,
+            kind: .preToolUse,
+            timestamp: base.addingTimeInterval(1),
+            message: "osascript -e 'quit app \"VibeLightApp\"'",
+            toolName: "Bash",
+            workspace: "desktop"
+        ),
+        .init(
+            taskID: "codex:task-c",
+            source: .codex,
+            kind: .preToolUse,
+            timestamp: base.addingTimeInterval(2),
+            message: "idf.py -C projects/esp32 build",
+            toolName: "Bash",
+            workspace: "firmware"
+        ),
+    ]
+
+    let snapshot = tracker.snapshot(from: Array(events.reversed()), now: base.addingTimeInterval(3))
+
+    #expect(snapshot.tasks.map(\.lastDetail) == [
+        "Bash / BUILD idf.py",
+        "Bash / APP quit",
+        "Bash / SERIAL read_serial.py",
+    ])
+}
+
 @Test func taskTrackerShowsAllowActionForWaitingFileTools() {
     let base = Date(timeIntervalSince1970: 1_780_300_800)
     let tracker = TaskTracker()
