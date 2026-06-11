@@ -237,6 +237,15 @@ import Testing
     #expect(tasks.first?["detail"] as? String == "Bash / TEST make quick")
 }
 
+@Test func taskDetailFormatterCompactsToolActionsWithoutTaskTrackerState() {
+    let formatter = TaskDetailFormatter()
+
+    #expect(formatter.detail(toolName: "Bash", message: "make quick", state: .busy, fallback: "PreToolUse") == "Bash / TEST make quick")
+    #expect(formatter.detail(toolName: "Edit", message: "/Users/miclle/github/miclle/vibe-light/README.md", state: .busy, fallback: "PreToolUse") == "Edit / README.md")
+    #expect(formatter.detail(toolName: "Bash", message: "make verify", state: .waiting, fallback: "PermissionRequest") == "APPROVE Bash TEST make verify")
+    #expect(formatter.detail(toolName: "Edit", message: "/Users/miclle/github/miclle/vibe-light/TODO.md", state: .waiting, fallback: "PermissionRequest") == "ALLOW Edit TODO.md")
+}
+
 @Test func taskTrackerCompactsToolFilePathsInTaskDetail() {
     let base = Date(timeIntervalSince1970: 1_780_300_800)
     let tracker = TaskTracker()
