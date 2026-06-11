@@ -682,6 +682,37 @@ import Testing
     #expect(tasks.map { $0["title"] as? String } == (0..<5).map { "workspace-\($0)-with-long-name" })
 }
 
+@Test func statusPacketCompactorOwnsBleLengthFallbackStrategy() throws {
+    let packet = StatusPacket(
+        v: 2,
+        source: .codex,
+        state: .busy,
+        detail: "5 running",
+        timestamp: Date(timeIntervalSince1970: 1_780_300_800),
+        activeCount: 5,
+        waitingCount: 0,
+        errorCount: 0,
+        tasks: (0..<5).map { index in
+            StatusTask(
+                title: "workspace-\(index)-with-long-name",
+                state: .busy,
+                source: .codex,
+                detail: "running task \(index) with extra detail",
+                contextUsedPercent: 70 + index
+            )
+        },
+        usage: StatusUsage(codex5hRemainingPercent: 88, codex7dRemainingPercent: 60)
+    )
+
+    let constrainedData = try StatusPacketCompactor().encodedJSON(for: packet, maximumWriteLength: 512)
+    let object = try #require(JSONSerialization.jsonObject(with: constrainedData) as? [String: Any])
+
+    #expect(constrainedData.count <= 512)
+    #expect(object["v"] as? Int == 2)
+    #expect(object["usage"] != nil)
+    #expect(object["tasks"] != nil)
+}
+
 @Test func statusPacketPreservesTaskDetailsWhenCompactingV2ToBleLength() throws {
     let packet = StatusPacket(
         v: 2,
