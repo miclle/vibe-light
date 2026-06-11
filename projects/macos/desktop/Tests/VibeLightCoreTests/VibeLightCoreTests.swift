@@ -159,10 +159,10 @@ import Testing
     let tasks = try #require(object["tasks"] as? [[String: Any]])
 
     #expect(snapshot.state == .idle)
-    #expect(snapshot.detail == "LAST ERR firmware")
+    #expect(snapshot.detail == "LAST ERR build failed")
     #expect(snapshot.tasks.isEmpty)
     #expect(tasks.isEmpty)
-    #expect(object["detail"] as? String == "LAST ERR firmware")
+    #expect(object["detail"] as? String == "LAST ERR build failed")
 }
 
 @Test func taskTrackerExpiresLastResultAfterStaleWindow() {
@@ -182,10 +182,33 @@ import Testing
     let recent = tracker.snapshot(from: events, now: base.addingTimeInterval(1))
     let expired = tracker.snapshot(from: events, now: base.addingTimeInterval(61))
 
-    #expect(recent.detail == "LAST OK vibe-light")
+    #expect(recent.detail == "LAST OK make quick passed")
     #expect(expired.state == .idle)
     #expect(expired.detail == "no active tasks")
     #expect(expired.tasks.isEmpty)
+}
+
+@Test func taskTrackerSummarizesLastToolResultFromCompactAction() {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(
+            taskID: "codex:task-a",
+            source: .codex,
+            kind: .stop,
+            timestamp: base.addingTimeInterval(1),
+            summary: "verification passed",
+            message: "make quick",
+            toolName: "Bash",
+            workspace: "vibe-light"
+        ),
+    ]
+
+    let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(2))
+
+    #expect(snapshot.state == .idle)
+    #expect(snapshot.detail == "LAST OK Bash / TEST make quick")
+    #expect(snapshot.tasks.isEmpty)
 }
 
 @Test func taskTrackerShowsCurrentToolActionInTaskDetail() throws {

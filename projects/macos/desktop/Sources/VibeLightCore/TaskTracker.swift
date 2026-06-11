@@ -306,11 +306,12 @@ public struct TaskTracker: Sendable {
     }
 
     private func lastResultDetail(for task: TrackedTask) -> String {
+        let result = task.lastDetail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? task.title : task.lastDetail
         switch task.state {
         case .success:
-            return "LAST OK \(task.title)"
+            return "LAST OK \(result)"
         case .error:
-            return "LAST ERR \(task.title)"
+            return "LAST ERR \(result)"
         default:
             return "no active tasks"
         }
