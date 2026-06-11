@@ -375,7 +375,7 @@ void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, si
         return;
     }
 
-    snprintf(text, text_size, "%s V%d", source_label(packet->source), packet->version);
+    snprintf(text, text_size, "%s %s", source_label(packet->source), packet->version <= 1 ? "LEGACY" : "LIVE");
 }
 
 bool vibe_display_animation_enabled(vibe_display_state_t state)

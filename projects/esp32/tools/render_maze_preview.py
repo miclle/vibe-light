@@ -518,7 +518,7 @@ def draw_full_screen(image: Image) -> None:
         else:
             y += TASK_ROW_STRIDE
 
-    draw_text(image, FOOTER_X, FOOTER_Y, "CODEX V2", FOOTER_SCALE, MUTED)
+    draw_text(image, FOOTER_X, FOOTER_Y, "CODEX LIVE", FOOTER_SCALE, MUTED)
 
 
 def draw_maze_count_boxes(image: Image, y_offset: int) -> None:
