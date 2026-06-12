@@ -14,17 +14,22 @@ APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
+RESOURCE_BUNDLE_NAME="VibeLight_VibeLightApp.bundle"
+RESOURCE_BUNDLE="$APP_BUNDLE/$RESOURCE_BUNDLE_NAME"
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
 swift build --package-path "$PROJECT_DIR"
-BUILD_BINARY="$(swift build --package-path "$PROJECT_DIR" --show-bin-path)/$APP_NAME"
-HOOK_BINARY="$(swift build --package-path "$PROJECT_DIR" --show-bin-path)/vibe-light-hook"
+BUILD_PRODUCTS_DIR="$(swift build --package-path "$PROJECT_DIR" --show-bin-path)"
+BUILD_BINARY="$BUILD_PRODUCTS_DIR/$APP_NAME"
+HOOK_BINARY="$BUILD_PRODUCTS_DIR/vibe-light-hook"
+BUILD_RESOURCE_BUNDLE="$BUILD_PRODUCTS_DIR/$RESOURCE_BUNDLE_NAME"
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS"
 cp "$BUILD_BINARY" "$APP_BINARY"
 cp "$HOOK_BINARY" "$APP_MACOS/vibe-light-hook"
+cp -R "$BUILD_RESOURCE_BUNDLE" "$RESOURCE_BUNDLE"
 chmod +x "$APP_BINARY"
 chmod +x "$APP_MACOS/vibe-light-hook"
 
