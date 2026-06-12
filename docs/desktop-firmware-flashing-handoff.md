@@ -119,10 +119,10 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 已新增 `script/package_desktop_release.sh` 作为本地 Developer ID 签名验证入口，负责 build/stage app、签名 app bundle 内 nested Mach-O、签 resource bundle / 主 app、执行 `codesign --verify` 并生成 zip。
    - 2026-06-12 已用 `Developer ID Application: Miclle Zheng (6UG7DDAY6C)` 跑通本地签名验证：83 个 nested Mach-O 文件完成签名和 `codesign --verify`，主 app 显示 hardened runtime、timestamp、sealed resources 和 Team ID `6UG7DDAY6C`；签名后 helper 在 strict 模式下可加载 bundled `esptool.py v4.11.0`；签名 app 可短暂启动。
    - `script/package_desktop_release.sh --notarize` 已增加 build/sign 前凭证预检，支持 `NOTARYTOOL_PROFILE` 或 App Store Connect API key 参数 / 环境变量。
-   - 2026-06-12 本机尚未配置 `vibe-light-notary` profile，也没有检测到 Apple API key 环境变量；notarization 提交还未执行。
-   - 尚未验证 notarized app。
-   - 尚未验证 helper 在 notarization / staple 后是否能正常执行。
-   - 尚未验证 notarized app 下串口访问是否需要额外 entitlement。
+   - 2026-06-12 已创建 `vibe-light-notary` profile 并跑通 notarization：submission `d923ce8c-d4f9-4a03-b26b-008a2f5ec9a4` 返回 `Accepted`，staple / validate 成功，Gatekeeper 返回 `accepted / source=Notarized Developer ID`，`codesign -dvvv` 显示 `Notarization Ticket=stapled`。
+   - 已验证 helper 在签名 + notarized app 中可用：收窄 PATH + strict 模式输出 bundled `esptool.py v4.11.0`。
+   - 已验证 notarized app bundle 内 helper 可访问 `/dev/cu.usbmodem1101` 并非破坏性读取 `ESP32-S3 (QFN56)` 芯片信息。
+   - 尚未通过 app UI 验证 notarized app 下完整串口烧录、BLE 扫描 / 连接和 health packet 是否需要额外 entitlement 或权限说明。
 
 2. Python runtime 发布路线已确定但未完成验证
    - 第一版发布路线改为随 app bundle 内置完整 Python runtime，目标是用户只安装 desktop app 即可烧录。
@@ -161,7 +161,9 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
 3. 做 signed Developer ID app 验证
    - 先用 `SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" script/package_desktop_release.sh` 跑通本地 Developer ID 签名。
    - 用 `xcrun notarytool store-credentials vibe-light-notary --key /path/to/AuthKey.p8 --key-id <KEY_ID> --issuer <ISSUER_ID> --validate` 创建本机 notarization profile。
-   - 再用 `SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" NOTARYTOOL_PROFILE=vibe-light-notary script/package_desktop_release.sh --notarize` 验证 app bundle、helper、串口访问和 BLE 扫描。
+   - 已用 `SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" NOTARYTOOL_PROFILE=vibe-light-notary script/package_desktop_release.sh --notarize` 验证 app bundle、helper、staple 和 Gatekeeper。
+   - 已接目标板验证 notarized app bundle 内 helper 的串口访问和芯片读取。
+   - 下一步通过 app UI 验证完整烧录、BLE 扫描 / 连接和 health packet。
    - 如果 Developer ID 路线稳定，再评估 App Store sandbox 可行性。
 
 4. 建立 release 构建脚本

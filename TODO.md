@@ -41,6 +41,10 @@
 - 验证范围：notarization 凭证预检。
 - 结果确认：`script/package_desktop_release.sh --notarize` 已支持 build/sign 前凭证校验和命令行覆盖 `NOTARYTOOL_PROFILE` / Apple API key 参数；本机尚未配置 `vibe-light-notary` profile，也未检测到 Apple API key 环境变量，因此 notarization 提交待配置凭证后继续。
 
+- 时间：2026-06-12。
+- 验证范围：Developer ID notarized desktop app。
+- 结果确认：`SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" NOTARYTOOL_PROFILE=vibe-light-notary script/package_desktop_release.sh --notarize` 已跑通，Apple Notary submission `d923ce8c-d4f9-4a03-b26b-008a2f5ec9a4` 返回 `Accepted`；`xcrun stapler validate dist/VibeLightApp.app` 通过，`spctl -a -vv --type execute dist/VibeLightApp.app` 返回 `accepted / source=Notarized Developer ID`；`codesign -dvvv` 显示 `Notarization Ticket=stapled`、Team ID `6UG7DDAY6C`、hardened runtime 和 sealed resources；签名 + notarized app 内 helper 在收窄 PATH + strict 模式下输出 bundled `esptool.py v4.11.0`；notarized app 可短暂启动。继续用 notarized app bundle 内 helper 对 `/dev/cu.usbmodem1101` 执行非破坏性 `chip_id` 读取，识别 `ESP32-S3 (QFN56)`、BLE、8MB PSRAM 和 MAC `1c:db:d4:7b:3f:cc`。仍需通过 app UI 验证完整串口烧录、BLE 扫描 / 连接和 health packet。
+
 - 时间：2026-06-11。
 - 端口：`/dev/cu.usbmodem1101`。
 - 固件版本：`3215f23`。
@@ -64,7 +68,7 @@
    - `script/package_desktop_release.sh` 已提供本地 Developer ID 签名验证入口，可生成 `dist/VibeLightApp.app`、签名 bundle 内 nested Mach-O、签 resource bundle / 主 app、执行 `codesign --verify`、归档 zip，并支持显式 `--notarize` 后先校验凭证再提交、staple 和 Gatekeeper 校验。
    - UI 已能针对下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失给出明确恢复提示。
    - 下一步需要确认可分发 Python runtime 的正式来源和许可证，并完整审阅生成的 esptool/Python 许可证材料。
-   - 仍需实跑 notarized app 的 macOS 串口 / USB entitlement、helper notarization、desktop build / signing / notarization 串接和烧录前芯片确认。
+   - notarized app bundle 内 helper 已能访问 `/dev/cu.usbmodem1101` 并读取 `ESP32-S3 (QFN56)` 芯片信息；仍需通过 app UI 实跑完整串口烧录、BLE 扫描 / 连接、health packet 和烧录前芯片确认。
    - 方案细节见 `docs/desktop-firmware-flashing.md`。
 
 2. **保持显示模型测试随功能演进收紧**
