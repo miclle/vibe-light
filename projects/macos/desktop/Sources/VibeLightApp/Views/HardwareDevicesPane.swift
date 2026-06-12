@@ -204,14 +204,21 @@ struct HardwareDevicesPane: View {
                     }
                 }
                 .frame(minWidth: 280, maxWidth: 380)
-                .disabled(model.isFirmwareFlashing)
+                .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing)
 
                 Button {
                     model.refreshFirmwareFlashing()
                 } label: {
                     Label("刷新", systemImage: "arrow.clockwise")
                 }
-                .disabled(model.isFirmwareFlashing)
+                .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing)
+
+                Button {
+                    model.probeFirmwareChip()
+                } label: {
+                    Label(model.isFirmwareChipProbing ? "读取中" : "读取芯片", systemImage: "checkmark.shield")
+                }
+                .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing || model.firmwareBundle == nil || model.selectedFirmwareSerialPort == nil)
 
                 Button {
                     model.flashFirmware()
@@ -219,14 +226,24 @@ struct HardwareDevicesPane: View {
                     Label(model.isFirmwareFlashing ? "烧录中" : "烧录固件", systemImage: "bolt.horizontal.circle")
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(model.isFirmwareFlashing || model.firmwareBundle == nil || model.selectedFirmwareSerialPort == nil)
+                .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing || model.firmwareBundle == nil || model.selectedFirmwareSerialPort == nil || model.firmwareChipProbeResult == nil)
 
-                if model.isFirmwareFlashing {
+                if model.isFirmwareFlashing || model.isFirmwareChipProbing {
                     ProgressView()
                         .controlSize(.small)
                 }
             }
             .buttonStyle(.bordered)
+
+            if let chipProbeResult = model.firmwareChipProbeResult {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.shield.fill")
+                        .foregroundStyle(.green)
+                    Text(firmwareChipProbeSummary(chipProbeResult))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             Text(model.firmwareFlashMessage)
                 .font(.callout)
@@ -310,6 +327,13 @@ struct HardwareDevicesPane: View {
         }
 
         return "\(bundle.manifest.version) / \(bundle.manifest.targetChip) / \(bundle.manifest.flashSize)"
+    }
+
+    private func firmwareChipProbeSummary(_ result: FirmwareChipProbeResult) -> String {
+        if let macAddress = result.macAddress {
+            return "已确认 \(result.chipName) / \(macAddress)"
+        }
+        return "已确认 \(result.chipName)"
     }
 
     private var connectionIcon: String {

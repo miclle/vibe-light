@@ -167,6 +167,112 @@ public struct FirmwareFlashCommand: Equatable {
     }
 }
 
+public struct FirmwareChipProbeCommand: Equatable {
+    public let targetChip: String
+    public let port: String
+    public let baud: Int
+
+    public init(targetChip: String, port: String, baud: Int = 460_800) {
+        self.targetChip = targetChip
+        self.port = port
+        self.baud = baud
+    }
+
+    public var esptoolArguments: [String] {
+        [
+            "--chip", targetChip,
+            "--port", port,
+            "--baud", "\(baud)",
+            "chip_id",
+        ]
+    }
+}
+
+public enum FirmwareChipProbeError: Error, Equatable, LocalizedError {
+    case missingChipIdentity
+
+    public var errorDescription: String? {
+        switch self {
+        case .missingChipIdentity:
+            "未能从芯片读取输出中识别芯片型号。"
+        }
+    }
+}
+
+public struct FirmwareChipProbeResult: Equatable {
+    public let chipName: String
+    public let macAddress: String?
+    public let output: String
+
+    public init(chipName: String, macAddress: String?, output: String) {
+        self.chipName = chipName
+        self.macAddress = macAddress
+        self.output = output
+    }
+
+    public static func parse(output: String) throws -> FirmwareChipProbeResult {
+        guard let chipName = parseChipName(from: output) else {
+            throw FirmwareChipProbeError.missingChipIdentity
+        }
+        return FirmwareChipProbeResult(
+            chipName: chipName,
+            macAddress: parseMACAddress(from: output),
+            output: output
+        )
+    }
+
+    public func matches(targetChip: String) -> Bool {
+        Self.primaryChipName(chipName) == Self.normalizedChipName(targetChip)
+    }
+
+    private static func parseChipName(from output: String) -> String? {
+        output
+            .components(separatedBy: .newlines)
+            .compactMap { line -> String? in
+                guard let range = line.range(of: "Chip is ") else {
+                    return nil
+                }
+                let suffix = String(line[range.upperBound...])
+                let withoutRevision = suffix.components(separatedBy: " (revision").first ?? suffix
+                return withoutRevision.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .first { !$0.isEmpty }
+    }
+
+    private static func parseMACAddress(from output: String) -> String? {
+        output
+            .components(separatedBy: .newlines)
+            .compactMap { line -> String? in
+                guard let range = line.range(of: "MAC:") else {
+                    return nil
+                }
+                return String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .first { !$0.isEmpty }
+    }
+
+    private static func normalizedChipName(_ value: String) -> String {
+        value
+            .lowercased()
+            .filter { $0.isLetter || $0.isNumber }
+    }
+
+    private static func primaryChipName(_ value: String) -> String {
+        let normalized = normalizedChipName(value)
+        let knownChips = [
+            "esp32s3",
+            "esp32s2",
+            "esp32c6",
+            "esp32c5",
+            "esp32c3",
+            "esp32h2",
+            "esp32p4",
+            "esp32",
+        ]
+        return knownChips.first { normalized.hasPrefix($0) } ?? normalized
+    }
+}
+
 public struct FirmwareFlashProcessRunner: Sendable {
     public init() {}
 

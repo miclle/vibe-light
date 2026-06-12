@@ -27,9 +27,9 @@
 
 - `projects/esp32/tools/package_firmware_bundle.py`：从 `projects/esp32/build/flasher_args.json` 和 bin 产物生成 app resource 使用的 `FirmwareBundle`。
 - `projects/esp32/tools/package_firmware_tools.py`：把 `esptool` 及其 Python 依赖 vendor 到 app resource 的 `FirmwareTools/python-packages/`。
-- `projects/macos/desktop/Sources/VibeLightCore/FirmwareFlashing.swift`：解析 manifest、按 offset 排序写入项、校验每个 bin 的 SHA-256、生成 `esptool write_flash` 参数，并枚举 macOS 常见 ESP32 串口。
-- `projects/macos/desktop/Sources/VibeLightApp/Models/VibeLightAppModel.swift`：加载内置固件包、刷新串口、调用烧录 helper、记录日志，并在成功后启动 BLE 扫描。
-- `projects/macos/desktop/Sources/VibeLightApp/Views/HardwareDevicesPane.swift`：在“硬件设备”页新增“固件烧录”区域，提供串口选择、刷新、烧录按钮、状态文本和 helper 日志摘要。
+- `projects/macos/desktop/Sources/VibeLightCore/FirmwareFlashing.swift`：解析 manifest、按 offset 排序写入项、校验每个 bin 的 SHA-256、生成 `esptool chip_id` / `write_flash` 参数、解析芯片读取输出，并枚举 macOS 常见 ESP32 串口。
+- `projects/macos/desktop/Sources/VibeLightApp/Models/VibeLightAppModel.swift`：加载内置固件包、刷新串口、先调用 helper 读取芯片信息、确认目标芯片后再允许烧录、记录日志，并在成功后启动 BLE 扫描。
+- `projects/macos/desktop/Sources/VibeLightApp/Views/HardwareDevicesPane.swift`：在“硬件设备”页新增“固件烧录”区域，提供串口选择、刷新、读取芯片、烧录按钮、状态文本和 helper 日志摘要。
 - `projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/vibe-light-firmware-flasher`：app 内置烧录 helper，接受 `esptool` 兼容参数，优先使用同目录 vendor 的 runtime，开发环境可 fallback 到本机 `esptool`。
 
 2026-06-12 已完成发布形态资源和 UI 路径实机烟测：`dist/VibeLightApp.app` 中的 `FirmwareBundle` 和 `FirmwareTools/vibe-light-firmware-flasher` 可在 `/dev/cu.usbmodem2101` 写入目标 ESP32-S3；默认 PATH 下使用 `esptool.py v4.8.1` 成功，收窄 PATH 到 `/usr/bin:/bin:/usr/sbin:/sbin` 后使用 vendored `python-packages` 的 `esptool.py v4.11.0` 成功。写入均完成 bootloader、partition table 和 app 分区 hash 校验。重启后串口确认 `LCD initialized`、`advertising as VibeLight-S3`、desktop Central connected 和连续 `v:2` 状态写入。同日通过 macOS “硬件设备”页点击“烧录固件”完成一次 UI 路径烧录；UI 展示写入日志和 hash verified，随后自动扫描、重新连接 `VibeLight-S3` 并展示 health packet。
@@ -73,15 +73,17 @@ desktop app 的职责保持独立：
 1. 枚举候选串口，例如 `/dev/cu.usbmodem*`、`/dev/cu.wchusbserial*`、`/dev/cu.SLAB_USBtoUART*`。
 2. 读取 app bundle 内置的 `FirmwareBundle/manifest.json`。
 3. 校验固件包完整性和 SHA-256。
-4. 调用烧录 helper 执行 `write_flash`。
-5. 将状态、日志摘要和失败原因回传给 SwiftUI。
-6. 烧录完成后触发硬件页 BLE 扫描，用户可连接 `VibeLight-S3` 并读取 health packet。
+4. 先调用烧录 helper 执行非破坏性 `chip_id`，读取并展示芯片型号和 MAC。
+5. 确认读取到的芯片匹配固件目标 `esp32s3` 后，才允许继续执行 `write_flash`。
+6. 将状态、日志摘要和失败原因回传给 SwiftUI。
+7. 烧录完成后触发硬件页 BLE 扫描，用户可连接 `VibeLight-S3` 并读取 health packet。
 
 UI 位于“硬件设备”页的独立“固件烧录”区域：
 
 - 未连接 USB 时提示插入设备。
 - 发现多个串口时让用户选择。
-- 烧录前显示目标固件版本和硬件型号。
+- 烧录前显示目标固件版本和硬件型号，并要求先点击“读取芯片”完成 ESP32-S3 确认。
+- “烧录固件”按钮在芯片确认前保持禁用，切换串口或刷新后需要重新确认。
 - 烧录中显示当前状态和 helper 输出摘要。
 - 如果进入下载模式失败，提示按住 BOOT 后单击 RST，再重试。
 - 烧录成功后自动扫描 BLE 并读取设备健康状态。
@@ -136,7 +138,7 @@ xcrun notarytool store-credentials vibe-light-notary \
 
 `script/package_desktop_release.sh --notarize` 会在 build/sign 前校验 notarization 凭证。2026-06-12 本机尚未配置 `vibe-light-notary` profile，也没有检测到 `APPLE_API_KEY` / `APPLE_API_KEY_PATH`、`APPLE_API_KEY_ID` 和 `APPLE_API_ISSUER` 环境变量，所以 notarization 提交还未执行。
 
-2026-06-12 后续已创建并验证 `vibe-light-notary` profile，并跑通完整 notarization：Apple Notary submission `d923ce8c-d4f9-4a03-b26b-008a2f5ec9a4` 返回 `Accepted`，`xcrun stapler validate dist/VibeLightApp.app` 通过，`spctl -a -vv --type execute dist/VibeLightApp.app` 返回 `accepted / source=Notarized Developer ID`，`codesign -dvvv` 显示 `Notarization Ticket=stapled`。签名 + notarized app 内 helper 在收窄 PATH + strict 模式下仍能加载 bundled `esptool.py v4.11.0`，notarized app 可短暂启动。继续用 notarized app bundle 内 helper 对 `/dev/cu.usbmodem1101` 执行非破坏性 `chip_id` 读取，已识别 `ESP32-S3 (QFN56)`、BLE、8MB PSRAM 和目标 MAC。随后在 notarized app UI 点击“烧录固件”，完成三段写入和 hash verification，烧录后 app 扫描到设备、重新连接并读取 health packet。
+2026-06-12 后续已创建并验证 `vibe-light-notary` profile，并跑通完整 notarization：Apple Notary submission `d923ce8c-d4f9-4a03-b26b-008a2f5ec9a4` 返回 `Accepted`，`xcrun stapler validate dist/VibeLightApp.app` 通过，`spctl -a -vv --type execute dist/VibeLightApp.app` 返回 `accepted / source=Notarized Developer ID`，`codesign -dvvv` 显示 `Notarization Ticket=stapled`。签名 + notarized app 内 helper 在收窄 PATH + strict 模式下仍能加载 bundled `esptool.py v4.11.0`，notarized app 可短暂启动。继续用 notarized app bundle 内 helper 对 `/dev/cu.usbmodem1101` 执行非破坏性 `chip_id` 读取，已识别 `ESP32-S3 (QFN56)`、BLE、8MB PSRAM 和目标 MAC。随后在 notarized app UI 点击“烧录固件”，完成三段写入和 hash verification，烧录后 app 扫描到设备、重新连接并读取 health packet。dev app UI 已补齐烧录前芯片确认：读取前“烧录固件”禁用，读取 `/dev/cu.usbmodem1101` 确认 `ESP32-S3 (QFN56)` 和 MAC `1c:db:d4:7b:3f:cc` 后才启用写入入口。
 
 CI 后续可以复用同一个脚本，但需要额外把 Developer ID Application 证书和私钥导入临时 keychain，再提供 `SIGNING_IDENTITY`。Notarization 可以使用 `NOTARYTOOL_PROFILE`，也可以使用 `APPLE_API_KEY` / `APPLE_API_KEY_PATH`、`APPLE_API_KEY_ID` 和 `APPLE_API_ISSUER`。
 
@@ -182,7 +184,7 @@ CI 后续可以复用同一个脚本，但需要额外把 Developer ID Applicati
    - 已用真实 Apple notarization profile 验证 notarized app、staple、Gatekeeper 和 helper strict 模式。
    - 已用 notarized app bundle 内 helper 验证目标板串口握手和芯片读取。
    - 已通过 notarized app UI 验证完整烧录、BLE 扫描 / 连接和 health packet。
-   - 仍需补烧录前芯片确认 UI。
+   - dev app UI 已补齐烧录前芯片确认，写入入口会等 `chip_id` 读取并匹配目标芯片后才启用。
    - 在 release-prep 入口之上继续补 smoke checklist，确保 desktop app 和内置固件版本可追踪。
 
 4. **体验优化**

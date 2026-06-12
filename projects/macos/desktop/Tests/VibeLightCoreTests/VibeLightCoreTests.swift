@@ -1369,6 +1369,50 @@ import Testing
     ])
 }
 
+@Test func firmwareChipProbeCommandBuildsNonDestructiveChipIdArguments() {
+    let command = FirmwareChipProbeCommand(targetChip: "esp32s3", port: "/dev/cu.usbmodem2101", baud: 460_800)
+
+    #expect(command.esptoolArguments == [
+        "--chip", "esp32s3",
+        "--port", "/dev/cu.usbmodem2101",
+        "--baud", "460800",
+        "chip_id",
+    ])
+}
+
+@Test func firmwareChipProbeResultParsesChipNameAndMacAddress() throws {
+    let output = """
+    esptool.py v4.11.0
+    Serial port /dev/cu.usbmodem1101
+    Connecting...
+    Chip is ESP32-S3 (QFN56) (revision v0.2)
+    Features: WiFi, BLE, Embedded PSRAM 8MB (AP_3v3)
+    MAC: 1c:db:d4:7b:3f:cc
+    """
+
+    let result = try FirmwareChipProbeResult.parse(output: output)
+
+    #expect(result.chipName == "ESP32-S3 (QFN56)")
+    #expect(result.macAddress == "1c:db:d4:7b:3f:cc")
+    #expect(result.matches(targetChip: "esp32s3"))
+}
+
+@Test func firmwareChipProbeResultDoesNotMatchLessSpecificChipTarget() {
+    let result = FirmwareChipProbeResult(
+        chipName: "ESP32-S3 (QFN56)",
+        macAddress: nil,
+        output: "Chip is ESP32-S3 (QFN56)"
+    )
+
+    #expect(!result.matches(targetChip: "esp32"))
+}
+
+@Test func firmwareChipProbeResultRejectsOutputWithoutChipIdentity() {
+    #expect(throws: FirmwareChipProbeError.self) {
+        try FirmwareChipProbeResult.parse(output: "esptool.py v4.11.0\nNo serial data received.")
+    }
+}
+
 @Test func firmwareBundleValidatorRejectsChecksumMismatch() throws {
     let directory = temporaryDirectory()
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

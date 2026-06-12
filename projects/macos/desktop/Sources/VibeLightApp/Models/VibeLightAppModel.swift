@@ -20,8 +20,16 @@ final class VibeLightAppModel: ObservableObject {
     @Published private(set) var firmwareBundle: FirmwareBundle?
     @Published private(set) var firmwareFlashMessage = "未检查固件包。"
     @Published private(set) var firmwareFlashLog = ""
+    @Published private(set) var firmwareChipProbeResult: FirmwareChipProbeResult?
+    @Published private(set) var isFirmwareChipProbing = false
     @Published private(set) var isFirmwareFlashing = false
-    @Published var selectedFirmwareSerialPort: String?
+    @Published var selectedFirmwareSerialPort: String? {
+        didSet {
+            if oldValue != selectedFirmwareSerialPort {
+                clearFirmwareChipProbeConfirmation()
+            }
+        }
+    }
     @Published var launchAtLogin = false
     @Published var autoConnectDevice: Bool {
         didSet {
@@ -46,6 +54,7 @@ final class VibeLightAppModel: ObservableObject {
     private var demoPacketHold = HardwareDemoPacketHold()
     private var didStartHardwareAutoConnect = false
     private var isAwaitingFirmwareReconnect = false
+    private var confirmedFirmwareSerialPort: String?
 
     init(
         eventLog: EventLog = EventLog(),
@@ -220,6 +229,7 @@ final class VibeLightAppModel: ObservableObject {
         if selectedFirmwareSerialPort == nil || firmwareSerialPorts.contains(selectedFirmwareSerialPort ?? "") == false {
             selectedFirmwareSerialPort = firmwareSerialPorts.first
         }
+        clearFirmwareChipProbeConfirmation()
 
         do {
             guard let bundleURL = bundledFirmwareURL() else {
@@ -237,6 +247,51 @@ final class VibeLightAppModel: ObservableObject {
         }
     }
 
+    func probeFirmwareChip() {
+        guard !isFirmwareChipProbing, !isFirmwareFlashing else {
+            return
+        }
+        guard let firmwareBundle else {
+            firmwareFlashMessage = "没有可烧录的固件包。"
+            return
+        }
+        guard let selectedFirmwareSerialPort else {
+            firmwareFlashMessage = "未发现 USB 串口。请连接 ESP32-S3 后刷新。"
+            return
+        }
+        guard let helperURL = firmwareFlashHelperURL() else {
+            firmwareFlashMessage = "找不到烧录 helper。发布包需要内置 FirmwareTools/vibe-light-firmware-flasher。"
+            return
+        }
+
+        let command = FirmwareChipProbeCommand(targetChip: firmwareBundle.manifest.targetChip, port: selectedFirmwareSerialPort)
+        clearFirmwareChipProbeConfirmation()
+        isFirmwareChipProbing = true
+        firmwareFlashMessage = "正在读取 \(selectedFirmwareSerialPort) 的芯片信息..."
+        firmwareFlashLog = ""
+
+        Task { [helperURL, command, selectedFirmwareSerialPort] in
+            do {
+                let output = try await runFirmwareTool(helperURL: helperURL, arguments: command.esptoolArguments)
+                let result = try FirmwareChipProbeResult.parse(output: output)
+                firmwareFlashLog = output
+                if result.matches(targetChip: command.targetChip) {
+                    firmwareChipProbeResult = result
+                    confirmedFirmwareSerialPort = selectedFirmwareSerialPort
+                    firmwareFlashMessage = firmwareChipProbeMessage(for: result)
+                } else {
+                    firmwareFlashMessage = "芯片确认失败：读取到 \(result.chipName)，目标固件需要 \(command.targetChip)。"
+                }
+                isFirmwareChipProbing = false
+            } catch {
+                firmwareFlashLog = (error as? FirmwareFlashProcessError)?.output ?? firmwareFlashLog
+                firmwareFlashMessage = FirmwareFlashFailureAdvice(error: error).message
+                isFirmwareChipProbing = false
+                clearFirmwareChipProbeConfirmation()
+            }
+        }
+    }
+
     func flashFirmware() {
         guard !isFirmwareFlashing else {
             return
@@ -247,6 +302,10 @@ final class VibeLightAppModel: ObservableObject {
         }
         guard let selectedFirmwareSerialPort else {
             firmwareFlashMessage = "未发现 USB 串口。请连接 ESP32-S3 后刷新。"
+            return
+        }
+        guard firmwareChipProbeResult != nil, confirmedFirmwareSerialPort == selectedFirmwareSerialPort else {
+            firmwareFlashMessage = "烧录前请先读取并确认芯片。"
             return
         }
         guard let helperURL = firmwareFlashHelperURL() else {
@@ -275,6 +334,18 @@ final class VibeLightAppModel: ObservableObject {
                 isAwaitingFirmwareReconnect = false
             }
         }
+    }
+
+    private func clearFirmwareChipProbeConfirmation() {
+        firmwareChipProbeResult = nil
+        confirmedFirmwareSerialPort = nil
+    }
+
+    private func firmwareChipProbeMessage(for result: FirmwareChipProbeResult) -> String {
+        if let macAddress = result.macAddress {
+            return "已确认 \(result.chipName)，MAC \(macAddress)。可继续烧录。"
+        }
+        return "已确认 \(result.chipName)。可继续烧录。"
     }
 
     private func updateFirmwareReconnectMessage(for state: HardwareConnectionState) {
@@ -335,9 +406,13 @@ final class VibeLightAppModel: ObservableObject {
     }
 
     private func runFirmwareFlash(helperURL: URL, command: FirmwareFlashCommand) async throws -> String {
+        try await runFirmwareTool(helperURL: helperURL, arguments: command.esptoolArguments)
+    }
+
+    private func runFirmwareTool(helperURL: URL, arguments: [String]) async throws -> String {
         try await firmwareFlashProcessRunner.run(
             executableURL: helperURL,
-            arguments: command.esptoolArguments
+            arguments: arguments
         )
     }
 
