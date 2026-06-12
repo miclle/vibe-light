@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -79,7 +80,7 @@ def main() -> int:
     if args.require_python_runtime:
         validate_python_runtime(runtime_dir)
 
-    notice_url = write_third_party_notices(args.output_dir, packages_dir)
+    notice_url = write_third_party_notices(args.output_dir, packages_dir, runtime_dir)
     print(f"wrote firmware tool dependencies to {packages_dir}")
     print(f"wrote firmware tool notices to {notice_url}")
     return 0
@@ -111,8 +112,9 @@ def validate_python_runtime(runtime_dir: Path) -> None:
         raise SystemExit(f"bundled Python runtime is not executable: {python_url}")
 
 
-def write_third_party_notices(output_dir: Path, packages_dir: Path) -> Path:
+def write_third_party_notices(output_dir: Path, packages_dir: Path, runtime_dir: Path) -> Path:
     packages = []
+    runtime_notice = python_runtime_notice(runtime_dir)
     for metadata_url in sorted(packages_dir.glob("*.dist-info/METADATA")):
         metadata = Parser().parsestr(metadata_url.read_text(encoding="utf-8", errors="replace"))
         packages.append(
@@ -143,6 +145,9 @@ def write_third_party_notices(output_dir: Path, packages_dir: Path) -> Path:
         "",
     ]
 
+    if runtime_notice:
+        lines.extend(runtime_notice)
+
     if packages:
         for package in packages:
             lines.extend(
@@ -167,6 +172,34 @@ def write_third_party_notices(output_dir: Path, packages_dir: Path) -> Path:
 
     notice_url.write_text("\n".join(lines), encoding="utf-8")
     return notice_url
+
+
+def python_runtime_notice(runtime_dir: Path) -> list[str]:
+    package_json_url = runtime_dir / "package.json"
+    license_url = runtime_dir / "LICENSE"
+    if not package_json_url.exists() and not license_url.exists():
+        return []
+
+    metadata = {}
+    if package_json_url.exists():
+        metadata = json.loads(package_json_url.read_text(encoding="utf-8"))
+
+    name = metadata.get("name", "Python runtime")
+    version = metadata.get("version", "unknown")
+    license_name = metadata.get("license", "See bundled LICENSE")
+    homepage = metadata.get("homepage") or metadata.get("repository") or "See bundled LICENSE"
+
+    lines = [
+        f"## {name} {version}",
+        "",
+        "- Summary: Bundled Python runtime used by the firmware flashing helper",
+        f"- License: {license_name}",
+        f"- Project: {homepage}",
+    ]
+    if license_url.exists():
+        lines.append(f"- License file: `{license_url.relative_to(runtime_dir.parent)}`")
+    lines.append("")
+    return lines
 
 
 if __name__ == "__main__":
