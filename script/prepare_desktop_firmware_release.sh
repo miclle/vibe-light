@@ -98,5 +98,16 @@ if [[ "$HELP_OUTPUT" != *"esptool.py"* ]]; then
   exit 1
 fi
 
+if [[ "$REQUIRE_BUNDLED_PYTHON" -eq 1 ]]; then
+  PYTHONPATH="projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/python-packages" \
+    projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/python/bin/python3 - <<'PY'
+import cffi
+import cryptography
+import esptool
+import serial
+import yaml
+PY
+fi
+
 printf 'Prepared desktop firmware release resources for %s (minimum desktop %s).\n' \
   "$VERSION" "$MINIMUM_DESKTOP_VERSION"

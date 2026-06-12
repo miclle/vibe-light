@@ -125,7 +125,8 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 第一版发布路线改为随 app bundle 内置完整 Python runtime，目标是用户只安装 desktop app 即可烧录。
    - `package_firmware_tools.py --python-runtime <path> --require-python-runtime` 已能把预备好的 runtime 复制到 `FirmwareTools/python/` 并验证 `python/bin/python3`。
    - `VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1` 会禁止 helper fallback 到系统 Python、Homebrew `esptool` 或用户 PATH。
-   - 仍需选定 runtime 来源，并验证 signed/notarized app 中 runtime、扩展模块和动态库的签名行为。
+   - 2026-06-12 已用本机 PlatformIO portable Python 3.11.7 arm64 候选跑通 `script/prepare_desktop_firmware_release.sh --skip-esp32-build --version dev-test --minimum-desktop-version dev --python-runtime /Users/miclle/.platformio/python3 --require-bundled-python`；strict helper 输出 `esptool.py v4.11.0`，bundled Python import smoke 覆盖 `esptool`、`pyserial`、`cryptography`、`PyYAML` 和 `cffi`。
+   - 仍需确认可分发 runtime 的正式来源和许可证，并验证 signed/notarized app 中 runtime、扩展模块和动态库的签名行为。
 
 3. 第三方许可证材料未整理
    - `package_firmware_tools.py` 已能根据 vendored Python package metadata 生成 `FirmwareTools/THIRD_PARTY_NOTICES.md`。
@@ -146,9 +147,9 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
 推荐按以下顺序继续：
 
 1. 先跑通 bundled Python runtime 发布资产
-   - 选定可分发的 macOS Python runtime 来源。
-   - 用 `script/prepare_desktop_firmware_release.sh --python-runtime <path> --require-bundled-python ...` 生成自包含 `FirmwareTools`。
-   - 用收窄 PATH 加 strict 模式验证 helper 只使用 app bundle 内资源。
+   - 本地候选 runtime 已跑通，下一步要确认正式可分发来源和许可证。
+   - 继续用 `script/prepare_desktop_firmware_release.sh --python-runtime <path> --require-bundled-python ...` 生成自包含 `FirmwareTools`。
+   - 保持收窄 PATH 加 strict 模式验证 helper 只使用 app bundle 内资源。
 
 2. 补齐 license / notice
    - 完整运行 `package_firmware_tools.py --clean`。

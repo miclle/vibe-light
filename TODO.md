@@ -29,6 +29,10 @@
 - 结果确认：helper 在默认 PATH 下通过 `esptool.py v4.8.1` 完成写入；在收窄 PATH `/usr/bin:/bin:/usr/sbin:/sbin` 下通过 vendored `python-packages` 的 `esptool.py v4.11.0` 再次完成写入，均识别 `ESP32-S3 (QFN56)`，bootloader、partition table 和 app 三段写入 hash verified。重启后串口确认 `LCD initialized`、`advertising as VibeLight-S3`、desktop Central connected，并收到连续 `v:2` 状态写入。
 - UI 闭环补充：同一天通过 macOS “硬件设备”页点击“烧录固件”完成一次 app UI 路径烧录；UI 展示 `esptool.py v4.8.1` 写入日志、三段 hash verified、自动扫描，随后重新连接 `VibeLight-S3` 并读取 health packet，健康卡显示运行时间、连接、运行中状态、背光开启、heap 余量和渲染 tick。
 
+- 时间：2026-06-12。
+- 验证范围：内置 Python runtime 发布资产准备。
+- 结果确认：使用本机 PlatformIO portable Python 3.11.7 arm64 候选 runtime 运行 `script/prepare_desktop_firmware_release.sh --skip-esp32-build --version dev-test --minimum-desktop-version dev --python-runtime /Users/miclle/.platformio/python3 --require-bundled-python` 成功；生成 `FirmwareTools/python` 约 105MB、`python-packages` 约 37MB、`FirmwareBundle` 约 1MB；收窄 PATH + strict helper 输出 `esptool.py v4.11.0`，并通过 bundled Python import smoke 覆盖 `esptool`、`pyserial`、`cryptography`、`PyYAML` 和 `cffi`。
+
 - 时间：2026-06-11。
 - 端口：`/dev/cu.usbmodem1101`。
 - 固件版本：`3215f23`。
@@ -48,9 +52,9 @@
    - 当前已完成 desktop 入口、固件包生成、manifest 校验、串口枚举、helper 参数生成、`vibe-light-firmware-flasher` wrapper、esptool 依赖 vendoring 和成功后 BLE 扫描。
    - 发布形态资源已完成实机烟测：dist app resource 中的 helper 和固件包可通过 USB 写入目标板，vendored `python-packages` 路径可在无 Homebrew esptool 的 PATH 下工作，重启后 BLE 广播和 desktop 连接 / 状态写入正常；macOS UI 点击“烧录固件”也已完成烧录、扫描、连接和 health packet 展示闭环。
    - `script/prepare_desktop_firmware_release.sh` 已提供发布资产准备入口，串起 ESP32 构建、固件包生成、esptool vendoring 和 helper 收窄 PATH 验证；`package_firmware_tools.py` 会生成 `FirmwareTools/THIRD_PARTY_NOTICES.md` 供发布审阅。
-   - 第一版发布路线已切到内置 Python runtime：`package_firmware_tools.py --python-runtime <path> --require-python-runtime` 可复制 runtime 到 `FirmwareTools/python/`，`VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1` 可验证 helper 不依赖系统 Python、Homebrew `esptool` 或用户 PATH。
+   - 第一版发布路线已切到内置 Python runtime：`package_firmware_tools.py --python-runtime <path> --require-python-runtime` 可复制 runtime 到 `FirmwareTools/python/`，`VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1` 可验证 helper 不依赖系统 Python、Homebrew `esptool` 或用户 PATH；本地 PlatformIO portable Python 3.11.7 arm64 候选已完成 release-prep 和 import smoke。
    - UI 已能针对下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失给出明确恢复提示。
-   - 下一步需要选定可分发的 Python runtime 来源，签名 `FirmwareTools/vibe-light-firmware-flasher` 和 runtime 内 nested code，并完整审阅生成的 esptool/Python 许可证材料。
+   - 下一步需要确认可分发 Python runtime 的正式来源和许可证，签名 `FirmwareTools/vibe-light-firmware-flasher` 和 runtime 内 nested code，并完整审阅生成的 esptool/Python 许可证材料。
    - 仍需验证 notarized app 的 macOS 串口 / USB entitlement、helper notarization、发布脚本中的 desktop build / signing / notarization 串接和烧录前芯片确认。
    - 方案细节见 `docs/desktop-firmware-flashing.md`。
 

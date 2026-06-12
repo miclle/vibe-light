@@ -64,6 +64,8 @@ projects/esp32/tools/package_firmware_tools.py --clean
 
 生成的 `manifest.json` 和 bin 文件会写入 `projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareBundle/`，`esptool` 依赖会写入 `Resources/FirmwareTools/python-packages/`，这些生成产物被 `.gitignore` 忽略；发布构建应在构建 app 前执行这些步骤。
 
+2026-06-12 本地已用 PlatformIO portable Python 3.11.7 arm64 候选 runtime 跑通自包含 release-prep：`FirmwareTools/python` 约 105MB，`FirmwareTools/python-packages` 约 37MB，`FirmwareBundle` 约 1MB。该验证证明当前脚本和 helper 可以脱离系统 Python / PATH 运行，但正式发布前仍需确认 runtime 的分发来源、许可证和签名方式。
+
 ## macOS 端流程
 
 desktop app 的职责保持独立：
@@ -130,7 +132,7 @@ macOS 分发前必须实测签名、notarization 和 sandbox 行为。
    - 当前已在 `Resources/FirmwareTools/` 放入可签名的 `vibe-light-firmware-flasher` wrapper，并能通过 vendored `python-packages` 加载 `esptool`。
    - `script/prepare_desktop_firmware_release.sh` 已串起固件包生成、`esptool` 依赖 vendoring 和收窄 PATH helper 验证，可作为发布资产准备入口。
    - `projects/esp32/tools/package_firmware_tools.py --python-runtime <path> --require-python-runtime` 可把预备好的独立 Python runtime 复制到 `FirmwareTools/python/`，并验证 `python/bin/python3` 可执行。
-   - `VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1` 会让 helper 只使用 bundled Python runtime 和 bundled `esptool`，用于证明发布包不依赖用户系统环境。
+   - `VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1` 会让 helper 只使用 bundled Python runtime 和 bundled `esptool`，用于证明发布包不依赖用户系统环境；release-prep 还会用 bundled Python import `esptool`、`pyserial`、`cryptography`、`PyYAML` 和 `cffi`，避免二进制依赖 ABI 问题漏过。
    - `projects/esp32/tools/package_firmware_tools.py` 会从 vendored Python package metadata 生成 `FirmwareTools/THIRD_PARTY_NOTICES.md`，让许可证材料跟实际依赖版本保持一致。
    - 发布前仍需选定 runtime 来源，完整跑通工具 vendoring，并审阅生成的第三方 notices。
 
