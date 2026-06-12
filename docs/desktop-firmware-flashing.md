@@ -126,6 +126,22 @@ SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" \
   script/package_desktop_release.sh --notarize
 ```
 
+如果要把固件资源准备、desktop app 打包签名、可选 notarization、第三方 notice 检查和实机芯片读取记录成一份发布 checklist，可以使用：
+
+```bash
+SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" \
+  NOTARYTOOL_PROFILE=vibe-light-notary \
+  script/desktop_firmware_release_checklist.sh \
+  --version <release-version> \
+  --minimum-desktop-version <desktop-version> \
+  --python-runtime /path/to/python-runtime \
+  --require-bundled-python \
+  --notarize \
+  --chip-port /dev/cu.usbmodem1101
+```
+
+脚本会在 `dist/release/` 下写入 markdown checklist，并把 prepare、package 和 chip read 日志放到 `dist/release/logs/`。
+
 第一次在本机配置 profile 时可以使用 App Store Connect API key：
 
 ```bash
@@ -181,11 +197,12 @@ CI 后续可以复用同一个脚本，但需要额外把 Developer ID Applicati
 3. **发布签名**
    - 给固件包增加版本、校验和 release notes。
    - `script/package_desktop_release.sh` 已串接 desktop build、Developer ID signing、nested Mach-O signing、zip 归档和可选 notarization / staple。
+   - `script/desktop_firmware_release_checklist.sh` 已把固件资源准备、desktop 打包签名、可选 notarization、third-party notice 检查和目标板 `chip_id` 读取串成 release checklist 报告。
    - 已用真实 Apple notarization profile 验证 notarized app、staple、Gatekeeper 和 helper strict 模式。
    - 已用 notarized app bundle 内 helper 验证目标板串口握手和芯片读取。
    - 已通过 notarized app UI 验证完整烧录、BLE 扫描 / 连接和 health packet。
    - dev app UI 已补齐烧录前芯片确认，写入入口会等 `chip_id` 读取并匹配目标芯片后才启用。
-   - 在 release-prep 入口之上继续补 smoke checklist，确保 desktop app 和内置固件版本可追踪。
+   - 正式 release 前仍需选定 release version、desktop version 和 runtime 来源，并保存 checklist 结果。
 
 4. **体验优化**
    - UI 已能把常见 helper 失败分类成可执行提示：下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失。

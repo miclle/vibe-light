@@ -143,10 +143,10 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 常见失败已经有明确提示：下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失。
    - 当前依赖 `--chip esp32s3` 和 esptool 芯片校验拒绝非 S3；app 还没有单独 pre-read 芯片信息并在写入前展示确认。
 
-5. 发布自动化未串起来
+5. 发布自动化已有 checklist 入口，正式 release 参数仍需确定
    - `script/prepare_desktop_firmware_release.sh` 已串起 ESP32 构建、固件包生成、工具 vendoring 和 helper 收窄 PATH 验证。
-   - 还没有继续串起 desktop build、签名、notarization 和实机 smoke checklist。
-   - 当前 `manifest.json` 版本仍以 `dev-test` / 本地 commit 为主，发布前需要明确 release version 和 commit 追踪规则。
+   - `script/desktop_firmware_release_checklist.sh` 已把固件资源准备、desktop app 打包签名、可选 notarization、third-party notice 检查和目标板 `chip_id` 读取串成 markdown checklist，日志写入 `dist/release/logs/`。
+   - 当前 `manifest.json` 版本仍以 `dev-test` / 本地 commit 为主，正式 release 前需要明确 release version、desktop version、runtime 来源和 checklist 归档规则。
 
 ## 建议下一步
 
@@ -171,7 +171,8 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 如果 Developer ID 路线稳定，再评估 App Store sandbox 可行性。
 
 4. 建立 release 构建脚本
-   - `script/package_desktop_release.sh` 已串起 desktop build、签名、zip 归档和可选 notarization；后续把它和 `script/prepare_desktop_firmware_release.sh` 组合成完整 release checklist。
+   - `script/package_desktop_release.sh` 已串起 desktop build、签名、zip 归档和可选 notarization。
+   - `script/desktop_firmware_release_checklist.sh` 已把它和 `script/prepare_desktop_firmware_release.sh` 组合成完整 release checklist。
    - 每次 release 记录固件 version、build commit、desktop version、端口、目标芯片和验证结果。
 
 5. 改进 UI 失败恢复
@@ -187,6 +188,7 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
 make esp32-build
 script/prepare_desktop_firmware_release.sh --version dev --minimum-desktop-version dev
 script/prepare_desktop_firmware_release.sh --version dev --minimum-desktop-version dev --python-runtime /path/to/python-runtime --require-bundled-python
+script/desktop_firmware_release_checklist.sh --version dev --minimum-desktop-version dev --skip-esp32-build --skip-package
 ```
 
 构建和运行 dev app：

@@ -66,6 +66,7 @@
    - `script/prepare_desktop_firmware_release.sh` 已提供发布资产准备入口，串起 ESP32 构建、固件包生成、esptool vendoring 和 helper 收窄 PATH 验证；`package_firmware_tools.py` 会生成 `FirmwareTools/THIRD_PARTY_NOTICES.md` 供发布审阅。
    - 第一版发布路线已切到内置 Python runtime：`package_firmware_tools.py --python-runtime <path> --require-python-runtime` 可复制 runtime 到 `FirmwareTools/python/`，`VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1` 可验证 helper 不依赖系统 Python、Homebrew `esptool` 或用户 PATH；本地 PlatformIO portable Python 3.11.7 arm64 候选已完成 release-prep 和 import smoke。
    - `script/package_desktop_release.sh` 已提供本地 Developer ID 签名验证入口，可生成 `dist/VibeLightApp.app`、签名 bundle 内 nested Mach-O、签 resource bundle / 主 app、执行 `codesign --verify`、归档 zip，并支持显式 `--notarize` 后先校验凭证再提交、staple 和 Gatekeeper 校验。
+   - `script/desktop_firmware_release_checklist.sh` 已把固件资源准备、desktop app 打包签名、可选 notarization、third-party notice 检查和目标板 `chip_id` 读取串成 markdown checklist，日志写入 `dist/release/logs/`。
    - UI 已能针对下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失给出明确恢复提示。
    - 下一步需要确认可分发 Python runtime 的正式来源和许可证，并完整审阅生成的 esptool/Python 许可证材料。
    - notarized app bundle 内 helper 已能访问 `/dev/cu.usbmodem1101` 并读取 `ESP32-S3 (QFN56)` 芯片信息；notarized app UI 已完成完整串口烧录、BLE 扫描 / 连接和 health packet 展示闭环。
