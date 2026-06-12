@@ -167,6 +167,55 @@ public struct FirmwareFlashCommand: Equatable {
     }
 }
 
+public struct FirmwareFlashProcessRunner: Sendable {
+    public init() {}
+
+    public func run(executableURL: URL, arguments: [String]) async throws -> String {
+        try await Task.detached(priority: .userInitiated) {
+            let process = Process()
+            process.executableURL = executableURL
+            process.arguments = arguments
+
+            let outputURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("vibe-firmware-flash-\(UUID().uuidString).log")
+            FileManager.default.createFile(atPath: outputURL.path, contents: nil)
+            let outputHandle = try FileHandle(forWritingTo: outputURL)
+            defer {
+                try? outputHandle.close()
+                try? FileManager.default.removeItem(at: outputURL)
+            }
+
+            process.standardOutput = outputHandle
+            process.standardError = outputHandle
+
+            try process.run()
+            process.waitUntilExit()
+
+            try outputHandle.close()
+            let outputData = try Data(contentsOf: outputURL)
+            let outputString = String(data: outputData, encoding: .utf8) ?? ""
+            guard process.terminationStatus == 0 else {
+                throw FirmwareFlashProcessError(status: process.terminationStatus, output: outputString)
+            }
+            return outputString
+        }.value
+    }
+}
+
+public struct FirmwareFlashProcessError: Error, LocalizedError {
+    public let status: Int32
+    public let output: String
+
+    public init(status: Int32, output: String) {
+        self.status = status
+        self.output = output
+    }
+
+    public var errorDescription: String? {
+        "helper 退出码 \(status)"
+    }
+}
+
 public struct FirmwareSerialPortDiscovery {
     private let fileManager: FileManager
 

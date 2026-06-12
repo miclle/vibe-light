@@ -39,6 +39,7 @@ final class VibeLightAppModel: ObservableObject {
     private let agentInstaller: AgentInstaller
     private let preferences: VibeLightPreferences
     private let taskTracker: TaskTracker
+    private let firmwareFlashProcessRunner: FirmwareFlashProcessRunner
     private var bluetoothManager: BluetoothHardwareManager?
     private var latestPacketData: Data?
     private var lastForwardedPacketData: Data?
@@ -49,12 +50,14 @@ final class VibeLightAppModel: ObservableObject {
         eventLog: EventLog = EventLog(),
         agentInstaller: AgentInstaller = AgentInstaller(),
         preferences: VibeLightPreferences = VibeLightPreferences(),
-        taskTracker: TaskTracker = TaskTracker()
+        taskTracker: TaskTracker = TaskTracker(),
+        firmwareFlashProcessRunner: FirmwareFlashProcessRunner = FirmwareFlashProcessRunner()
     ) {
         self.eventLog = eventLog
         self.agentInstaller = agentInstaller
         self.preferences = preferences
         self.taskTracker = taskTracker
+        self.firmwareFlashProcessRunner = firmwareFlashProcessRunner
         self.autoConnectDevice = preferences.autoConnectDevice
         self.selectedManualState = preferences.selectedManualState
         refreshEvents()
@@ -309,27 +312,10 @@ final class VibeLightAppModel: ObservableObject {
     }
 
     private func runFirmwareFlash(helperURL: URL, command: FirmwareFlashCommand) async throws -> String {
-        let executableURL = helperURL
-        let arguments = command.esptoolArguments
-        return try await Task.detached(priority: .userInitiated) {
-            let process = Process()
-            process.executableURL = executableURL
-            process.arguments = arguments
-
-            let outputPipe = Pipe()
-            process.standardOutput = outputPipe
-            process.standardError = outputPipe
-
-            try process.run()
-            process.waitUntilExit()
-
-            let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8) ?? ""
-            guard process.terminationStatus == 0 else {
-                throw FirmwareFlashProcessError(status: process.terminationStatus, output: output)
-            }
-            return output
-        }.value
+        try await firmwareFlashProcessRunner.run(
+            executableURL: helperURL,
+            arguments: command.esptoolArguments
+        )
     }
 
     private func forwardLatestPacketToHardwareIfNeeded() {
@@ -352,15 +338,6 @@ final class VibeLightAppModel: ObservableObject {
         }
 
         return "聚合状态：\(snapshot.state.title) / \(taskCount) 个任务"
-    }
-}
-
-private struct FirmwareFlashProcessError: Error, LocalizedError {
-    let status: Int32
-    let output: String
-
-    var errorDescription: String? {
-        "helper 退出码 \(status)"
     }
 }
 

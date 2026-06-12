@@ -1420,7 +1420,94 @@ import Testing
     #expect(FileManager.default.isExecutableFile(atPath: helperURL.path))
 }
 
+@Test func firmwareFlasherHelperPrefersVendoredPythonPackagesOverPathEsptool() throws {
+    let directory = temporaryDirectory()
+    let toolDirectory = directory.appendingPathComponent("FirmwareTools", isDirectory: true)
+    let fakeBinDirectory = directory.appendingPathComponent("bin", isDirectory: true)
+    let esptoolPackageDirectory = toolDirectory.appendingPathComponent("python-packages/esptool", isDirectory: true)
+    try FileManager.default.createDirectory(at: esptoolPackageDirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: fakeBinDirectory, withIntermediateDirectories: true)
+
+    let sourceHelper = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("Sources/VibeLightApp/Resources/FirmwareTools/vibe-light-firmware-flasher")
+    let helperURL = toolDirectory.appendingPathComponent("vibe-light-firmware-flasher")
+    try FileManager.default.copyItem(at: sourceHelper, to: helperURL)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helperURL.path)
+
+    try """
+    print("vendored-esptool")
+    """.write(to: esptoolPackageDirectory.appendingPathComponent("__main__.py"), atomically: true, encoding: .utf8)
+
+    let fakeSystemEsptool = fakeBinDirectory.appendingPathComponent("esptool.py")
+    try """
+    #!/usr/bin/env bash
+    echo system-esptool
+    """.write(to: fakeSystemEsptool, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSystemEsptool.path)
+
+    let result = try runProcess(
+        executableURL: helperURL,
+        arguments: ["--version"],
+        environment: [
+            "PATH": "\(fakeBinDirectory.path):/usr/bin:/bin:/usr/sbin:/sbin",
+        ]
+    )
+
+    #expect(result.exitCode == 0)
+    #expect(result.output.trimmingCharacters(in: .whitespacesAndNewlines) == "vendored-esptool")
+}
+
+@Test func firmwareFlashProcessRunnerDrainsLargeOutputWhileProcessRuns() async throws {
+    let directory = temporaryDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let scriptURL = directory.appendingPathComponent("large-output-helper.sh")
+    try """
+    #!/usr/bin/env bash
+    python3 - <<'PY'
+    import sys
+    sys.stdout.write("x" * 200000)
+    sys.stdout.flush()
+    PY
+    """.write(to: scriptURL, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
+
+    let output = try await FirmwareFlashProcessRunner().run(executableURL: scriptURL, arguments: [])
+
+    #expect(output.count == 200_000)
+}
+
 private func temporaryDirectory() -> URL {
     URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
+}
+
+private struct ProcessResult {
+    let exitCode: Int32
+    let output: String
+}
+
+private func runProcess(
+    executableURL: URL,
+    arguments: [String],
+    environment: [String: String] = [:]
+) throws -> ProcessResult {
+    let process = Process()
+    process.executableURL = executableURL
+    process.arguments = arguments
+    process.environment = environment
+
+    let outputPipe = Pipe()
+    process.standardOutput = outputPipe
+    process.standardError = outputPipe
+    try process.run()
+    process.waitUntilExit()
+
+    let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+    return ProcessResult(
+        exitCode: process.terminationStatus,
+        output: String(data: data, encoding: .utf8) ?? ""
+    )
 }

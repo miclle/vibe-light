@@ -28,6 +28,10 @@ if [[ -x "$TOOL_DIR/python/bin/python3" ]]; then
   run_with_python "$TOOL_DIR/python/bin/python3" "$@" || true
 fi
 
+if command -v python3 >/dev/null 2>&1; then
+  run_with_python "$(command -v python3)" "$@" || true
+fi
+
 if command -v esptool.py >/dev/null 2>&1; then
   exec esptool.py "$@"
 fi
@@ -37,7 +41,6 @@ if command -v esptool >/dev/null 2>&1; then
 fi
 
 if command -v python3 >/dev/null 2>&1; then
-  run_with_python "$(command -v python3)" "$@" || true
   exec python3 -m esptool "$@"
 fi
 
