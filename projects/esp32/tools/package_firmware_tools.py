@@ -28,7 +28,7 @@ DEFAULT_OUTPUT_DIR = (
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
-    parser.add_argument("--python", default=sys.executable)
+    parser.add_argument("--python")
     parser.add_argument("--esptool-version", default=">=4.8,<5")
     parser.add_argument("--pip-timeout", default="60")
     parser.add_argument("--pip-retries", default="3")
@@ -55,9 +55,11 @@ def main() -> int:
         env = os.environ.copy()
         env.setdefault("PIP_DISABLE_PIP_VERSION_CHECK", "1")
 
+        install_python = args.python or str((runtime_dir / "bin" / "python3") if args.python_runtime else Path(sys.executable))
+
         subprocess.check_call(
             [
-                args.python,
+                install_python,
                 "-m",
                 "pip",
                 "install",
