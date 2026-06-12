@@ -32,7 +32,7 @@
 - `projects/macos/desktop/Sources/VibeLightApp/Views/HardwareDevicesPane.swift`：在“硬件设备”页新增“固件烧录”区域，提供串口选择、刷新、烧录按钮、状态文本和 helper 日志摘要。
 - `projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/vibe-light-firmware-flasher`：app 内置烧录 helper，接受 `esptool` 兼容参数，优先使用同目录 vendor 的 runtime，开发环境可 fallback 到本机 `esptool`。
 
-2026-06-12 已完成一次发布形态资源实机烟测：`dist/VibeLightApp.app` 中的 `FirmwareBundle` 和 `FirmwareTools/vibe-light-firmware-flasher` 可在 `/dev/cu.usbmodem2101` 写入目标 ESP32-S3；默认 PATH 下使用 `esptool.py v4.8.1` 成功，收窄 PATH 到 `/usr/bin:/bin:/usr/sbin:/sbin` 后使用 vendored `python-packages` 的 `esptool.py v4.11.0` 成功。两次写入均完成 bootloader、partition table 和 app 分区 hash 校验。重启后串口确认 `LCD initialized`、`advertising as VibeLight-S3`、desktop Central connected 和连续 `v:2` 状态写入。
+2026-06-12 已完成发布形态资源和 UI 路径实机烟测：`dist/VibeLightApp.app` 中的 `FirmwareBundle` 和 `FirmwareTools/vibe-light-firmware-flasher` 可在 `/dev/cu.usbmodem2101` 写入目标 ESP32-S3；默认 PATH 下使用 `esptool.py v4.8.1` 成功，收窄 PATH 到 `/usr/bin:/bin:/usr/sbin:/sbin` 后使用 vendored `python-packages` 的 `esptool.py v4.11.0` 成功。写入均完成 bootloader、partition table 和 app 分区 hash 校验。重启后串口确认 `LCD initialized`、`advertising as VibeLight-S3`、desktop Central connected 和连续 `v:2` 状态写入。同日通过 macOS “硬件设备”页点击“烧录固件”完成一次 UI 路径烧录；UI 展示写入日志和 hash verified，随后自动扫描、重新连接 `VibeLight-S3` 并展示 health packet。
 
 固件包结构：
 
@@ -131,7 +131,7 @@ macOS 分发前必须实测签名、notarization 和 sandbox 行为。
 
 2. **真实应用闭环验证**
    - 已用 `dist/VibeLightApp.app` resource 通过 USB 烧录目标板，并验证重启、BLE 广播、desktop 连接和状态写入。
-   - 仍需在 SwiftUI 内点击“烧录固件”完成同一路径，并读取 health packet 展示结果。
+   - 已在 SwiftUI 内点击“烧录固件”完成同一路径，并读取 health packet 展示结果。
    - 每次发布前记录实测端口、固件版本、app 版本和 helper 版本。
 
 3. **发布签名**

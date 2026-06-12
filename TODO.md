@@ -27,6 +27,7 @@
 - 固件版本：`524c46d`（boot log `App version`；本地 app resource manifest 为 `dev-test` / `27040bf`）。
 - 验证范围：`dist/VibeLightApp.app` 携带的 `FirmwareBundle` + `FirmwareTools/vibe-light-firmware-flasher` 发布形态资源烟测。
 - 结果确认：helper 在默认 PATH 下通过 `esptool.py v4.8.1` 完成写入；在收窄 PATH `/usr/bin:/bin:/usr/sbin:/sbin` 下通过 vendored `python-packages` 的 `esptool.py v4.11.0` 再次完成写入，均识别 `ESP32-S3 (QFN56)`，bootloader、partition table 和 app 三段写入 hash verified。重启后串口确认 `LCD initialized`、`advertising as VibeLight-S3`、desktop Central connected，并收到连续 `v:2` 状态写入。
+- UI 闭环补充：同一天通过 macOS “硬件设备”页点击“烧录固件”完成一次 app UI 路径烧录；UI 展示 `esptool.py v4.8.1` 写入日志、三段 hash verified、自动扫描，随后重新连接 `VibeLight-S3` 并读取 health packet，健康卡显示运行时间、连接、运行中状态、背光开启、heap 余量和渲染 tick。
 
 - 时间：2026-06-11。
 - 端口：`/dev/cu.usbmodem1101`。
@@ -45,9 +46,9 @@
 
 1. **完成 app 内固件烧录的发布闭环**
    - 当前已完成 desktop 入口、固件包生成、manifest 校验、串口枚举、helper 参数生成、`vibe-light-firmware-flasher` wrapper、esptool 依赖 vendoring 和成功后 BLE 扫描。
-   - 发布形态资源已完成一次实机烟测：dist app resource 中的 helper 和固件包可通过 USB 写入目标板，vendored `python-packages` 路径可在无 Homebrew esptool 的 PATH 下工作，重启后 BLE 广播和 desktop 连接 / 状态写入正常。
+   - 发布形态资源已完成实机烟测：dist app resource 中的 helper 和固件包可通过 USB 写入目标板，vendored `python-packages` 路径可在无 Homebrew esptool 的 PATH 下工作，重启后 BLE 广播和 desktop 连接 / 状态写入正常；macOS UI 点击“烧录固件”也已完成烧录、扫描、连接和 health packet 展示闭环。
    - 下一步需要明确是否内置完整 Python runtime，签名 `FirmwareTools/vibe-light-firmware-flasher`，并补齐 esptool/Python 许可证材料。
-   - 仍需验证 notarized app 的 macOS 串口 / USB entitlement、helper notarization、下载模式失败提示、误刷防护和 health packet UI 读取闭环。
+   - 仍需验证 notarized app 的 macOS 串口 / USB entitlement、helper notarization、下载模式失败提示和误刷防护。
    - 方案细节见 `docs/desktop-firmware-flashing.md`。
 
 2. **保持显示模型测试随功能演进收紧**
