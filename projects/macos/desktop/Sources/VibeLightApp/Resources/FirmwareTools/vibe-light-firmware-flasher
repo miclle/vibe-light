@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+run_with_python() {
+  local python="$1"
+  shift
+
+  if [[ -f "$TOOL_DIR/esptool.py" ]]; then
+    exec "$python" "$TOOL_DIR/esptool.py" "$@"
+  fi
+
+  if [[ -d "$TOOL_DIR/esptool" ]]; then
+    export PYTHONPATH="$TOOL_DIR${PYTHONPATH:+:$PYTHONPATH}"
+    exec "$python" -m esptool "$@"
+  fi
+
+  if [[ -d "$TOOL_DIR/python-packages" ]]; then
+    export PYTHONPATH="$TOOL_DIR/python-packages${PYTHONPATH:+:$PYTHONPATH}"
+    exec "$python" -m esptool "$@"
+  fi
+
+  return 1
+}
+
+if [[ -x "$TOOL_DIR/python/bin/python3" ]]; then
+  run_with_python "$TOOL_DIR/python/bin/python3" "$@" || true
+fi
+
+if command -v esptool.py >/dev/null 2>&1; then
+  exec esptool.py "$@"
+fi
+
+if command -v esptool >/dev/null 2>&1; then
+  exec esptool "$@"
+fi
+
+if command -v python3 >/dev/null 2>&1; then
+  run_with_python "$(command -v python3)" "$@" || true
+  exec python3 -m esptool "$@"
+fi
+
+echo "vibe-light-firmware-flasher: no bundled esptool runtime found" >&2
+echo "Bundle FirmwareTools/python/bin/python3 plus esptool.py, esptool/, or python-packages/esptool before release." >&2
+exit 127

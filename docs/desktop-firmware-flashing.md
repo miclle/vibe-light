@@ -26,9 +26,11 @@
 发布流程提前构建并签名一份固件包，desktop app 随包携带该固件包，运行时只负责通过串口把预编译二进制写入设备 flash。已落地的代码边界如下：
 
 - `projects/esp32/tools/package_firmware_bundle.py`：从 `projects/esp32/build/flasher_args.json` 和 bin 产物生成 app resource 使用的 `FirmwareBundle`。
+- `projects/esp32/tools/package_firmware_tools.py`：把 `esptool` 及其 Python 依赖 vendor 到 app resource 的 `FirmwareTools/python-packages/`。
 - `projects/macos/desktop/Sources/VibeLightCore/FirmwareFlashing.swift`：解析 manifest、按 offset 排序写入项、校验每个 bin 的 SHA-256、生成 `esptool write_flash` 参数，并枚举 macOS 常见 ESP32 串口。
 - `projects/macos/desktop/Sources/VibeLightApp/Models/VibeLightAppModel.swift`：加载内置固件包、刷新串口、调用烧录 helper、记录日志，并在成功后启动 BLE 扫描。
 - `projects/macos/desktop/Sources/VibeLightApp/Views/HardwareDevicesPane.swift`：在“硬件设备”页新增“固件烧录”区域，提供串口选择、刷新、烧录按钮、状态文本和 helper 日志摘要。
+- `projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/vibe-light-firmware-flasher`：app 内置烧录 helper，接受 `esptool` 兼容参数，优先使用同目录 vendor 的 runtime，开发环境可 fallback 到本机 `esptool`。
 
 固件包结构：
 
@@ -55,9 +57,10 @@ FirmwareBundle/
 ```bash
 make esp32-build
 projects/esp32/tools/package_firmware_bundle.py --version dev --minimum-desktop-version dev
+projects/esp32/tools/package_firmware_tools.py --clean
 ```
 
-生成的 `manifest.json` 和 bin 文件会写入 `projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareBundle/`，并被 `.gitignore` 忽略；发布构建应在构建 app 前执行该步骤。
+生成的 `manifest.json` 和 bin 文件会写入 `projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareBundle/`，`esptool` 依赖会写入 `Resources/FirmwareTools/python-packages/`，这些生成产物被 `.gitignore` 忽略；发布构建应在构建 app 前执行这些步骤。
 
 ## macOS 端流程
 
@@ -83,10 +86,10 @@ UI 位于“硬件设备”页的独立“固件烧录”区域：
 
 最小可行实现复用 Espressif `esptool` 的 `write_flash` 能力。`esptool` 支持按 offset 写入多个二进制文件，正好匹配当前 `flasher_args.json` 的信息。
 
-当前 app 会优先查找 app resource 中的 `FirmwareTools/vibe-light-firmware-flasher`，该 helper 需要接受 `esptool` 兼容参数。开发环境下也会尝试本机常见的 `esptool` / `esptool.py` 路径，便于验证 UI 和参数生成。发布前仍需要重点评估：
+当前 app 会优先查找 app resource 中的 `FirmwareTools/vibe-light-firmware-flasher`，该 helper 接受 `esptool` 兼容参数。helper 会优先使用同目录的 `python/bin/python3` + `esptool.py` / `esptool/` / `python-packages/`，开发环境下也会尝试本机常见的 `esptool` / `esptool.py` 路径，便于验证 UI 和参数生成。发布前仍需要重点评估：
 
 - `esptool` 的许可证和分发方式。
-- 是否把 Python runtime / esptool 打包进 app bundle。
+- 是否把 Python runtime 也打包进 app bundle，或限制第一版 Developer ID 包依赖系统 `/usr/bin/python3`。
 - 独立 helper tool 的签名、权限和日志隔离。
 - 是否需要未来替换为更小的原生 Swift / C / Rust 烧录实现。
 
@@ -120,8 +123,8 @@ macOS 分发前必须实测签名、notarization 和 sandbox 行为。
 ## 发布前剩余工作
 
 1. **helper 打包**
-   - 在 `Resources/FirmwareTools/` 放入可签名的 `vibe-light-firmware-flasher`。
-   - 明确 helper 内置 Python/esptool 还是采用更小的原生烧录实现。
+   - 当前已在 `Resources/FirmwareTools/` 放入可签名的 `vibe-light-firmware-flasher` wrapper，并能通过 vendored `python-packages` 加载 `esptool`。
+   - 明确 helper 是否继续依赖系统 `/usr/bin/python3`，还是内置 Python runtime 或改为更小的原生烧录实现。
    - 记录 `esptool` 许可证和随包分发材料。
 
 2. **真实应用闭环验证**

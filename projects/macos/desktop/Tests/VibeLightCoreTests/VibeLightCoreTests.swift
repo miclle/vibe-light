@@ -1409,6 +1409,17 @@ import Testing
     ])
 }
 
+@Test func firmwareFlasherHelperResourceIsExecutable() throws {
+    let resourcesURL = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("Sources/VibeLightApp/Resources/FirmwareTools")
+    let helperURL = resourcesURL.appendingPathComponent("vibe-light-firmware-flasher")
+
+    #expect(FileManager.default.isExecutableFile(atPath: helperURL.path))
+}
+
 private func temporaryDirectory() -> URL {
     URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent(UUID().uuidString, isDirectory: true)

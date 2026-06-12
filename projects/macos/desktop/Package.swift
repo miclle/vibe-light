@@ -30,7 +30,11 @@ let package = Package(
             name: "VibeLightApp",
             dependencies: ["VibeLightCore"],
             resources: [
-                .process("Resources"),
+                .process("Resources/AppIcon.icns"),
+                .process("Resources/Assets.xcassets"),
+                .process("Resources/icon.svg"),
+                .copy("Resources/FirmwareBundle"),
+                .copy("Resources/FirmwareTools"),
             ]
         ),
         .executableTarget(
