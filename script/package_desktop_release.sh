@@ -15,6 +15,7 @@ APPLE_API_KEY_VALUE="${APPLE_API_KEY:-}"
 APPLE_API_KEY_PATH_VALUE="${APPLE_API_KEY_PATH:-}"
 APPLE_API_KEY_ID_VALUE="${APPLE_API_KEY_ID:-}"
 APPLE_API_ISSUER_VALUE="${APPLE_API_ISSUER:-}"
+NOTARYTOOL_TIMEOUT="${NOTARYTOOL_TIMEOUT:-30m}"
 TEMP_KEY_FILE=""
 
 cleanup() {
@@ -37,9 +38,21 @@ Environment:
   APPLE_API_KEY_PATH    Optional. Path to a .p8 file.
   APPLE_API_KEY_ID      Required for API key notarization.
   APPLE_API_ISSUER      Required for API key notarization.
+  NOTARYTOOL_TIMEOUT    Optional. Defaults to 30m.
 
 Options:
   --identity VALUE      Override SIGNING_IDENTITY.
+  --notarytool-profile VALUE
+                        Override NOTARYTOOL_PROFILE.
+  --apple-api-key VALUE .p8 key content, or path to a .p8 file.
+  --apple-api-key-path VALUE
+                        Path to a .p8 file.
+  --apple-api-key-id VALUE
+                        App Store Connect API Key ID.
+  --apple-api-issuer VALUE
+                        App Store Connect API Issuer ID.
+  --notarytool-timeout VALUE
+                        Timeout passed to notarytool --wait.
   --version VERSION     Archive version suffix. Defaults to current git short SHA.
   --skip-build          Sign the existing dist/VibeLightApp.app.
   --notarize            Submit, wait, staple, and validate notarization.
@@ -51,6 +64,30 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --identity)
       SIGNING_IDENTITY_VALUE="${2:?missing value for --identity}"
+      shift 2
+      ;;
+    --notarytool-profile)
+      NOTARYTOOL_PROFILE_VALUE="${2:?missing value for --notarytool-profile}"
+      shift 2
+      ;;
+    --apple-api-key)
+      APPLE_API_KEY_VALUE="${2:?missing value for --apple-api-key}"
+      shift 2
+      ;;
+    --apple-api-key-path)
+      APPLE_API_KEY_PATH_VALUE="${2:?missing value for --apple-api-key-path}"
+      shift 2
+      ;;
+    --apple-api-key-id)
+      APPLE_API_KEY_ID_VALUE="${2:?missing value for --apple-api-key-id}"
+      shift 2
+      ;;
+    --apple-api-issuer)
+      APPLE_API_ISSUER_VALUE="${2:?missing value for --apple-api-issuer}"
+      shift 2
+      ;;
+    --notarytool-timeout)
+      NOTARYTOOL_TIMEOUT="${2:?missing value for --notarytool-timeout}"
       shift 2
       ;;
     --version)
@@ -91,6 +128,52 @@ require_command security
 require_command spctl
 require_command xcrun
 
+api_key_path() {
+  if [[ -n "$TEMP_KEY_FILE" ]]; then
+    printf '%s\n' "$TEMP_KEY_FILE"
+    return
+  fi
+
+  local key_url="$APPLE_API_KEY_PATH_VALUE"
+  if [[ -z "$key_url" && -n "$APPLE_API_KEY_VALUE" && -f "$APPLE_API_KEY_VALUE" ]]; then
+    key_url="$APPLE_API_KEY_VALUE"
+  fi
+  if [[ -z "$key_url" && -n "$APPLE_API_KEY_VALUE" ]]; then
+    TEMP_KEY_FILE="$(mktemp "${TMPDIR:-/tmp}/vibe-light-notary-key.XXXXXX.p8")"
+    printf '%s\n' "$APPLE_API_KEY_VALUE" >"$TEMP_KEY_FILE"
+    chmod 600 "$TEMP_KEY_FILE"
+    key_url="$TEMP_KEY_FILE"
+  fi
+  printf '%s\n' "$key_url"
+}
+
+validate_notarization_credentials() {
+  if [[ "$NOTARIZE" -eq 0 ]]; then
+    return
+  fi
+
+  if [[ -n "$NOTARYTOOL_PROFILE_VALUE" ]]; then
+    if ! xcrun notarytool history --keychain-profile "$NOTARYTOOL_PROFILE_VALUE" >/dev/null 2>&1; then
+      echo "notarytool profile is not available or is invalid: $NOTARYTOOL_PROFILE_VALUE" >&2
+      echo "Create it with:" >&2
+      echo "  xcrun notarytool store-credentials $NOTARYTOOL_PROFILE_VALUE --key /path/to/AuthKey.p8 --key-id <KEY_ID> --issuer <ISSUER_ID> --validate" >&2
+      exit 2
+    fi
+    return
+  fi
+
+  local key_url
+  key_url="$(api_key_path)"
+  if [[ -z "$key_url" || -z "$APPLE_API_KEY_ID_VALUE" || -z "$APPLE_API_ISSUER_VALUE" ]]; then
+    echo "notarization requires NOTARYTOOL_PROFILE, or APPLE_API_KEY/APPLE_API_KEY_PATH plus APPLE_API_KEY_ID and APPLE_API_ISSUER" >&2
+    exit 2
+  fi
+  if [[ ! -f "$key_url" ]]; then
+    echo "Apple API key file does not exist: $key_url" >&2
+    exit 2
+  fi
+}
+
 if [[ -z "$SIGNING_IDENTITY_VALUE" ]]; then
   echo "SIGNING_IDENTITY is required, for example:" >&2
   echo "  SIGNING_IDENTITY=\"Developer ID Application: Miclle Zheng (6UG7DDAY6C)\" $0" >&2
@@ -102,6 +185,8 @@ if ! security find-identity -p codesigning -v | grep -F -- "$SIGNING_IDENTITY_VA
   security find-identity -p codesigning -v >&2
   exit 1
 fi
+
+validate_notarization_credentials
 
 if [[ "$SKIP_BUILD" -eq 0 ]]; then
   "$ROOT_DIR/script/build_and_run.sh" --package
@@ -148,20 +233,15 @@ make_archive() {
 notarytool_submit() {
   local archive_url="$1"
   if [[ -n "$NOTARYTOOL_PROFILE_VALUE" ]]; then
-    xcrun notarytool submit "$archive_url" --keychain-profile "$NOTARYTOOL_PROFILE_VALUE" --wait
+    xcrun notarytool submit "$archive_url" \
+      --keychain-profile "$NOTARYTOOL_PROFILE_VALUE" \
+      --wait \
+      --timeout "$NOTARYTOOL_TIMEOUT"
     return
   fi
 
-  local key_url="$APPLE_API_KEY_PATH_VALUE"
-  if [[ -z "$key_url" && -n "$APPLE_API_KEY_VALUE" && -f "$APPLE_API_KEY_VALUE" ]]; then
-    key_url="$APPLE_API_KEY_VALUE"
-  fi
-  if [[ -z "$key_url" && -n "$APPLE_API_KEY_VALUE" ]]; then
-    TEMP_KEY_FILE="$(mktemp "${TMPDIR:-/tmp}/vibe-light-notary-key.XXXXXX.p8")"
-    printf '%s\n' "$APPLE_API_KEY_VALUE" >"$TEMP_KEY_FILE"
-    chmod 600 "$TEMP_KEY_FILE"
-    key_url="$TEMP_KEY_FILE"
-  fi
+  local key_url
+  key_url="$(api_key_path)"
 
   if [[ -z "$key_url" || -z "$APPLE_API_KEY_ID_VALUE" || -z "$APPLE_API_ISSUER_VALUE" ]]; then
     echo "notarization requires NOTARYTOOL_PROFILE, or APPLE_API_KEY/APPLE_API_KEY_PATH plus APPLE_API_KEY_ID and APPLE_API_ISSUER" >&2
@@ -172,7 +252,8 @@ notarytool_submit() {
     --key "$key_url" \
     --key-id "$APPLE_API_KEY_ID_VALUE" \
     --issuer "$APPLE_API_ISSUER_VALUE" \
-    --wait
+    --wait \
+    --timeout "$NOTARYTOOL_TIMEOUT"
 }
 
 sign_nested_macho

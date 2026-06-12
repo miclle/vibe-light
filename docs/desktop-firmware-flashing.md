@@ -124,6 +124,18 @@ SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" \
   script/package_desktop_release.sh --notarize
 ```
 
+第一次在本机配置 profile 时可以使用 App Store Connect API key：
+
+```bash
+xcrun notarytool store-credentials vibe-light-notary \
+  --key /path/to/AuthKey_KEYID.p8 \
+  --key-id KEYID \
+  --issuer ISSUER_UUID \
+  --validate
+```
+
+`script/package_desktop_release.sh --notarize` 会在 build/sign 前校验 notarization 凭证。2026-06-12 本机尚未配置 `vibe-light-notary` profile，也没有检测到 `APPLE_API_KEY` / `APPLE_API_KEY_PATH`、`APPLE_API_KEY_ID` 和 `APPLE_API_ISSUER` 环境变量，所以 notarization 提交还未执行。
+
 CI 后续可以复用同一个脚本，但需要额外把 Developer ID Application 证书和私钥导入临时 keychain，再提供 `SIGNING_IDENTITY`。Notarization 可以使用 `NOTARYTOOL_PROFILE`，也可以使用 `APPLE_API_KEY` / `APPLE_API_KEY_PATH`、`APPLE_API_KEY_ID` 和 `APPLE_API_ISSUER`。
 
 需要重点验证：
