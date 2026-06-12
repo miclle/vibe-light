@@ -2,6 +2,7 @@
 set -euo pipefail
 
 TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STRICT_MODE="${VIBE_LIGHT_FIRMWARE_FLASHER_STRICT:-0}"
 
 run_with_python() {
   local python="$1"
@@ -23,6 +24,20 @@ run_with_python() {
 
   return 1
 }
+
+if [[ "$STRICT_MODE" == "1" || "$STRICT_MODE" == "true" ]]; then
+  if [[ ! -x "$TOOL_DIR/python/bin/python3" ]]; then
+    echo "vibe-light-firmware-flasher: no bundled Python runtime found" >&2
+    echo "Bundle FirmwareTools/python/bin/python3 before release or disable strict mode for local development." >&2
+    exit 127
+  fi
+
+  run_with_python "$TOOL_DIR/python/bin/python3" "$@" || {
+    echo "vibe-light-firmware-flasher: no bundled esptool package found" >&2
+    echo "Bundle FirmwareTools/python-packages/esptool before release." >&2
+    exit 127
+  }
+fi
 
 if [[ -x "$TOOL_DIR/python/bin/python3" ]]; then
   run_with_python "$TOOL_DIR/python/bin/python3" "$@" || true

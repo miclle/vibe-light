@@ -1460,6 +1460,43 @@ import Testing
     #expect(result.output.trimmingCharacters(in: .whitespacesAndNewlines) == "vendored-esptool")
 }
 
+@Test func firmwareFlasherHelperStrictModeRejectsSystemFallback() throws {
+    let directory = temporaryDirectory()
+    let toolDirectory = directory.appendingPathComponent("FirmwareTools", isDirectory: true)
+    let fakeBinDirectory = directory.appendingPathComponent("bin", isDirectory: true)
+    try FileManager.default.createDirectory(at: toolDirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: fakeBinDirectory, withIntermediateDirectories: true)
+
+    let sourceHelper = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("Sources/VibeLightApp/Resources/FirmwareTools/vibe-light-firmware-flasher")
+    let helperURL = toolDirectory.appendingPathComponent("vibe-light-firmware-flasher")
+    try FileManager.default.copyItem(at: sourceHelper, to: helperURL)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helperURL.path)
+
+    let fakeSystemEsptool = fakeBinDirectory.appendingPathComponent("esptool.py")
+    try """
+    #!/usr/bin/env bash
+    echo system-esptool
+    """.write(to: fakeSystemEsptool, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeSystemEsptool.path)
+
+    let result = try runProcess(
+        executableURL: helperURL,
+        arguments: ["--version"],
+        environment: [
+            "PATH": "\(fakeBinDirectory.path):/usr/bin:/bin:/usr/sbin:/sbin",
+            "VIBE_LIGHT_FIRMWARE_FLASHER_STRICT": "1",
+        ]
+    )
+
+    #expect(result.exitCode == 127)
+    #expect(result.output.contains("no bundled Python runtime found"))
+    #expect(!result.output.contains("system-esptool"))
+}
+
 @Test func firmwareFlashProcessRunnerDrainsLargeOutputWhileProcessRuns() async throws {
     let directory = temporaryDirectory()
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

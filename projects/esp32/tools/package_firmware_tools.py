@@ -32,15 +32,24 @@ def main() -> int:
     parser.add_argument("--esptool-version", default=">=4.8,<5")
     parser.add_argument("--pip-timeout", default="60")
     parser.add_argument("--pip-retries", default="3")
+    parser.add_argument("--python-runtime", type=Path, help="Copy a standalone Python runtime into FirmwareTools/python")
+    parser.add_argument("--require-python-runtime", action="store_true", help="Fail unless FirmwareTools/python/bin/python3 exists")
     parser.add_argument("--clean", action="store_true")
     parser.add_argument("--skip-install", action="store_true", help="Only refresh notice files from existing packages")
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     packages_dir = args.output_dir / "python-packages"
-    if args.clean and packages_dir.exists():
-        shutil.rmtree(packages_dir)
+    runtime_dir = args.output_dir / "python"
+    if args.clean:
+        if packages_dir.exists():
+            shutil.rmtree(packages_dir)
+        if args.python_runtime and runtime_dir.exists() and args.python_runtime.resolve() != runtime_dir.resolve():
+            shutil.rmtree(runtime_dir)
     packages_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.python_runtime:
+        copy_python_runtime(args.python_runtime, runtime_dir)
 
     if not args.skip_install:
         env = os.environ.copy()
@@ -65,10 +74,39 @@ def main() -> int:
             env=env,
         )
 
+    if args.require_python_runtime:
+        validate_python_runtime(runtime_dir)
+
     notice_url = write_third_party_notices(args.output_dir, packages_dir)
     print(f"wrote firmware tool dependencies to {packages_dir}")
     print(f"wrote firmware tool notices to {notice_url}")
     return 0
+
+
+def copy_python_runtime(source_dir: Path, runtime_dir: Path) -> None:
+    source_dir = source_dir.resolve()
+    if source_dir == runtime_dir.resolve():
+        validate_python_runtime(runtime_dir)
+        return
+
+    python_url = source_dir / "bin" / "python3"
+    if not python_url.is_file():
+        raise SystemExit(f"python runtime is missing bin/python3: {source_dir}")
+    if not os.access(python_url, os.X_OK):
+        raise SystemExit(f"python runtime bin/python3 is not executable: {python_url}")
+
+    if runtime_dir.exists():
+        shutil.rmtree(runtime_dir)
+    shutil.copytree(source_dir, runtime_dir, symlinks=True)
+    validate_python_runtime(runtime_dir)
+
+
+def validate_python_runtime(runtime_dir: Path) -> None:
+    python_url = runtime_dir / "bin" / "python3"
+    if not python_url.is_file():
+        raise SystemExit(f"missing bundled Python runtime: {python_url}")
+    if not os.access(python_url, os.X_OK):
+        raise SystemExit(f"bundled Python runtime is not executable: {python_url}")
 
 
 def write_third_party_notices(output_dir: Path, packages_dir: Path) -> Path:

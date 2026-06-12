@@ -88,10 +88,12 @@ UI 位于“硬件设备”页的独立“固件烧录”区域：
 
 最小可行实现复用 Espressif `esptool` 的 `write_flash` 能力。`esptool` 支持按 offset 写入多个二进制文件，正好匹配当前 `flasher_args.json` 的信息。
 
-当前 app 会优先查找 app resource 中的 `FirmwareTools/vibe-light-firmware-flasher`，该 helper 接受 `esptool` 兼容参数。helper 会优先使用同目录的 `python/bin/python3` + `esptool.py` / `esptool/` / `python-packages/`，开发环境下也会尝试本机常见的 `esptool` / `esptool.py` 路径，便于验证 UI 和参数生成。发布前仍需要重点评估：
+当前 app 会优先查找 app resource 中的 `FirmwareTools/vibe-light-firmware-flasher`，该 helper 接受 `esptool` 兼容参数。发布路线改为内置完整 Python runtime：`FirmwareTools/python/bin/python3` 加 `FirmwareTools/python-packages/` 中的 `esptool` 依赖。发布验证时使用 strict 模式，禁止 fallback 到系统 Python、Homebrew `esptool` 或用户 PATH。开发环境仍可 fallback 到本机常见的 `python3` / `esptool` 路径，便于验证 UI 和参数生成。
+
+发布前仍需要重点评估：
 
 - `esptool` 的许可证和分发方式。
-- 是否把 Python runtime 也打包进 app bundle，或限制第一版 Developer ID 包依赖系统 `/usr/bin/python3`。
+- 内置 Python runtime 来源、架构、体积和签名方式。
 - 独立 helper tool 的签名、权限和日志隔离。
 - 是否需要未来替换为更小的原生 Swift / C / Rust 烧录实现。
 
@@ -127,9 +129,10 @@ macOS 分发前必须实测签名、notarization 和 sandbox 行为。
 1. **helper 打包**
    - 当前已在 `Resources/FirmwareTools/` 放入可签名的 `vibe-light-firmware-flasher` wrapper，并能通过 vendored `python-packages` 加载 `esptool`。
    - `script/prepare_desktop_firmware_release.sh` 已串起固件包生成、`esptool` 依赖 vendoring 和收窄 PATH helper 验证，可作为发布资产准备入口。
+   - `projects/esp32/tools/package_firmware_tools.py --python-runtime <path> --require-python-runtime` 可把预备好的独立 Python runtime 复制到 `FirmwareTools/python/`，并验证 `python/bin/python3` 可执行。
+   - `VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1` 会让 helper 只使用 bundled Python runtime 和 bundled `esptool`，用于证明发布包不依赖用户系统环境。
    - `projects/esp32/tools/package_firmware_tools.py` 会从 vendored Python package metadata 生成 `FirmwareTools/THIRD_PARTY_NOTICES.md`，让许可证材料跟实际依赖版本保持一致。
-   - 明确 helper 是否继续依赖系统 `/usr/bin/python3`，还是内置 Python runtime 或改为更小的原生烧录实现。
-   - 发布前仍需完整跑通工具 vendoring，并审阅生成的第三方 notices。
+   - 发布前仍需选定 runtime 来源，完整跑通工具 vendoring，并审阅生成的第三方 notices。
 
 2. **真实应用闭环验证**
    - 已用 `dist/VibeLightApp.app` resource 通过 USB 烧录目标板，并验证重启、BLE 广播、desktop 连接和状态写入。
