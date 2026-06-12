@@ -47,8 +47,10 @@
 1. **完成 app 内固件烧录的发布闭环**
    - 当前已完成 desktop 入口、固件包生成、manifest 校验、串口枚举、helper 参数生成、`vibe-light-firmware-flasher` wrapper、esptool 依赖 vendoring 和成功后 BLE 扫描。
    - 发布形态资源已完成实机烟测：dist app resource 中的 helper 和固件包可通过 USB 写入目标板，vendored `python-packages` 路径可在无 Homebrew esptool 的 PATH 下工作，重启后 BLE 广播和 desktop 连接 / 状态写入正常；macOS UI 点击“烧录固件”也已完成烧录、扫描、连接和 health packet 展示闭环。
-   - 下一步需要明确是否内置完整 Python runtime，签名 `FirmwareTools/vibe-light-firmware-flasher`，并补齐 esptool/Python 许可证材料。
-   - 仍需验证 notarized app 的 macOS 串口 / USB entitlement、helper notarization、下载模式失败提示和误刷防护。
+   - `script/prepare_desktop_firmware_release.sh` 已提供发布资产准备入口，串起 ESP32 构建、固件包生成、esptool vendoring 和 helper 收窄 PATH 验证；`package_firmware_tools.py` 会生成 `FirmwareTools/THIRD_PARTY_NOTICES.md` 供发布审阅。
+   - UI 已能针对下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失给出明确恢复提示。
+   - 下一步需要明确是否内置完整 Python runtime，签名 `FirmwareTools/vibe-light-firmware-flasher`，并完整审阅生成的 esptool/Python 许可证材料。
+   - 仍需验证 notarized app 的 macOS 串口 / USB entitlement、helper notarization、发布脚本中的 desktop build / signing / notarization 串接和烧录前芯片确认。
    - 方案细节见 `docs/desktop-firmware-flashing.md`。
 
 2. **保持显示模型测试随功能演进收紧**

@@ -127,16 +127,17 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 第一版如果继续使用系统 Python，需要在 clean macOS 上验证，并明确最低系统要求。
 
 3. 第三方许可证材料未整理
-   - 需要补齐 `esptool` 和 vendored Python 依赖的 license / notice。
-   - 发布包里需要有可审计的第三方声明材料。
+   - `package_firmware_tools.py` 已能根据 vendored Python package metadata 生成 `FirmwareTools/THIRD_PARTY_NOTICES.md`。
+   - 仍需在完整 vendor 成功后审阅生成内容，确认 `esptool` 和间接依赖的许可证材料符合发布要求。
 
 4. 失败恢复体验仍偏基础
    - UI 当前记录 helper 日志，但没有把 esptool 进度解析成 progress bar。
-   - 下载模式失败提示仍需要更明确，例如按住 BOOT、单击 RST、松开 BOOT、重试。
+   - 常见失败已经有明确提示：下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失。
    - 当前依赖 `--chip esp32s3` 和 esptool 芯片校验拒绝非 S3；app 还没有单独 pre-read 芯片信息并在写入前展示确认。
 
 5. 发布自动化未串起来
-   - 还没有单一 release 脚本串起固件构建、固件包生成、工具 vendoring、desktop build、签名、notarization 和实机 smoke checklist。
+   - `script/prepare_desktop_firmware_release.sh` 已串起 ESP32 构建、固件包生成、工具 vendoring 和 helper 收窄 PATH 验证。
+   - 还没有继续串起 desktop build、签名、notarization 和实机 smoke checklist。
    - 当前 `manifest.json` 版本仍以 `dev-test` / 本地 commit 为主，发布前需要明确 release version 和 commit 追踪规则。
 
 ## 建议下一步
@@ -149,20 +150,20 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 方案 C：后续改为 Swift / Rust / C 原生烧录实现。长期更干净，但不是当前最快发布路径。
 
 2. 补齐 license / notice
-   - 列出 `esptool` 和 vendored 依赖。
-   - 将许可证材料放入 app resource 或发布文档中。
+   - 完整运行 `package_firmware_tools.py --clean`。
+   - 审阅生成的 `FirmwareTools/THIRD_PARTY_NOTICES.md`，必要时补充上游许可证全文或发布说明。
 
 3. 做 signed Developer ID app 验证
    - 先用 Developer ID 路线验证 app bundle、helper、串口访问和 BLE 扫描。
    - 如果 Developer ID 路线稳定，再评估 App Store sandbox 可行性。
 
 4. 建立 release 构建脚本
-   - 串起固件构建、固件包生成、helper 依赖打包、desktop build、签名、notarization 和 smoke test。
+   - 基于 `script/prepare_desktop_firmware_release.sh` 继续串接 desktop build、签名、notarization 和 smoke test。
    - 每次 release 记录固件 version、build commit、desktop version、端口、目标芯片和验证结果。
 
 5. 改进 UI 失败恢复
    - 解析 esptool 输出，显示 stage/progress。
-   - 对 download mode、串口占用、checksum mismatch、非 ESP32-S3 设备分别给出明确错误文案。
+   - 保持 download mode、串口占用、checksum mismatch、非 ESP32-S3 设备和 helper runtime 缺失提示的测试覆盖。
    - 烧录前可增加芯片读取和硬件确认。
 
 ## 常用命令
@@ -171,8 +172,7 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
 
 ```bash
 make esp32-build
-projects/esp32/tools/package_firmware_bundle.py --version dev --minimum-desktop-version dev
-projects/esp32/tools/package_firmware_tools.py --clean
+script/prepare_desktop_firmware_release.sh --version dev --minimum-desktop-version dev
 ```
 
 构建和运行 dev app：

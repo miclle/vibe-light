@@ -1479,6 +1479,39 @@ import Testing
     #expect(output.count == 200_000)
 }
 
+@Test func firmwareFlashFailureAdviceExplainsDownloadModeRecovery() {
+    let error = FirmwareFlashProcessError(
+        status: 2,
+        output: "Failed to connect to ESP32-S3: No serial data received."
+    )
+
+    let advice = FirmwareFlashFailureAdvice(error: error)
+
+    #expect(advice.kind == .downloadMode)
+    #expect(advice.message.contains("按住 BOOT"))
+    #expect(advice.message.contains("单击 RST"))
+    #expect(advice.message.contains("松开 BOOT"))
+}
+
+@Test func firmwareFlashFailureAdviceClassifiesCommonReleaseBlockers() {
+    let busy = FirmwareFlashFailureAdvice(
+        error: FirmwareFlashProcessError(status: 1, output: "Resource busy: could not open port")
+    )
+    let checksum = FirmwareFlashFailureAdvice(
+        error: FirmwareFlashProcessError(status: 1, output: "Hash of data verified failed")
+    )
+    let wrongChip = FirmwareFlashFailureAdvice(
+        error: FirmwareFlashProcessError(status: 1, output: "This chip is ESP32 not ESP32-S3")
+    )
+
+    #expect(busy.kind == .serialPortBusy)
+    #expect(busy.message.contains("关闭占用串口"))
+    #expect(checksum.kind == .checksumMismatch)
+    #expect(checksum.message.contains("重新生成固件包"))
+    #expect(wrongChip.kind == .unsupportedChip)
+    #expect(wrongChip.message.contains("ESP32-S3"))
+}
+
 private func temporaryDirectory() -> URL {
     URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent(UUID().uuidString, isDirectory: true)

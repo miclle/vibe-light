@@ -126,8 +126,10 @@ macOS 分发前必须实测签名、notarization 和 sandbox 行为。
 
 1. **helper 打包**
    - 当前已在 `Resources/FirmwareTools/` 放入可签名的 `vibe-light-firmware-flasher` wrapper，并能通过 vendored `python-packages` 加载 `esptool`。
+   - `script/prepare_desktop_firmware_release.sh` 已串起固件包生成、`esptool` 依赖 vendoring 和收窄 PATH helper 验证，可作为发布资产准备入口。
+   - `projects/esp32/tools/package_firmware_tools.py` 会从 vendored Python package metadata 生成 `FirmwareTools/THIRD_PARTY_NOTICES.md`，让许可证材料跟实际依赖版本保持一致。
    - 明确 helper 是否继续依赖系统 `/usr/bin/python3`，还是内置 Python runtime 或改为更小的原生烧录实现。
-   - 记录 `esptool` 许可证和随包分发材料。
+   - 发布前仍需完整跑通工具 vendoring，并审阅生成的第三方 notices。
 
 2. **真实应用闭环验证**
    - 已用 `dist/VibeLightApp.app` resource 通过 USB 烧录目标板，并验证重启、BLE 广播、desktop 连接和状态写入。
@@ -137,9 +139,11 @@ macOS 分发前必须实测签名、notarization 和 sandbox 行为。
 3. **发布签名**
    - 给固件包增加版本、校验和 release notes。
    - 验证 app bundle 签名、helper 签名、notarization 和 sandbox 权限。
-   - 建立发布构建流程，确保 desktop app 和内置固件版本可追踪。
+   - 在 release-prep 入口之上继续串接 desktop build、Developer ID signing、notarization 和 smoke checklist，确保 desktop app 和内置固件版本可追踪。
 
 4. **体验优化**
+   - UI 已能把常见 helper 失败分类成可执行提示：下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失。
+   - 后续可继续解析 esptool 输出，显示 stage/progress。
    - 自动识别最可能的 ESP32-S3 端口。
    - 支持从远端下载新版固件包并校验签名。
    - 增加“恢复出厂固件”或“重新烧录当前版本”入口。

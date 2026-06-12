@@ -265,7 +265,7 @@ final class VibeLightAppModel: ObservableObject {
                 startHardwareScan()
             } catch {
                 firmwareFlashLog = (error as? FirmwareFlashProcessError)?.output ?? firmwareFlashLog
-                firmwareFlashMessage = "烧录失败：\(error.localizedDescription)"
+                firmwareFlashMessage = FirmwareFlashFailureAdvice(error: error).message
                 isFirmwareFlashing = false
             }
         }

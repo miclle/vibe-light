@@ -216,6 +216,80 @@ public struct FirmwareFlashProcessError: Error, LocalizedError {
     }
 }
 
+public enum FirmwareFlashFailureKind: Equatable {
+    case downloadMode
+    case serialPortBusy
+    case checksumMismatch
+    case unsupportedChip
+    case helperRuntimeMissing
+    case unknown
+}
+
+public struct FirmwareFlashFailureAdvice: Equatable {
+    public let kind: FirmwareFlashFailureKind
+    public let message: String
+
+    public init(error: Error) {
+        if let processError = error as? FirmwareFlashProcessError {
+            self = Self(status: processError.status, output: processError.output)
+        } else {
+            self.kind = .unknown
+            self.message = "烧录失败：\(error.localizedDescription)"
+        }
+    }
+
+    public init(status: Int32, output: String) {
+        let normalized = output.lowercased()
+        if Self.matchesAny(normalized, [
+            "failed to connect",
+            "no serial data received",
+            "wrong boot mode",
+            "download mode",
+            "timed out waiting for packet header",
+        ]) {
+            kind = .downloadMode
+            message = "烧录失败：设备未进入下载模式。请按住 BOOT，单击 RST，松开 BOOT 后重试。"
+        } else if Self.matchesAny(normalized, [
+            "resource busy",
+            "device busy",
+            "could not open port",
+            "permission denied",
+            "operation not permitted",
+        ]) {
+            kind = .serialPortBusy
+            message = "烧录失败：串口不可用。请关闭占用串口的 monitor、终端或其他应用后重试。"
+        } else if Self.matchesAny(normalized, [
+            "hash of data verified failed",
+            "checksum",
+            "digest",
+            "sha256",
+        ]) {
+            kind = .checksumMismatch
+            message = "烧录失败：写入校验未通过。请重新生成固件包，检查 USB 连接后重试。"
+        } else if normalized.contains("unsupported chip") ||
+            normalized.contains("wrong chip") ||
+            (normalized.contains("this chip is esp32") && !normalized.contains("esp32-s3")) ||
+            normalized.contains("not esp32-s3") {
+            kind = .unsupportedChip
+            message = "烧录失败：连接的设备不是 ESP32-S3。请确认硬件是 Waveshare ESP32-S3-LCD-3.16。"
+        } else if Self.matchesAny(normalized, [
+            "no module named esptool",
+            "no bundled esptool runtime found",
+            "python-packages/esptool",
+        ]) {
+            kind = .helperRuntimeMissing
+            message = "烧录失败：发布包缺少 esptool runtime。请先运行固件工具打包步骤。"
+        } else {
+            kind = .unknown
+            message = "烧录失败：helper 退出码 \(status)。请查看日志后重试。"
+        }
+    }
+
+    private static func matchesAny(_ text: String, _ needles: [String]) -> Bool {
+        needles.contains { text.contains($0) }
+    }
+}
+
 public struct FirmwareSerialPortDiscovery {
     private let fileManager: FileManager
 

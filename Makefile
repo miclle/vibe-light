@@ -33,6 +33,7 @@ help:
 	@printf '  make desktop-logs      启动 app 并监听进程日志\n'
 	@printf '  make desktop-telemetry 启动 app 并监听应用 telemetry 日志\n'
 	@printf '  make desktop-verify    启动 app 并验证进程已运行\n'
+	@printf '  make firmware-release  准备 desktop app 内置固件烧录发布资源\n'
 	@printf '  make hook-sample       发送一条 Codex hook 示例事件\n\n'
 	@printf 'ESP32 固件:\n'
 	@printf '  make idf-shell         进入已激活 ESP-IDF 的 shell\n'
@@ -73,7 +74,7 @@ clean:
 	rm -rf $(MACOS_DIR)/.build
 	rm -rf $(ESP32_DIR)/build
 
-.PHONY: desktop-build desktop-test desktop-run desktop-debug desktop-logs desktop-telemetry desktop-verify hook-sample
+.PHONY: desktop-build desktop-test desktop-run desktop-debug desktop-logs desktop-telemetry desktop-verify firmware-release hook-sample
 desktop-build:
 	swift build --package-path $(MACOS_DIR)
 
@@ -94,6 +95,9 @@ desktop-telemetry:
 
 desktop-verify:
 	$(ROOT_DIR)/script/build_and_run.sh --verify
+
+firmware-release:
+	$(ROOT_DIR)/script/prepare_desktop_firmware_release.sh
 
 hook-sample:
 	printf '%s\n' '{"source":"codex","event":"PreToolUse","detail":"running shell"}' | swift run --package-path $(MACOS_DIR) vibe-light-hook
