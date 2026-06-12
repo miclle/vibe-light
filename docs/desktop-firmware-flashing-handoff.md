@@ -127,16 +127,18 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 已通过 notarized app UI 点击“烧录固件”完成完整写入：bootloader、partition table 和 app 三段均 hash verified；烧录后 app 扫描到 `VibeLight-S3`，重新连接并读取 health packet。
    - dev app UI 已补齐烧录前芯片确认：读取前“烧录固件”禁用，点击“读取芯片”确认 `ESP32-S3 (QFN56)` 和 MAC 后才启用写入入口。
 
-2. Python runtime 发布路线已确定但未完成验证
+2. Python runtime 发布路线已确定并完成本地验证
    - 第一版发布路线改为随 app bundle 内置完整 Python runtime，目标是用户只安装 desktop app 即可烧录。
    - `package_firmware_tools.py --python-runtime <path> --require-python-runtime` 已能把预备好的 runtime 复制到 `FirmwareTools/python/` 并验证 `python/bin/python3`。
    - `VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1` 会禁止 helper fallback 到系统 Python、Homebrew `esptool` 或用户 PATH。
    - 2026-06-12 已用本机 PlatformIO portable Python 3.11.7 arm64 候选跑通 `script/prepare_desktop_firmware_release.sh --skip-esp32-build --version dev-test --minimum-desktop-version dev --python-runtime /Users/miclle/.platformio/python3 --require-bundled-python`；strict helper 输出 `esptool.py v4.11.0`，bundled Python import smoke 覆盖 `esptool`、`pyserial`、`cryptography`、`PyYAML` 和 `cffi`。
-   - 仍需确认可分发 runtime 的正式来源和许可证，并验证 signed/notarized app 中 runtime、扩展模块和动态库的签名行为。
+   - 第一版 runtime 来源选定为 PlatformIO portable Python；当前随包 `package.json` 记录 `python-portable 1.31107.0`、`darwin_arm64`、`PSF-2.0` 和 Python/CPython 来源，随包 `LICENSE` 保留 Python Software Foundation License 文本。
+   - signed/notarized app 已验证 runtime、`lib-dynload` 扩展和 vendored wheel `.so` 可被脚本签名并通过 helper strict 模式加载。
 
-3. 第三方许可证材料未整理
+3. 第三方许可证材料已生成，正式发布仍需人工审阅
    - `package_firmware_tools.py` 已能根据 vendored Python package metadata 生成 `FirmwareTools/THIRD_PARTY_NOTICES.md`。
-   - 仍需在完整 vendor 成功后审阅生成内容，确认 `esptool` 和间接依赖的许可证材料符合发布要求。
+   - `script/desktop_firmware_release_checklist.sh` 会检查 `THIRD_PARTY_NOTICES.md` 存在 `esptool` 条目；启用 `--require-bundled-python` 时也会检查 `python-portable` 条目。
+   - 正式发布前仍需人工审阅生成内容，确认 `esptool` GPLv2+ 和间接依赖的许可证材料符合发布要求。
 
 4. 失败恢复体验仍偏基础
    - UI 当前记录 helper 日志，但没有把 esptool 进度解析成 progress bar。
@@ -153,7 +155,7 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
 推荐按以下顺序继续：
 
 1. 先跑通 bundled Python runtime 发布资产
-   - 本地候选 runtime 已跑通，下一步要确认正式可分发来源和许可证。
+   - 本地候选 runtime 已跑通，第一版正式来源选定为 PlatformIO portable Python。
    - 继续用 `script/prepare_desktop_firmware_release.sh --python-runtime <path> --require-bundled-python ...` 生成自包含 `FirmwareTools`。
    - 保持收窄 PATH 加 strict 模式验证 helper 只使用 app bundle 内资源。
 

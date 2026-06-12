@@ -268,11 +268,22 @@ NOTICE_URL="projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/
 append_report "## Third-Party Notices"
 append_report ""
 if [[ -f "$NOTICE_URL" ]]; then
+  if ! grep -q '^## esptool ' "$NOTICE_URL"; then
+    echo "third-party notices are missing esptool metadata: $NOTICE_URL" >&2
+    exit 1
+  fi
+  if [[ "$REQUIRE_BUNDLED_PYTHON" -eq 1 ]] && ! grep -q '^## python-portable ' "$NOTICE_URL"; then
+    echo "third-party notices are missing bundled Python runtime metadata: $NOTICE_URL" >&2
+    exit 1
+  fi
   append_report "- Status: present"
   append_report "- File: \`$NOTICE_URL\`"
+  append_report "- Required entries: \`esptool\`$([[ "$REQUIRE_BUNDLED_PYTHON" -eq 1 ]] && printf ', `python-portable`')"
 else
   append_report "- Status: missing"
   append_report "- File: \`$NOTICE_URL\`"
+  echo "third-party notices are missing: $NOTICE_URL" >&2
+  exit 1
 fi
 append_report ""
 
