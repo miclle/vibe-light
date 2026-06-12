@@ -37,6 +37,8 @@ projects/esp32/build/
 projects/esp32/managed_components/
 projects/esp32/sdkconfig
 projects/esp32/sdkconfig.old
+projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareBundle/*.bin
+projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareBundle/manifest.json
 
 # CocoaPods
 #

@@ -16,6 +16,12 @@ final class VibeLightAppModel: ObservableObject {
     @Published private(set) var hardwareHealthPacket: HealthPacket?
     @Published private(set) var hardwareMessage = "未扫描设备。"
     @Published private(set) var isHardwareScanning = false
+    @Published private(set) var firmwareSerialPorts: [String] = []
+    @Published private(set) var firmwareBundle: FirmwareBundle?
+    @Published private(set) var firmwareFlashMessage = "未检查固件包。"
+    @Published private(set) var firmwareFlashLog = ""
+    @Published private(set) var isFirmwareFlashing = false
+    @Published var selectedFirmwareSerialPort: String?
     @Published var launchAtLogin = false
     @Published var autoConnectDevice: Bool {
         didSet {
@@ -72,6 +78,7 @@ final class VibeLightAppModel: ObservableObject {
                 self?.autoConnectDevice ?? false
             }
         )
+        refreshFirmwareFlashing()
     }
 
     func refreshEvents() {
@@ -202,6 +209,65 @@ final class VibeLightAppModel: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 
+    func refreshFirmwareFlashing() {
+        firmwareSerialPorts = FirmwareSerialPortDiscovery().candidatePorts()
+        if selectedFirmwareSerialPort == nil || firmwareSerialPorts.contains(selectedFirmwareSerialPort ?? "") == false {
+            selectedFirmwareSerialPort = firmwareSerialPorts.first
+        }
+
+        do {
+            guard let bundleURL = bundledFirmwareURL() else {
+                firmwareBundle = nil
+                firmwareFlashMessage = "当前 App 未内置固件包。发布构建前请先生成 FirmwareBundle。"
+                return
+            }
+
+            let bundle = try FirmwareBundleValidator().validatedBundle(at: bundleURL)
+            firmwareBundle = bundle
+            firmwareFlashMessage = "已加载固件 \(bundle.manifest.version) / \(bundle.manifest.targetHardware)。"
+        } catch {
+            firmwareBundle = nil
+            firmwareFlashMessage = "固件包不可用：\(error.localizedDescription)"
+        }
+    }
+
+    func flashFirmware() {
+        guard !isFirmwareFlashing else {
+            return
+        }
+        guard let firmwareBundle else {
+            firmwareFlashMessage = "没有可烧录的固件包。"
+            return
+        }
+        guard let selectedFirmwareSerialPort else {
+            firmwareFlashMessage = "未发现 USB 串口。请连接 ESP32-S3 后刷新。"
+            return
+        }
+        guard let helperURL = firmwareFlashHelperURL() else {
+            firmwareFlashMessage = "找不到烧录 helper。发布包需要内置 FirmwareTools/vibe-light-firmware-flasher。"
+            return
+        }
+
+        let command = FirmwareFlashCommand(bundle: firmwareBundle, port: selectedFirmwareSerialPort)
+        isFirmwareFlashing = true
+        firmwareFlashMessage = "正在烧录 \(selectedFirmwareSerialPort)..."
+        firmwareFlashLog = ""
+
+        Task { [helperURL, command] in
+            do {
+                let output = try await runFirmwareFlash(helperURL: helperURL, command: command)
+                firmwareFlashLog = output
+                firmwareFlashMessage = "烧录完成。正在扫描 VibeLight-S3..."
+                isFirmwareFlashing = false
+                startHardwareScan()
+            } catch {
+                firmwareFlashLog = (error as? FirmwareFlashProcessError)?.output ?? firmwareFlashLog
+                firmwareFlashMessage = "烧录失败：\(error.localizedDescription)"
+                isFirmwareFlashing = false
+            }
+        }
+    }
+
     func pollEvents() async {
         while !Task.isCancelled {
             refreshEvents()
@@ -216,6 +282,54 @@ final class VibeLightAppModel: ObservableObject {
 
         let url = executableDirectory.appendingPathComponent("vibe-light-hook")
         return FileManager.default.isExecutableFile(atPath: url.path) ? url : nil
+    }
+
+    private func bundledFirmwareURL() -> URL? {
+        guard let url = Bundle.module.url(forResource: "FirmwareBundle", withExtension: nil),
+              FileManager.default.fileExists(atPath: url.appendingPathComponent("manifest.json").path) else {
+            return nil
+        }
+        return url
+    }
+
+    private func firmwareFlashHelperURL() -> URL? {
+        if let bundledURL = Bundle.module.url(forResource: "FirmwareTools/vibe-light-firmware-flasher", withExtension: nil),
+           FileManager.default.isExecutableFile(atPath: bundledURL.path) {
+            return bundledURL
+        }
+
+        let developerCandidates = [
+            "/opt/homebrew/bin/esptool.py",
+            "/usr/local/bin/esptool.py",
+            "/opt/homebrew/bin/esptool",
+            "/usr/local/bin/esptool",
+        ].map(URL.init(fileURLWithPath:))
+
+        return developerCandidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
+    }
+
+    private func runFirmwareFlash(helperURL: URL, command: FirmwareFlashCommand) async throws -> String {
+        let executableURL = helperURL
+        let arguments = command.esptoolArguments
+        return try await Task.detached(priority: .userInitiated) {
+            let process = Process()
+            process.executableURL = executableURL
+            process.arguments = arguments
+
+            let outputPipe = Pipe()
+            process.standardOutput = outputPipe
+            process.standardError = outputPipe
+
+            try process.run()
+            process.waitUntilExit()
+
+            let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8) ?? ""
+            guard process.terminationStatus == 0 else {
+                throw FirmwareFlashProcessError(status: process.terminationStatus, output: output)
+            }
+            return output
+        }.value
     }
 
     private func forwardLatestPacketToHardwareIfNeeded() {
@@ -238,6 +352,15 @@ final class VibeLightAppModel: ObservableObject {
         }
 
         return "聚合状态：\(snapshot.state.title) / \(taskCount) 个任务"
+    }
+}
+
+private struct FirmwareFlashProcessError: Error, LocalizedError {
+    let status: Int32
+    let output: String
+
+    var errorDescription: String? {
+        "helper 退出码 \(status)"
     }
 }
 

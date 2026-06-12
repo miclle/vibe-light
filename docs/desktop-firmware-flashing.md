@@ -1,6 +1,6 @@
 # macOS App Integrated Firmware Flashing
 
-本文记录在 macOS desktop 应用内集成 ESP32-S3 固件烧录能力的可行性和推荐实现路径。
+本文记录 macOS desktop 应用内集成 ESP32-S3 固件烧录能力的实现路径、当前落地状态和发布前验证重点。
 
 ## 目标
 
@@ -19,13 +19,18 @@
   - `vibe_light_esp32.bin` at `0x10000`
 - macOS app 已经有“硬件设备”页，包含 BLE 扫描、连接、状态写入、健康读取和演示包发送能力，适合作为固件烧录入口。
 
-## 推荐方案
+## 当前实现
 
-推荐走“desktop 应用烧录预编译固件”的路线，而不是在用户机器上安装或内置完整 ESP-IDF。
+当前已经采用“desktop 应用烧录预编译固件”的路线，而不是在用户机器上安装或内置完整 ESP-IDF。
 
-发布流程提前构建并签名一份固件包，desktop app 随包携带该固件包，运行时只负责通过串口把预编译二进制写入设备 flash。
+发布流程提前构建并签名一份固件包，desktop app 随包携带该固件包，运行时只负责通过串口把预编译二进制写入设备 flash。已落地的代码边界如下：
 
-建议固件包结构：
+- `projects/esp32/tools/package_firmware_bundle.py`：从 `projects/esp32/build/flasher_args.json` 和 bin 产物生成 app resource 使用的 `FirmwareBundle`。
+- `projects/macos/desktop/Sources/VibeLightCore/FirmwareFlashing.swift`：解析 manifest、按 offset 排序写入项、校验每个 bin 的 SHA-256、生成 `esptool write_flash` 参数，并枚举 macOS 常见 ESP32 串口。
+- `projects/macos/desktop/Sources/VibeLightApp/Models/VibeLightAppModel.swift`：加载内置固件包、刷新串口、调用烧录 helper、记录日志，并在成功后启动 BLE 扫描。
+- `projects/macos/desktop/Sources/VibeLightApp/Views/HardwareDevicesPane.swift`：在“硬件设备”页新增“固件烧录”区域，提供串口选择、刷新、烧录按钮、状态文本和 helper 日志摘要。
+
+固件包结构：
 
 ```text
 FirmwareBundle/
@@ -35,7 +40,7 @@ FirmwareBundle/
   vibe_light_esp32.bin
 ```
 
-`manifest.json` 至少记录：
+`manifest.json` 记录：
 
 - 固件版本和构建 commit。
 - 目标芯片：`esp32s3`。
@@ -45,38 +50,47 @@ FirmwareBundle/
 - 每个 bin 文件的 SHA-256。
 - 最低 desktop app 版本。
 
-## macOS 端实现轮廓
+生成本地固件包：
 
-desktop app 可新增一个 `FirmwareFlasher` 服务，职责保持独立：
+```bash
+make esp32-build
+projects/esp32/tools/package_firmware_bundle.py --version dev --minimum-desktop-version dev
+```
+
+生成的 `manifest.json` 和 bin 文件会写入 `projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareBundle/`，并被 `.gitignore` 忽略；发布构建应在构建 app 前执行该步骤。
+
+## macOS 端流程
+
+desktop app 的职责保持独立：
 
 1. 枚举候选串口，例如 `/dev/cu.usbmodem*`、`/dev/cu.wchusbserial*`、`/dev/cu.SLAB_USBtoUART*`。
 2. 读取 app bundle 内置的 `FirmwareBundle/manifest.json`。
 3. 校验固件包完整性和 SHA-256。
 4. 调用烧录 helper 执行 `write_flash`。
-5. 将烧录阶段、百分比、日志摘要和失败原因回传给 SwiftUI。
-6. 烧录完成后触发硬件页 BLE 扫描，并尝试连接 `VibeLight-S3` 读取 health packet。
+5. 将状态、日志摘要和失败原因回传给 SwiftUI。
+6. 烧录完成后触发硬件页 BLE 扫描，用户可连接 `VibeLight-S3` 并读取 health packet。
 
-UI 建议放在“硬件设备”页，作为独立的“固件烧录”区域：
+UI 位于“硬件设备”页的独立“固件烧录”区域：
 
 - 未连接 USB 时提示插入设备。
 - 发现多个串口时让用户选择。
 - 烧录前显示目标固件版本和硬件型号。
-- 烧录中显示进度和当前阶段。
+- 烧录中显示当前状态和 helper 输出摘要。
 - 如果进入下载模式失败，提示按住 BOOT 后单击 RST，再重试。
 - 烧录成功后自动扫描 BLE 并读取设备健康状态。
 
 ## 烧录工具选择
 
-最小可行实现可以复用 Espressif `esptool` 的 `write_flash` 能力。`esptool` 支持按 offset 写入多个二进制文件，正好匹配当前 `flasher_args.json` 的信息。
+最小可行实现复用 Espressif `esptool` 的 `write_flash` 能力。`esptool` 支持按 offset 写入多个二进制文件，正好匹配当前 `flasher_args.json` 的信息。
 
-实现时需要重点评估：
+当前 app 会优先查找 app resource 中的 `FirmwareTools/vibe-light-firmware-flasher`，该 helper 需要接受 `esptool` 兼容参数。开发环境下也会尝试本机常见的 `esptool` / `esptool.py` 路径，便于验证 UI 和参数生成。发布前仍需要重点评估：
 
 - `esptool` 的许可证和分发方式。
 - 是否把 Python runtime / esptool 打包进 app bundle。
-- 是否改用独立 helper tool，便于签名、权限和日志隔离。
+- 独立 helper tool 的签名、权限和日志隔离。
 - 是否需要未来替换为更小的原生 Swift / C / Rust 烧录实现。
 
-第一版建议把烧录能力封装成独立 helper，desktop app 只通过受控参数启动 helper 并读取结构化进度。这样主应用 UI、BLE 逻辑和串口烧录边界清晰，后续替换底层烧录实现也更容易。
+第一版已经把烧录能力封装在独立 helper 边界后面，desktop app 只通过受控参数启动 helper 并读取输出。这样主应用 UI、BLE 逻辑和串口烧录边界清晰，后续替换底层烧录实现也更容易。
 
 ## 签名和权限风险
 
@@ -103,28 +117,28 @@ macOS 分发前必须实测签名、notarization 和 sandbox 行为。
 - 失败时保留清晰错误原因和重试按钮。
 - 烧录成功后通过 BLE 名称和 health packet 做闭环验证。
 
-## 分阶段计划
+## 发布前剩余工作
 
-1. **原型阶段**
-   - 从当前 `build/flasher_args.json` 和 bin 产物生成本地固件包。
-   - 写一个命令行 helper，输入端口和固件包路径，执行免 ESP-IDF 烧录。
-   - 在开发机上用目标板验证烧录、重启、BLE 广播和 health 读取。
+1. **helper 打包**
+   - 在 `Resources/FirmwareTools/` 放入可签名的 `vibe-light-firmware-flasher`。
+   - 明确 helper 内置 Python/esptool 还是采用更小的原生烧录实现。
+   - 记录 `esptool` 许可证和随包分发材料。
 
-2. **应用集成阶段**
-   - 把固件包作为 app resource 打包。
-   - 在“硬件设备”页新增固件烧录区域。
-   - 增加串口枚举、端口选择、进度展示、失败提示和成功后 BLE 扫描。
+2. **真实应用闭环验证**
+   - 用发布形态 app 通过 USB 烧录目标板。
+   - 验证重启、BLE 广播、连接和 health packet 读取。
+   - 记录实测端口、固件版本、app 版本和 helper 版本。
 
-3. **发布阶段**
+3. **发布签名**
    - 给固件包增加版本、校验和 release notes。
    - 验证 app bundle 签名、helper 签名、notarization 和 sandbox 权限。
    - 建立发布构建流程，确保 desktop app 和内置固件版本可追踪。
 
-4. **体验优化阶段**
+4. **体验优化**
    - 自动识别最可能的 ESP32-S3 端口。
    - 支持从远端下载新版固件包并校验签名。
    - 增加“恢复出厂固件”或“重新烧录当前版本”入口。
 
 ## 结论
 
-该功能可行，并且非常符合 Vibe Light 的产品方向。推荐优先实现“应用内烧录预编译固件”，避免让普通用户安装 ESP-IDF。最大的工程风险不在固件本身，而在 macOS 分发权限、helper 签名、烧录工具许可证和失败恢复体验。
+该功能已经具备 app 内入口、固件包校验、串口发现、helper 调用和成功后 BLE 扫描的最小闭环。最大的剩余工程风险不在固件本身，而在 macOS 分发权限、helper 签名、烧录工具许可证和真实发布包的失败恢复体验。

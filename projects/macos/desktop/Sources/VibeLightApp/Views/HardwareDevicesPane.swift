@@ -16,6 +16,7 @@ struct HardwareDevicesPane: View {
                         .frame(minWidth: 300, maxWidth: 420, alignment: .top)
                 }
 
+                firmwareFlashCard
                 demoPacketsCard
             }
             .padding(.horizontal, 40)
@@ -184,6 +185,68 @@ struct HardwareDevicesPane: View {
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
+    private var firmwareFlashCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            CardTitle(
+                title: "固件烧录",
+                subtitle: firmwareSubtitle,
+                systemImage: "memorychip"
+            )
+
+            HStack(alignment: .center, spacing: 12) {
+                Picker("USB 串口", selection: $model.selectedFirmwareSerialPort) {
+                    if model.firmwareSerialPorts.isEmpty {
+                        Text("未发现串口").tag(String?.none)
+                    } else {
+                        ForEach(model.firmwareSerialPorts, id: \.self) { port in
+                            Text(port).tag(Optional(port))
+                        }
+                    }
+                }
+                .frame(minWidth: 280, maxWidth: 380)
+                .disabled(model.isFirmwareFlashing)
+
+                Button {
+                    model.refreshFirmwareFlashing()
+                } label: {
+                    Label("刷新", systemImage: "arrow.clockwise")
+                }
+                .disabled(model.isFirmwareFlashing)
+
+                Button {
+                    model.flashFirmware()
+                } label: {
+                    Label(model.isFirmwareFlashing ? "烧录中" : "烧录固件", systemImage: "bolt.horizontal.circle")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(model.isFirmwareFlashing || model.firmwareBundle == nil || model.selectedFirmwareSerialPort == nil)
+
+                if model.isFirmwareFlashing {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+            .buttonStyle(.bordered)
+
+            Text(model.firmwareFlashMessage)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            if !model.firmwareFlashLog.isEmpty {
+                Text(model.firmwareFlashLog)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(6)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+        }
+        .padding(18)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
     private var demoPacketsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             CardTitle(
@@ -239,6 +302,14 @@ struct HardwareDevicesPane: View {
         case .ctxColor: "gauge.with.dots.needle.67percent"
         case .idle: "moon"
         }
+    }
+
+    private var firmwareSubtitle: String {
+        guard let bundle = model.firmwareBundle else {
+            return model.firmwareSerialPorts.isEmpty ? "连接 USB 后刷新串口" : "等待可用固件包"
+        }
+
+        return "\(bundle.manifest.version) / \(bundle.manifest.targetChip) / \(bundle.manifest.flashSize)"
     }
 
     private var connectionIcon: String {

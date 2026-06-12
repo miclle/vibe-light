@@ -15,6 +15,7 @@
 - 屏幕页脚会在左下方显示短状态，例如 `CODEX LIVE`；旧协议包显示为 `CODEX LEGACY`，不直接暴露 `v1` / `v2` 这类内部协议版本。活跃/等待/错误计数只保留在迷宫里的 `ACTIVE` / `WAIT` / `ERR` 计数区，避免重复。页脚使用中性灰并与底边保留 12px 余量，避免贴到屏幕最底部；任务状态色块内缩显示，避免在屏幕边缘形成蓝色竖线。
 - 固件连接状态已经会主动刷新屏幕：Central 连接时显示 `idle / desktop connected`，断开时显示 `offline / desktop disconnected`。
 - 健康状态包已经包含运行时长、BLE 连接状态、最近显示状态、heap 余量、启动后 heap 低水位、渲染 tick、背光状态和最近解析错误；macOS 硬件页会展示这些诊断信息。
+- macOS 硬件页已经有“固件烧录”区域，可枚举常见 ESP32 USB 串口、加载并校验内置 `FirmwareBundle`、调用 helper 执行 `write_flash`，成功后启动 BLE 扫描；`projects/esp32/tools/package_firmware_bundle.py` 可从 ESP-IDF build 产物生成带 SHA-256 的 app resource 固件包。
 - 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试、生成迷宫 / 全屏 PNG 预览并执行 Git whitespace 检查；ESP32 显示闭环已完成一次实机烧录和屏幕确认。
 - 固件版本 `82d2180` 已在目标板完成烧录、串口启动、BLE 连接、健康特征实机读取、肉眼屏幕复核和长时间稳定性观察：LCD 初始化、BLE 广播、Central 连接、连续 `v: 2` 状态写入、token 摘要、页脚、底部余量、任务色块内缩、无边缘蓝线、macOS 硬件页健康读数和稳定性表现均正常；坏状态包后会回传 `lastParseError:"invalid JSON"`。
 - 固件版本 `3215f23` 已完成目标板烧录和实机观察，确认结构拆分后的固件启动、屏幕显示和 BLE 链路正常。
@@ -36,10 +37,10 @@
 
 ## 未完成事项
 
-1. **在 macOS app 内集成 ESP32-S3 固件烧录**
-   - 目标是让普通用户只下载安装 desktop app，通过 USB 连接 Waveshare `ESP32-S3-LCD-3.16` 后即可完成固件烧录，不需要搭建 ESP-IDF 环境。
-   - 推荐路线是随 app 携带预编译 `FirmwareBundle`，由应用内 helper 基于 `flasher_args.json` 等价信息执行 `write_flash`，再用 BLE 扫描和 health packet 验证烧录结果。
-   - 需要优先验证 macOS 串口 / USB entitlement、helper 签名与 notarization、烧录工具许可证、下载模式失败提示和误刷防护。
+1. **完成 app 内固件烧录的发布闭环**
+   - 当前已完成 desktop 入口、固件包生成、manifest 校验、串口枚举、helper 参数生成和成功后 BLE 扫描。
+   - 下一步需要内置并签名 `FirmwareTools/vibe-light-firmware-flasher`，明确 esptool/Python 分发方式和许可证材料。
+   - 需要用发布形态 app 实测 USB 烧录、重启、BLE 广播、health packet 读取、macOS 串口 / USB entitlement、helper notarization、下载模式失败提示和误刷防护。
    - 方案细节见 `docs/desktop-firmware-flashing.md`。
 
 2. **保持显示模型测试随功能演进收紧**

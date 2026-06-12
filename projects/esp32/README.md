@@ -106,6 +106,15 @@ projects/esp32/tools/flash_firmware.sh --flash-only /dev/cu.usbmodemXXXX
 
 如果无法进入下载模式，按住 BOOT 后单击 RST，再重新执行烧录命令。
 
+为 macOS app 内置烧录功能生成预编译固件包：
+
+```bash
+make esp32-build
+projects/esp32/tools/package_firmware_bundle.py --version dev --minimum-desktop-version dev
+```
+
+脚本会读取 `build/flasher_args.json`，复制 bootloader、partition table 和 app bin，并生成带 SHA-256 校验的 `manifest.json` 到 desktop app 的 `Resources/FirmwareBundle/`。这些生成产物不提交到 git；发布构建应在打包 app 前执行。
+
 Host-side 快速测试：
 
 ```bash

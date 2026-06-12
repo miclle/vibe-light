@@ -1296,6 +1296,119 @@ import Testing
     #expect(reloaded.selectedManualState == .waiting)
 }
 
+@Test func firmwareBundleManifestDecodesFlashFilesInOffsetOrder() throws {
+    let data = """
+    {
+      "version": "0.3.0",
+      "buildCommit": "abc1234",
+      "targetChip": "esp32s3",
+      "targetHardware": "Waveshare ESP32-S3-LCD-3.16",
+      "flashMode": "dio",
+      "flashFreq": "80m",
+      "flashSize": "16MB",
+      "minimumDesktopVersion": "0.3.0",
+      "files": [
+        {"offset": "0x10000", "path": "vibe_light_esp32.bin", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+        {"offset": "0x0", "path": "bootloader.bin", "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+        {"offset": "0x8000", "path": "partition-table.bin", "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}
+      ]
+    }
+    """.data(using: .utf8)!
+
+    let manifest = try JSONDecoder().decode(FirmwareBundleManifest.self, from: data)
+
+    #expect(manifest.targetChip == "esp32s3")
+    #expect(manifest.flashFiles.map(\.offset) == ["0x0", "0x8000", "0x10000"])
+    #expect(manifest.flashFiles.map(\.path) == ["bootloader.bin", "partition-table.bin", "vibe_light_esp32.bin"])
+}
+
+@Test func firmwareBundleValidatorVerifiesChecksumsAndBuildsWriteFlashArguments() throws {
+    let directory = temporaryDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let bootloader = directory.appendingPathComponent("bootloader.bin")
+    let partition = directory.appendingPathComponent("partition-table.bin")
+    let app = directory.appendingPathComponent("vibe_light_esp32.bin")
+    try Data("boot".utf8).write(to: bootloader)
+    try Data("partition".utf8).write(to: partition)
+    try Data("app".utf8).write(to: app)
+
+    let manifest = FirmwareBundleManifest(
+        version: "0.3.0",
+        buildCommit: "abc1234",
+        targetChip: "esp32s3",
+        targetHardware: "Waveshare ESP32-S3-LCD-3.16",
+        flashMode: "dio",
+        flashFreq: "80m",
+        flashSize: "16MB",
+        minimumDesktopVersion: "0.3.0",
+        files: [
+            .init(offset: "0x10000", path: "vibe_light_esp32.bin", sha256: try app.sha256Hex()),
+            .init(offset: "0x0", path: "bootloader.bin", sha256: try bootloader.sha256Hex()),
+            .init(offset: "0x8000", path: "partition-table.bin", sha256: try partition.sha256Hex()),
+        ]
+    )
+    try manifest.writeJSON(to: directory.appendingPathComponent("manifest.json"))
+
+    let bundle = try FirmwareBundleValidator().validatedBundle(at: directory)
+    let command = FirmwareFlashCommand(bundle: bundle, port: "/dev/cu.usbmodem2101", baud: 460_800)
+
+    #expect(bundle.manifest.version == "0.3.0")
+    #expect(command.esptoolArguments == [
+        "--chip", "esp32s3",
+        "--port", "/dev/cu.usbmodem2101",
+        "--baud", "460800",
+        "--before", "default_reset",
+        "--after", "hard_reset",
+        "write_flash",
+        "--flash_mode", "dio",
+        "--flash_freq", "80m",
+        "--flash_size", "16MB",
+        "0x0", bootloader.path,
+        "0x8000", partition.path,
+        "0x10000", app.path,
+    ])
+}
+
+@Test func firmwareBundleValidatorRejectsChecksumMismatch() throws {
+    let directory = temporaryDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    try Data("boot".utf8).write(to: directory.appendingPathComponent("bootloader.bin"))
+    let manifest = FirmwareBundleManifest(
+        version: "0.3.0",
+        buildCommit: "abc1234",
+        targetChip: "esp32s3",
+        targetHardware: "Waveshare ESP32-S3-LCD-3.16",
+        flashMode: "dio",
+        flashFreq: "80m",
+        flashSize: "16MB",
+        minimumDesktopVersion: "0.3.0",
+        files: [
+            .init(offset: "0x0", path: "bootloader.bin", sha256: String(repeating: "0", count: 64)),
+        ]
+    )
+    try manifest.writeJSON(to: directory.appendingPathComponent("manifest.json"))
+
+    #expect(throws: FirmwareBundleError.self) {
+        try FirmwareBundleValidator().validatedBundle(at: directory)
+    }
+}
+
+@Test func serialPortDiscoveryKeepsLikelyEsp32MacOSPortsFirst() {
+    let ports = FirmwareSerialPortDiscovery().candidatePorts(from: [
+        "/dev/cu.Bluetooth-Incoming-Port",
+        "/dev/cu.usbmodem2101",
+        "/dev/cu.SLAB_USBtoUART",
+        "/dev/cu.wchusbserial1420",
+        "/dev/tty.usbmodem2101",
+    ])
+
+    #expect(ports == [
+        "/dev/cu.usbmodem2101",
+        "/dev/cu.wchusbserial1420",
+        "/dev/cu.SLAB_USBtoUART",
+    ])
+}
+
 private func temporaryDirectory() -> URL {
     URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
