@@ -43,7 +43,7 @@
 
 - 时间：2026-06-12。
 - 验证范围：Developer ID notarized desktop app。
-- 结果确认：`SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" NOTARYTOOL_PROFILE=vibe-light-notary script/package_desktop_release.sh --notarize` 已跑通，Apple Notary submission `d923ce8c-d4f9-4a03-b26b-008a2f5ec9a4` 返回 `Accepted`；`xcrun stapler validate dist/VibeLightApp.app` 通过，`spctl -a -vv --type execute dist/VibeLightApp.app` 返回 `accepted / source=Notarized Developer ID`；`codesign -dvvv` 显示 `Notarization Ticket=stapled`、Team ID `6UG7DDAY6C`、hardened runtime 和 sealed resources；签名 + notarized app 内 helper 在收窄 PATH + strict 模式下输出 bundled `esptool.py v4.11.0`；notarized app 可短暂启动。继续用 notarized app bundle 内 helper 对 `/dev/cu.usbmodem1101` 执行非破坏性 `chip_id` 读取，识别 `ESP32-S3 (QFN56)`、BLE、8MB PSRAM 和 MAC `1c:db:d4:7b:3f:cc`。仍需通过 app UI 验证完整串口烧录、BLE 扫描 / 连接和 health packet。
+- 结果确认：`SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" NOTARYTOOL_PROFILE=vibe-light-notary script/package_desktop_release.sh --notarize` 已跑通，Apple Notary submission `d923ce8c-d4f9-4a03-b26b-008a2f5ec9a4` 返回 `Accepted`；`xcrun stapler validate dist/VibeLightApp.app` 通过，`spctl -a -vv --type execute dist/VibeLightApp.app` 返回 `accepted / source=Notarized Developer ID`；`codesign -dvvv` 显示 `Notarization Ticket=stapled`、Team ID `6UG7DDAY6C`、hardened runtime 和 sealed resources；签名 + notarized app 内 helper 在收窄 PATH + strict 模式下输出 bundled `esptool.py v4.11.0`；notarized app 可短暂启动。继续用 notarized app bundle 内 helper 对 `/dev/cu.usbmodem1101` 执行非破坏性 `chip_id` 读取，识别 `ESP32-S3 (QFN56)`、BLE、8MB PSRAM 和 MAC `1c:db:d4:7b:3f:cc`。随后在 notarized app UI 点击“烧录固件”，完成 bootloader、partition table 和 app 三段写入，日志显示三段 `Hash of data verified`；烧录后 app 扫描到 `VibeLight-S3`，重新连接并读取 health packet，健康卡显示运行时间、连接已连接、最近状态运行中、背光开启、heap 约 6.7 MB 和 render tick。
 
 - 时间：2026-06-11。
 - 端口：`/dev/cu.usbmodem1101`。
@@ -68,7 +68,8 @@
    - `script/package_desktop_release.sh` 已提供本地 Developer ID 签名验证入口，可生成 `dist/VibeLightApp.app`、签名 bundle 内 nested Mach-O、签 resource bundle / 主 app、执行 `codesign --verify`、归档 zip，并支持显式 `--notarize` 后先校验凭证再提交、staple 和 Gatekeeper 校验。
    - UI 已能针对下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失给出明确恢复提示。
    - 下一步需要确认可分发 Python runtime 的正式来源和许可证，并完整审阅生成的 esptool/Python 许可证材料。
-   - notarized app bundle 内 helper 已能访问 `/dev/cu.usbmodem1101` 并读取 `ESP32-S3 (QFN56)` 芯片信息；仍需通过 app UI 实跑完整串口烧录、BLE 扫描 / 连接、health packet 和烧录前芯片确认。
+   - notarized app bundle 内 helper 已能访问 `/dev/cu.usbmodem1101` 并读取 `ESP32-S3 (QFN56)` 芯片信息；notarized app UI 已完成完整串口烧录、BLE 扫描 / 连接和 health packet 展示闭环。
+   - 仍需补烧录前芯片确认 UI，避免直接进入写入。
    - 方案细节见 `docs/desktop-firmware-flashing.md`。
 
 2. **保持显示模型测试随功能演进收紧**

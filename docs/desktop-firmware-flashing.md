@@ -136,7 +136,7 @@ xcrun notarytool store-credentials vibe-light-notary \
 
 `script/package_desktop_release.sh --notarize` 会在 build/sign 前校验 notarization 凭证。2026-06-12 本机尚未配置 `vibe-light-notary` profile，也没有检测到 `APPLE_API_KEY` / `APPLE_API_KEY_PATH`、`APPLE_API_KEY_ID` 和 `APPLE_API_ISSUER` 环境变量，所以 notarization 提交还未执行。
 
-2026-06-12 后续已创建并验证 `vibe-light-notary` profile，并跑通完整 notarization：Apple Notary submission `d923ce8c-d4f9-4a03-b26b-008a2f5ec9a4` 返回 `Accepted`，`xcrun stapler validate dist/VibeLightApp.app` 通过，`spctl -a -vv --type execute dist/VibeLightApp.app` 返回 `accepted / source=Notarized Developer ID`，`codesign -dvvv` 显示 `Notarization Ticket=stapled`。签名 + notarized app 内 helper 在收窄 PATH + strict 模式下仍能加载 bundled `esptool.py v4.11.0`，notarized app 可短暂启动。继续用 notarized app bundle 内 helper 对 `/dev/cu.usbmodem1101` 执行非破坏性 `chip_id` 读取，已识别 `ESP32-S3 (QFN56)`、BLE、8MB PSRAM 和目标 MAC。
+2026-06-12 后续已创建并验证 `vibe-light-notary` profile，并跑通完整 notarization：Apple Notary submission `d923ce8c-d4f9-4a03-b26b-008a2f5ec9a4` 返回 `Accepted`，`xcrun stapler validate dist/VibeLightApp.app` 通过，`spctl -a -vv --type execute dist/VibeLightApp.app` 返回 `accepted / source=Notarized Developer ID`，`codesign -dvvv` 显示 `Notarization Ticket=stapled`。签名 + notarized app 内 helper 在收窄 PATH + strict 模式下仍能加载 bundled `esptool.py v4.11.0`，notarized app 可短暂启动。继续用 notarized app bundle 内 helper 对 `/dev/cu.usbmodem1101` 执行非破坏性 `chip_id` 读取，已识别 `ESP32-S3 (QFN56)`、BLE、8MB PSRAM 和目标 MAC。随后在 notarized app UI 点击“烧录固件”，完成三段写入和 hash verification，烧录后 app 扫描到设备、重新连接并读取 health packet。
 
 CI 后续可以复用同一个脚本，但需要额外把 Developer ID Application 证书和私钥导入临时 keychain，再提供 `SIGNING_IDENTITY`。Notarization 可以使用 `NOTARYTOOL_PROFILE`，也可以使用 `APPLE_API_KEY` / `APPLE_API_KEY_PATH`、`APPLE_API_KEY_ID` 和 `APPLE_API_ISSUER`。
 
@@ -181,7 +181,8 @@ CI 后续可以复用同一个脚本，但需要额外把 Developer ID Applicati
    - `script/package_desktop_release.sh` 已串接 desktop build、Developer ID signing、nested Mach-O signing、zip 归档和可选 notarization / staple。
    - 已用真实 Apple notarization profile 验证 notarized app、staple、Gatekeeper 和 helper strict 模式。
    - 已用 notarized app bundle 内 helper 验证目标板串口握手和芯片读取。
-   - 仍需通过 app UI 验证完整烧录、BLE 扫描 / 连接和 health packet。
+   - 已通过 notarized app UI 验证完整烧录、BLE 扫描 / 连接和 health packet。
+   - 仍需补烧录前芯片确认 UI。
    - 在 release-prep 入口之上继续补 smoke checklist，确保 desktop app 和内置固件版本可追踪。
 
 4. **体验优化**

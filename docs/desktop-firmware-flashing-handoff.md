@@ -122,7 +122,8 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 2026-06-12 已创建 `vibe-light-notary` profile 并跑通 notarization：submission `d923ce8c-d4f9-4a03-b26b-008a2f5ec9a4` 返回 `Accepted`，staple / validate 成功，Gatekeeper 返回 `accepted / source=Notarized Developer ID`，`codesign -dvvv` 显示 `Notarization Ticket=stapled`。
    - 已验证 helper 在签名 + notarized app 中可用：收窄 PATH + strict 模式输出 bundled `esptool.py v4.11.0`。
    - 已验证 notarized app bundle 内 helper 可访问 `/dev/cu.usbmodem1101` 并非破坏性读取 `ESP32-S3 (QFN56)` 芯片信息。
-   - 尚未通过 app UI 验证 notarized app 下完整串口烧录、BLE 扫描 / 连接和 health packet 是否需要额外 entitlement 或权限说明。
+   - 已通过 notarized app UI 点击“烧录固件”完成完整写入：bootloader、partition table 和 app 三段均 hash verified；烧录后 app 扫描到 `VibeLight-S3`，重新连接并读取 health packet。
+   - 尚未补烧录前芯片确认 UI。
 
 2. Python runtime 发布路线已确定但未完成验证
    - 第一版发布路线改为随 app bundle 内置完整 Python runtime，目标是用户只安装 desktop app 即可烧录。
@@ -163,7 +164,8 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 用 `xcrun notarytool store-credentials vibe-light-notary --key /path/to/AuthKey.p8 --key-id <KEY_ID> --issuer <ISSUER_ID> --validate` 创建本机 notarization profile。
    - 已用 `SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" NOTARYTOOL_PROFILE=vibe-light-notary script/package_desktop_release.sh --notarize` 验证 app bundle、helper、staple 和 Gatekeeper。
    - 已接目标板验证 notarized app bundle 内 helper 的串口访问和芯片读取。
-   - 下一步通过 app UI 验证完整烧录、BLE 扫描 / 连接和 health packet。
+   - 已通过 app UI 验证完整烧录、BLE 扫描 / 连接和 health packet。
+   - 下一步补烧录前芯片读取确认，避免直接进入写入。
    - 如果 Developer ID 路线稳定，再评估 App Store sandbox 可行性。
 
 4. 建立 release 构建脚本

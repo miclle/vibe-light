@@ -45,6 +45,7 @@ final class VibeLightAppModel: ObservableObject {
     private var lastForwardedPacketData: Data?
     private var demoPacketHold = HardwareDemoPacketHold()
     private var didStartHardwareAutoConnect = false
+    private var isAwaitingFirmwareReconnect = false
 
     init(
         eventLog: EventLog = EventLog(),
@@ -70,9 +71,11 @@ final class VibeLightAppModel: ObservableObject {
                 self?.hardwareConnectionState = state
                 self?.isHardwareScanning = isScanning
                 self?.hardwareMessage = message
+                self?.updateFirmwareReconnectMessage(for: state)
             },
             onHealthChanged: { [weak self] health in
                 self?.hardwareHealthPacket = health
+                self?.finishFirmwareReconnectIfNeeded(health: health)
             },
             latestPacketData: { [weak self] maximumWriteLength in
                 try? self?.latestPacket?.encodedJSON(maximumWriteLength: maximumWriteLength)
@@ -253,6 +256,7 @@ final class VibeLightAppModel: ObservableObject {
 
         let command = FirmwareFlashCommand(bundle: firmwareBundle, port: selectedFirmwareSerialPort)
         isFirmwareFlashing = true
+        isAwaitingFirmwareReconnect = false
         firmwareFlashMessage = "正在烧录 \(selectedFirmwareSerialPort)..."
         firmwareFlashLog = ""
 
@@ -260,6 +264,7 @@ final class VibeLightAppModel: ObservableObject {
             do {
                 let output = try await runFirmwareFlash(helperURL: helperURL, command: command)
                 firmwareFlashLog = output
+                isAwaitingFirmwareReconnect = true
                 firmwareFlashMessage = "烧录完成。正在扫描 VibeLight-S3..."
                 isFirmwareFlashing = false
                 startHardwareScan()
@@ -267,8 +272,26 @@ final class VibeLightAppModel: ObservableObject {
                 firmwareFlashLog = (error as? FirmwareFlashProcessError)?.output ?? firmwareFlashLog
                 firmwareFlashMessage = FirmwareFlashFailureAdvice(error: error).message
                 isFirmwareFlashing = false
+                isAwaitingFirmwareReconnect = false
             }
         }
+    }
+
+    private func updateFirmwareReconnectMessage(for state: HardwareConnectionState) {
+        guard isAwaitingFirmwareReconnect else {
+            return
+        }
+        if state.isConnected {
+            firmwareFlashMessage = "烧录完成。已重新连接 VibeLight-S3，正在读取健康状态。"
+        }
+    }
+
+    private func finishFirmwareReconnectIfNeeded(health: HealthPacket?) {
+        guard isAwaitingFirmwareReconnect, health != nil else {
+            return
+        }
+        firmwareFlashMessage = "烧录完成。已重新连接 VibeLight-S3，健康状态已更新。"
+        isAwaitingFirmwareReconnect = false
     }
 
     func pollEvents() async {
