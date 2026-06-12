@@ -115,7 +115,7 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 成功后 app 自动扫描 BLE，重新连接 `VibeLight-S3`。
    - health packet UI 展示 runtime、connected、running、backlight on、heap 余量和 render tick。
 
-## 未完成事项
+## 状态与剩余 gate
 
 1. 发布签名、notarization 和烧录前芯片确认已完成验证
    - 已新增 `script/package_desktop_release.sh` 作为本地 Developer ID 签名验证入口，负责 build/stage app、签名 app bundle 内 nested Mach-O、签 resource bundle / 主 app、执行 `codesign --verify` 并生成 zip。
@@ -143,7 +143,7 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
 4. 失败恢复体验仍偏基础
    - UI 当前记录 helper 日志，但没有把 esptool 进度解析成 progress bar。
    - 常见失败已经有明确提示：下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失。
-   - 当前依赖 `--chip esp32s3` 和 esptool 芯片校验拒绝非 S3；app 还没有单独 pre-read 芯片信息并在写入前展示确认。
+   - app 已在写入前单独执行 `chip_id` pre-read 并展示确认，写入入口会等确认后才启用。
 
 5. 发布自动化已有 checklist 入口，正式 release 参数仍需确定
    - `script/prepare_desktop_firmware_release.sh` 已串起 ESP32 构建、固件包生成、工具 vendoring 和 helper 收窄 PATH 验证。
@@ -152,33 +152,22 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
 
 ## 建议下一步
 
-推荐按以下顺序继续：
+推荐按以下顺序处理正式发布 gate：
 
-1. 先跑通 bundled Python runtime 发布资产
-   - 本地候选 runtime 已跑通，第一版正式来源选定为 PlatformIO portable Python。
-   - 继续用 `script/prepare_desktop_firmware_release.sh --python-runtime <path> --require-bundled-python ...` 生成自包含 `FirmwareTools`。
-   - 保持收窄 PATH 加 strict 模式验证 helper 只使用 app bundle 内资源。
+1. 跑正式 release checklist
+   - 选定 release version 和 desktop version。
+   - 用 `script/desktop_firmware_release_checklist.sh --python-runtime <path> --require-bundled-python --notarize --chip-port <port>` 生成自包含资源、签名/notarize app、检查 notice 并记录目标板 `chip_id`。
+   - 保留 `dist/release/desktop-firmware-release-<version>.md` 和 `dist/release/logs/` 作为发布证据。
 
-2. 补齐 license / notice
-   - 完整运行 `package_firmware_tools.py --clean`。
-   - 审阅生成的 `FirmwareTools/THIRD_PARTY_NOTICES.md`，必要时补充上游许可证全文或发布说明。
+2. 人工审阅 license / notice
+   - 审阅生成的 `FirmwareTools/THIRD_PARTY_NOTICES.md`。
+   - 重点确认 `esptool` GPLv2+ 和 Python runtime / 间接依赖 notice 是否满足当次分发要求。
 
-3. 做 signed Developer ID app 验证
-   - 先用 `SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" script/package_desktop_release.sh` 跑通本地 Developer ID 签名。
-   - 用 `xcrun notarytool store-credentials vibe-light-notary --key /path/to/AuthKey.p8 --key-id <KEY_ID> --issuer <ISSUER_ID> --validate` 创建本机 notarization profile。
-   - 已用 `SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" NOTARYTOOL_PROFILE=vibe-light-notary script/package_desktop_release.sh --notarize` 验证 app bundle、helper、staple 和 Gatekeeper。
-   - 已接目标板验证 notarized app bundle 内 helper 的串口访问和芯片读取。
-   - 已通过 app UI 验证完整烧录、BLE 扫描 / 连接和 health packet。
-   - 已补烧录前芯片读取确认，避免直接进入写入。
+3. 继续体验优化
+   - 如需要更细的用户反馈，再解析 esptool 输出显示 stage/progress。
    - 如果 Developer ID 路线稳定，再评估 App Store sandbox 可行性。
 
-4. 建立 release 构建脚本
-   - `script/package_desktop_release.sh` 已串起 desktop build、签名、zip 归档和可选 notarization。
-   - `script/desktop_firmware_release_checklist.sh` 已把它和 `script/prepare_desktop_firmware_release.sh` 组合成完整 release checklist。
-   - 每次 release 记录固件 version、build commit、desktop version、端口、目标芯片和验证结果。
-
-5. 改进 UI 失败恢复
-   - 解析 esptool 输出，显示 stage/progress。
+4. 保持失败恢复测试
    - 保持 download mode、串口占用、checksum mismatch、非 ESP32-S3 设备和 helper runtime 缺失提示的测试覆盖。
    - 烧录前芯片读取和硬件确认已落地，后续继续补进度展示。
 

@@ -158,7 +158,7 @@ xcrun notarytool store-credentials vibe-light-notary \
   --validate
 ```
 
-`script/package_desktop_release.sh --notarize` 会在 build/sign 前校验 notarization 凭证。2026-06-12 本机尚未配置 `vibe-light-notary` profile，也没有检测到 `APPLE_API_KEY` / `APPLE_API_KEY_PATH`、`APPLE_API_KEY_ID` 和 `APPLE_API_ISSUER` 环境变量，所以 notarization 提交还未执行。
+`script/package_desktop_release.sh --notarize` 会在 build/sign 前校验 notarization 凭证；如果没有 `NOTARYTOOL_PROFILE` 或 Apple API key 参数，会在打包前失败并提示配置方式。
 
 2026-06-12 后续已创建并验证 `vibe-light-notary` profile，并跑通完整 notarization：Apple Notary submission `d923ce8c-d4f9-4a03-b26b-008a2f5ec9a4` 返回 `Accepted`，`xcrun stapler validate dist/VibeLightApp.app` 通过，`spctl -a -vv --type execute dist/VibeLightApp.app` 返回 `accepted / source=Notarized Developer ID`，`codesign -dvvv` 显示 `Notarization Ticket=stapled`。签名 + notarized app 内 helper 在收窄 PATH + strict 模式下仍能加载 bundled `esptool.py v4.11.0`，notarized app 可短暂启动。继续用 notarized app bundle 内 helper 对 `/dev/cu.usbmodem1101` 执行非破坏性 `chip_id` 读取，已识别 `ESP32-S3 (QFN56)`、BLE、8MB PSRAM 和目标 MAC。随后在 notarized app UI 点击“烧录固件”，完成三段写入和 hash verification，烧录后 app 扫描到设备、重新连接并读取 health packet。dev app UI 已补齐烧录前芯片确认：读取前“烧录固件”禁用，读取 `/dev/cu.usbmodem1101` 确认 `ESP32-S3 (QFN56)` 和 MAC `1c:db:d4:7b:3f:cc` 后才启用写入入口。
 
@@ -185,7 +185,7 @@ CI 后续可以复用同一个脚本，但需要额外把 Developer ID Applicati
 - 失败时保留清晰错误原因和重试按钮。
 - 烧录成功后通过 BLE 名称和 health packet 做闭环验证。
 
-## 发布前剩余工作
+## 发布前 checklist
 
 1. **helper 打包**
    - 当前已在 `Resources/FirmwareTools/` 放入可签名的 `vibe-light-firmware-flasher` wrapper，并能通过 vendored `python-packages` 加载 `esptool`。
@@ -193,7 +193,7 @@ CI 后续可以复用同一个脚本，但需要额外把 Developer ID Applicati
    - `projects/esp32/tools/package_firmware_tools.py --python-runtime <path> --require-python-runtime` 可把预备好的独立 Python runtime 复制到 `FirmwareTools/python/`，并验证 `python/bin/python3` 可执行。
    - `VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1` 会让 helper 只使用 bundled Python runtime 和 bundled `esptool`，用于证明发布包不依赖用户系统环境；release-prep 还会用 bundled Python import `esptool`、`pyserial`、`cryptography`、`PyYAML` 和 `cffi`，避免二进制依赖 ABI 问题漏过。
    - `projects/esp32/tools/package_firmware_tools.py` 会从 vendored Python package metadata 生成 `FirmwareTools/THIRD_PARTY_NOTICES.md`，让许可证材料跟实际依赖版本保持一致。
-   - 第一版 runtime 来源已选定为 PlatformIO portable Python；发布前仍需按 checklist 完整跑通工具 vendoring，并审阅生成的第三方 notices。
+   - 第一版 runtime 来源已选定为 PlatformIO portable Python；正式 release 前按 checklist 完整跑通工具 vendoring，并审阅生成的第三方 notices。
 
 2. **真实应用闭环验证**
    - 已用 `dist/VibeLightApp.app` resource 通过 USB 烧录目标板，并验证重启、BLE 广播、desktop 连接和状态写入。
@@ -208,7 +208,7 @@ CI 后续可以复用同一个脚本，但需要额外把 Developer ID Applicati
    - 已用 notarized app bundle 内 helper 验证目标板串口握手和芯片读取。
    - 已通过 notarized app UI 验证完整烧录、BLE 扫描 / 连接和 health packet。
    - dev app UI 已补齐烧录前芯片确认，写入入口会等 `chip_id` 读取并匹配目标芯片后才启用。
-   - 正式 release 前仍需选定 release version、desktop version 和 runtime 来源，并保存 checklist 结果。
+   - 正式 release 前选定 release version 和 desktop version，并保存 checklist 结果。
 
 4. **体验优化**
    - UI 已能把常见 helper 失败分类成可执行提示：下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失。

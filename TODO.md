@@ -39,7 +39,7 @@
 
 - 时间：2026-06-12。
 - 验证范围：notarization 凭证预检。
-- 结果确认：`script/package_desktop_release.sh --notarize` 已支持 build/sign 前凭证校验和命令行覆盖 `NOTARYTOOL_PROFILE` / Apple API key 参数；本机尚未配置 `vibe-light-notary` profile，也未检测到 Apple API key 环境变量，因此 notarization 提交待配置凭证后继续。
+- 结果确认：`script/package_desktop_release.sh --notarize` 已支持 build/sign 前凭证校验和命令行覆盖 `NOTARYTOOL_PROFILE` / Apple API key 参数；初次预检在未配置凭证时会明确失败并提示配置方式，随后已创建 `vibe-light-notary` profile 并完成 notarization 验证。
 
 - 时间：2026-06-12。
 - 验证范围：Developer ID notarized desktop app。
