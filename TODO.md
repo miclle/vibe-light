@@ -33,6 +33,10 @@
 - 验证范围：内置 Python runtime 发布资产准备。
 - 结果确认：使用本机 PlatformIO portable Python 3.11.7 arm64 候选 runtime 运行 `script/prepare_desktop_firmware_release.sh --skip-esp32-build --version dev-test --minimum-desktop-version dev --python-runtime /Users/miclle/.platformio/python3 --require-bundled-python` 成功；生成 `FirmwareTools/python` 约 105MB、`python-packages` 约 37MB、`FirmwareBundle` 约 1MB；收窄 PATH + strict helper 输出 `esptool.py v4.11.0`，并通过 bundled Python import smoke 覆盖 `esptool`、`pyserial`、`cryptography`、`PyYAML` 和 `cffi`。
 
+- 时间：2026-06-12。
+- 验证范围：本地 Developer ID 签名发布包。
+- 结果确认：使用 `SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" script/package_desktop_release.sh` 成功生成 `dist/VibeLightApp.app` 和 `dist/release/VibeLightApp-26a8c33.zip`；脚本签名并验证 83 个 nested Mach-O 文件，覆盖 app、hook、内置 Python runtime、Python `lib-dynload` 和 vendored wheel `.so`；主 app 签名显示 Team ID `6UG7DDAY6C`、hardened runtime、timestamp 和 sealed resources。签名后的 helper 在收窄 PATH + strict 模式下输出 bundled `esptool.py v4.11.0`，签名 app 可短暂启动；未 notarize 时 Gatekeeper 结果为 `Unnotarized Developer ID`。
+
 - 时间：2026-06-11。
 - 端口：`/dev/cu.usbmodem1101`。
 - 固件版本：`3215f23`。
@@ -53,9 +57,10 @@
    - 发布形态资源已完成实机烟测：dist app resource 中的 helper 和固件包可通过 USB 写入目标板，vendored `python-packages` 路径可在无 Homebrew esptool 的 PATH 下工作，重启后 BLE 广播和 desktop 连接 / 状态写入正常；macOS UI 点击“烧录固件”也已完成烧录、扫描、连接和 health packet 展示闭环。
    - `script/prepare_desktop_firmware_release.sh` 已提供发布资产准备入口，串起 ESP32 构建、固件包生成、esptool vendoring 和 helper 收窄 PATH 验证；`package_firmware_tools.py` 会生成 `FirmwareTools/THIRD_PARTY_NOTICES.md` 供发布审阅。
    - 第一版发布路线已切到内置 Python runtime：`package_firmware_tools.py --python-runtime <path> --require-python-runtime` 可复制 runtime 到 `FirmwareTools/python/`，`VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1` 可验证 helper 不依赖系统 Python、Homebrew `esptool` 或用户 PATH；本地 PlatformIO portable Python 3.11.7 arm64 候选已完成 release-prep 和 import smoke。
+   - `script/package_desktop_release.sh` 已提供本地 Developer ID 签名验证入口，可生成 `dist/VibeLightApp.app`、签名 bundle 内 nested Mach-O、签 resource bundle / 主 app、执行 `codesign --verify`、归档 zip，并支持显式 `--notarize` 后提交、staple 和 Gatekeeper 校验。
    - UI 已能针对下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失给出明确恢复提示。
-   - 下一步需要确认可分发 Python runtime 的正式来源和许可证，签名 `FirmwareTools/vibe-light-firmware-flasher` 和 runtime 内 nested code，并完整审阅生成的 esptool/Python 许可证材料。
-   - 仍需验证 notarized app 的 macOS 串口 / USB entitlement、helper notarization、发布脚本中的 desktop build / signing / notarization 串接和烧录前芯片确认。
+   - 下一步需要确认可分发 Python runtime 的正式来源和许可证，并完整审阅生成的 esptool/Python 许可证材料。
+   - 仍需实跑 notarized app 的 macOS 串口 / USB entitlement、helper notarization、desktop build / signing / notarization 串接和烧录前芯片确认。
    - 方案细节见 `docs/desktop-firmware-flashing.md`。
 
 2. **保持显示模型测试随功能演进收紧**

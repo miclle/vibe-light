@@ -105,6 +105,27 @@ UI 位于“硬件设备”页的独立“固件烧录”区域：
 
 macOS 分发前必须实测签名、notarization 和 sandbox 行为。
 
+当前仓库新增 `script/package_desktop_release.sh` 作为本地 Developer ID 发布验证入口。它会复用 `script/build_and_run.sh --package` 生成 `dist/VibeLightApp.app`，递归查找 app bundle 内的 Mach-O 文件并逐个用 hardened runtime + timestamp 签名，然后签 resource bundle 和主 app bundle，最后执行 `codesign --verify`、生成 zip，并在未 notarize 时把 `spctl` 结果作为提示而不是硬失败。
+
+2026-06-12 已在本机使用 `Developer ID Application: Miclle Zheng (6UG7DDAY6C)` 跑通本地签名验证。脚本签名并验证了 83 个 nested Mach-O 文件，包括 app 主程序、`vibe-light-hook`、内置 Python runtime、`lib-dynload` 扩展和 vendored wheel 中的 `.so`；主 app 签名显示 Developer ID authority、Team ID `6UG7DDAY6C`、hardened runtime、timestamp 和 sealed resources。签名后的 helper 在收窄 PATH + strict 模式下能从 `Contents/Resources/VibeLight_VibeLightApp.bundle/FirmwareTools/` 加载 bundled `esptool.py v4.11.0`。未 notarize 时 `spctl` 结果为 `Unnotarized Developer ID`，这是下一步 notarization 要解决的 Gatekeeper 状态。
+
+本地签名验证最小命令：
+
+```bash
+SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" \
+  script/package_desktop_release.sh
+```
+
+如果已经在钥匙串里保存了 notarytool profile，可以继续跑 notarization 和 staple：
+
+```bash
+SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" \
+  NOTARYTOOL_PROFILE=vibe-light-notary \
+  script/package_desktop_release.sh --notarize
+```
+
+CI 后续可以复用同一个脚本，但需要额外把 Developer ID Application 证书和私钥导入临时 keychain，再提供 `SIGNING_IDENTITY`。Notarization 可以使用 `NOTARYTOOL_PROFILE`，也可以使用 `APPLE_API_KEY` / `APPLE_API_KEY_PATH`、`APPLE_API_KEY_ID` 和 `APPLE_API_ISSUER`。
+
 需要重点验证：
 
 - 沙盒环境下访问串口设备是否需要 `com.apple.security.device.serial`。
@@ -143,8 +164,9 @@ macOS 分发前必须实测签名、notarization 和 sandbox 行为。
 
 3. **发布签名**
    - 给固件包增加版本、校验和 release notes。
-   - 验证 app bundle 签名、helper 签名、notarization 和 sandbox 权限。
-   - 在 release-prep 入口之上继续串接 desktop build、Developer ID signing、notarization 和 smoke checklist，确保 desktop app 和内置固件版本可追踪。
+   - `script/package_desktop_release.sh` 已串接 desktop build、Developer ID signing、nested Mach-O signing、zip 归档和可选 notarization / staple。
+   - 仍需用真实 Apple notarization 凭证验证 notarized app、helper 执行、串口访问、BLE 扫描和 sandbox 权限。
+   - 在 release-prep 入口之上继续补 smoke checklist，确保 desktop app 和内置固件版本可追踪。
 
 4. **体验优化**
    - UI 已能把常见 helper 失败分类成可执行提示：下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失。

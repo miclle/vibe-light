@@ -288,7 +288,7 @@ final class VibeLightAppModel: ObservableObject {
     }
 
     private func bundledFirmwareURL() -> URL? {
-        guard let url = Bundle.module.url(forResource: "FirmwareBundle", withExtension: nil),
+        guard let url = AppResourceBundle.bundle.url(forResource: "FirmwareBundle", withExtension: nil),
               FileManager.default.fileExists(atPath: url.appendingPathComponent("manifest.json").path) else {
             return nil
         }
@@ -296,7 +296,7 @@ final class VibeLightAppModel: ObservableObject {
     }
 
     private func firmwareFlashHelperURL() -> URL? {
-        if let bundledURL = Bundle.module.url(forResource: "FirmwareTools/vibe-light-firmware-flasher", withExtension: nil),
+        if let bundledURL = AppResourceBundle.bundle.url(forResource: "FirmwareTools/vibe-light-firmware-flasher", withExtension: nil),
            FileManager.default.isExecutableFile(atPath: bundledURL.path) {
             return bundledURL
         }

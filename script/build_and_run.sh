@@ -12,10 +12,11 @@ DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
+APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 RESOURCE_BUNDLE_NAME="VibeLight_VibeLightApp.bundle"
-RESOURCE_BUNDLE="$APP_BUNDLE/$RESOURCE_BUNDLE_NAME"
+RESOURCE_BUNDLE="$APP_RESOURCES/$RESOURCE_BUNDLE_NAME"
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
@@ -27,6 +28,7 @@ BUILD_RESOURCE_BUNDLE="$BUILD_PRODUCTS_DIR/$RESOURCE_BUNDLE_NAME"
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS"
+mkdir -p "$APP_RESOURCES"
 cp "$BUILD_BINARY" "$APP_BINARY"
 cp "$HOOK_BINARY" "$APP_MACOS/vibe-light-hook"
 cp -R "$BUILD_RESOURCE_BUNDLE" "$RESOURCE_BUNDLE"
@@ -63,6 +65,8 @@ open_app() {
 }
 
 case "$MODE" in
+  --package|package)
+    ;;
   run)
     open_app
     ;;
@@ -83,7 +87,7 @@ case "$MODE" in
     pgrep -x "$APP_NAME" >/dev/null
     ;;
   *)
-    echo "usage: $0 [run|--debug|--logs|--telemetry|--verify]" >&2
+    echo "usage: $0 [run|--package|--debug|--logs|--telemetry|--verify]" >&2
     exit 2
     ;;
 esac

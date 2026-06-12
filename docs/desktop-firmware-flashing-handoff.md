@@ -116,10 +116,11 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
 ## 未完成事项
 
 1. 发布签名和 notarization 未验证
-   - 尚未验证 Developer ID signed app。
+   - 已新增 `script/package_desktop_release.sh` 作为本地 Developer ID 签名验证入口，负责 build/stage app、签名 app bundle 内 nested Mach-O、签 resource bundle / 主 app、执行 `codesign --verify` 并生成 zip。
+   - 2026-06-12 已用 `Developer ID Application: Miclle Zheng (6UG7DDAY6C)` 跑通本地签名验证：83 个 nested Mach-O 文件完成签名和 `codesign --verify`，主 app 显示 hardened runtime、timestamp、sealed resources 和 Team ID `6UG7DDAY6C`；签名后 helper 在 strict 模式下可加载 bundled `esptool.py v4.11.0`；签名 app 可短暂启动。
    - 尚未验证 notarized app。
-   - 尚未验证 helper 在签名 / notarization 后是否能正常执行。
-   - 尚未验证 signed/notarized app 下串口访问是否需要额外 entitlement。
+   - 尚未验证 helper 在 notarization / staple 后是否能正常执行。
+   - 尚未验证 notarized app 下串口访问是否需要额外 entitlement。
 
 2. Python runtime 发布路线已确定但未完成验证
    - 第一版发布路线改为随 app bundle 内置完整 Python runtime，目标是用户只安装 desktop app 即可烧录。
@@ -156,11 +157,12 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 审阅生成的 `FirmwareTools/THIRD_PARTY_NOTICES.md`，必要时补充上游许可证全文或发布说明。
 
 3. 做 signed Developer ID app 验证
-   - 先用 Developer ID 路线验证 app bundle、helper、串口访问和 BLE 扫描。
+   - 先用 `SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" script/package_desktop_release.sh` 跑通本地 Developer ID 签名。
+   - 再用 Developer ID 路线验证 app bundle、helper、串口访问和 BLE 扫描。
    - 如果 Developer ID 路线稳定，再评估 App Store sandbox 可行性。
 
 4. 建立 release 构建脚本
-   - 基于 `script/prepare_desktop_firmware_release.sh` 继续串接 desktop build、签名、notarization 和 smoke test。
+   - `script/package_desktop_release.sh` 已串起 desktop build、签名、zip 归档和可选 notarization；后续把它和 `script/prepare_desktop_firmware_release.sh` 组合成完整 release checklist。
    - 每次 release 记录固件 version、build commit、desktop version、端口、目标芯片和验证结果。
 
 5. 改进 UI 失败恢复

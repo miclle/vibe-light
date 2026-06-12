@@ -8,7 +8,7 @@ struct VibeLightApp: App {
     @StateObject private var model = VibeLightAppModel()
 
     init() {
-        if let iconURL = Bundle.module.url(forResource: "AppIcon", withExtension: "icns"),
+        if let iconURL = AppResourceBundle.bundle.url(forResource: "AppIcon", withExtension: "icns"),
            let icon = NSImage(contentsOf: iconURL) {
             NSApplication.shared.applicationIconImage = icon
         }
