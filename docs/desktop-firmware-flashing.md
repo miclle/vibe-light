@@ -196,6 +196,17 @@ make desktop-release-notarized
 
 CI 后续可以复用同一个脚本，但需要额外把 Developer ID Application 证书和私钥导入临时 keychain，再提供 `SIGNING_IDENTITY`。Notarization 可以使用 `NOTARYTOOL_PROFILE`，也可以使用 `APPLE_API_KEY` / `APPLE_API_KEY_PATH`、`APPLE_API_KEY_ID` 和 `APPLE_API_ISSUER`。
 
+2026-06-13 已新增手动触发的 GitHub Actions workflow：`.github/workflows/release-desktop.yml`。该 workflow 在 macOS runner 上安装 ESP-IDF、准备 bundled Python runtime、导入 Developer ID 证书、把 Apple API key 存成临时 `notarytool` profile、运行 `desktop_firmware_release_checklist.sh --notarize`、验证解压后的 notarized app，并创建 GitHub draft / pre-release。仓库需要配置以下 GitHub Secrets：
+
+- `SIGNING_IDENTITY`
+- `MACOS_CERTIFICATE_P12_BASE64`
+- `MACOS_CERTIFICATE_PASSWORD`
+- `APPLE_API_KEY`
+- `APPLE_API_KEY_ID`
+- `APPLE_API_ISSUER`
+
+CI 可以完成可分发包生成、签名、notarization、staple、Gatekeeper / codesign 验证和 release asset 上传；真实 USB `chip_id`、UI 烧录、BLE 重连和 health packet 仍需要从 GitHub release 下载后在本地 Mac + ESP32-S3 上验收。
+
 需要重点验证：
 
 - 沙盒环境下访问串口设备是否需要 `com.apple.security.device.serial`。

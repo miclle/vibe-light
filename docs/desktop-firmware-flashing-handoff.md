@@ -170,6 +170,7 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
 5. 发布自动化已有 checklist 和 GitHub pre-release 入口
    - `script/prepare_desktop_firmware_release.sh` 已串起 ESP32 构建、固件包生成、工具 vendoring 和 helper 收窄 PATH 验证。
    - `script/desktop_firmware_release_checklist.sh` 已把固件资源准备、desktop app 打包签名、可选 notarization、third-party notice 检查和目标板 `chip_id` 读取串成 markdown checklist，日志写入 `dist/release/logs/`。
+   - `.github/workflows/release-desktop.yml` 已提供手动触发的 GitHub draft / pre-release 自动化：在 macOS runner 上构建固件和 app，导入 Developer ID 证书，使用 Apple API key 建立临时 `notarytool` profile，执行 notarized checklist，验证 zip 解压形态，并上传 release assets。
    - 当前 dev pre-release `v2026.06.13-dev-98427be` 已发布；正式公开 / 稳定 release 前需要明确 stable release version、desktop version、runtime 来源和 checklist 归档规则。
 
 ## 建议下一步

@@ -1,0 +1,294 @@
+name: Release Desktop App
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version. Leave empty to use YYYY.MM.DD-dev-<short sha>."
+        required: false
+        type: string
+      tag:
+        description: "Git tag to create. Leave empty to use v<version>."
+        required: false
+        type: string
+      minimum_desktop_version:
+        description: "Minimum compatible desktop version recorded in the firmware manifest."
+        required: true
+        default: "dev"
+        type: string
+      supersedes:
+        description: "Optional previous release tag to mention in release notes."
+        required: false
+        type: string
+      prerelease:
+        description: "Mark the GitHub release as a pre-release."
+        required: true
+        default: true
+        type: boolean
+      draft:
+        description: "Create the GitHub release as a draft."
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-desktop-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, notarize, and publish
+    runs-on: macos-15
+    timeout-minutes: 90
+
+    env:
+      SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
+      MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      NOTARYTOOL_TIMEOUT: 30m
+      ESP_IDF_VERSION: v5.5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release secrets
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in \
+            SIGNING_IDENTITY \
+            MACOS_CERTIFICATE_P12_BASE64 \
+            MACOS_CERTIFICATE_PASSWORD \
+            APPLE_API_KEY \
+            APPLE_API_KEY_ID \
+            APPLE_API_ISSUER
+          do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing required secret: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Resolve version
+        id: release
+        run: |
+          set -euo pipefail
+          short_sha="$(git rev-parse --short HEAD)"
+          version="${{ inputs.version }}"
+          if [[ -z "$version" ]]; then
+            version="$(date '+%Y.%m.%d')-dev-$short_sha"
+          fi
+          tag="${{ inputs.tag }}"
+          if [[ -z "$tag" ]]; then
+            tag="v$version"
+          fi
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "tag=$tag" >>"$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Prepare bundled Python runtime
+        id: python-runtime
+        run: |
+          set -euo pipefail
+          python_prefix="$(python3 - <<'PY'
+          import pathlib
+          import sys
+          print(pathlib.Path(sys.executable).resolve().parents[1])
+          PY
+          )"
+          runtime_dir="$RUNNER_TEMP/python-runtime"
+          rm -rf "$runtime_dir"
+          rsync -a "$python_prefix/" "$runtime_dir/"
+          version="$(python3 - <<'PY'
+          import platform
+          print(platform.python_version())
+          PY
+          )"
+          cat >"$runtime_dir/package.json" <<JSON
+          {
+            "name": "python-runtime",
+            "version": "$version-github-actions",
+            "license": "PSF-2.0",
+            "homepage": "https://github.com/actions/python-versions"
+          }
+          JSON
+          license_file="$(find "$python_prefix" -maxdepth 4 -iname 'LICENSE*' -type f | head -n 1 || true)"
+          if [[ -n "$license_file" ]]; then
+            cp "$license_file" "$runtime_dir/LICENSE"
+          else
+            cat >"$runtime_dir/LICENSE" <<'EOF'
+          Python Software Foundation License.
+          See https://docs.python.org/3/license.html for the complete license text.
+          EOF
+          fi
+          "$runtime_dir/bin/python3" --version
+          echo "path=$runtime_dir" >>"$GITHUB_OUTPUT"
+
+      - name: Install ESP-IDF
+        uses: espressif/install-esp-idf-action@v1
+        with:
+          version: ${{ env.ESP_IDF_VERSION }}
+
+      - name: Import Developer ID certificate
+        env:
+          KEYCHAIN_PASSWORD: ${{ runner.temp }}/not-a-secret
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/vibe-light-build.keychain-db"
+          certificate="$RUNNER_TEMP/developer-id.p12"
+          printf '%s' "$MACOS_CERTIFICATE_P12_BASE64" | base64 --decode >"$certificate"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          security import "$certificate" \
+            -k "$keychain" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          security default-keychain -d user -s "$keychain"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$keychain"
+          security find-identity -p codesigning -v
+
+      - name: Store notarization profile
+        env:
+          NOTARYTOOL_PROFILE: vibe-light-ci-${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+          printf '%s\n' "$APPLE_API_KEY" >"$key_path"
+          chmod 600 "$key_path"
+          xcrun notarytool store-credentials "$NOTARYTOOL_PROFILE" \
+            --key "$key_path" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER" \
+            --validate
+          echo "NOTARYTOOL_PROFILE=$NOTARYTOOL_PROFILE" >>"$GITHUB_ENV"
+
+      - name: Run notarized desktop release checklist
+        run: |
+          set -euo pipefail
+          script/desktop_firmware_release_checklist.sh \
+            --version "${{ steps.release.outputs.version }}" \
+            --minimum-desktop-version "${{ inputs.minimum_desktop_version }}" \
+            --python-runtime "${{ steps.python-runtime.outputs.path }}" \
+            --require-bundled-python \
+            --identity "$SIGNING_IDENTITY" \
+            --notarize \
+            --notarytool-profile "$NOTARYTOOL_PROFILE" \
+            --notarytool-timeout "$NOTARYTOOL_TIMEOUT"
+
+      - name: Verify release archive
+        id: verify
+        run: |
+          set -euo pipefail
+          version="${{ steps.release.outputs.version }}"
+          zip_path="dist/release/VibeLightApp-$version-notarized.zip"
+          report_path="dist/release/desktop-firmware-release-$version.md"
+          test_dir="$RUNNER_TEMP/vibe-light-release-check"
+          rm -rf "$test_dir"
+          mkdir -p "$test_dir"
+          ditto -x -k "$zip_path" "$test_dir"
+          app_path="$test_dir/VibeLightApp.app"
+          xcrun stapler validate "$app_path"
+          syspolicy_check distribution "$app_path"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          env PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+            VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1 \
+            /bin/bash "$app_path/Contents/Resources/VibeLight_VibeLightApp.bundle/FirmwareTools/vibe-light-firmware-flasher" --help >/tmp/vibe-light-flasher-help.txt
+          grep -q 'esptool.py' /tmp/vibe-light-flasher-help.txt
+          zip_sha="$(shasum -a 256 "$zip_path" | awk '{print $1}')"
+          report_sha="$(shasum -a 256 "$report_path" | awk '{print $1}')"
+          echo "zip_path=$zip_path" >>"$GITHUB_OUTPUT"
+          echo "report_path=$report_path" >>"$GITHUB_OUTPUT"
+          echo "zip_sha=$zip_sha" >>"$GITHUB_OUTPUT"
+          echo "report_sha=$report_sha" >>"$GITHUB_OUTPUT"
+
+      - name: Check release logs for credential arguments
+        run: |
+          set -euo pipefail
+          version="${{ steps.release.outputs.version }}"
+          if grep -E -q 'apple-api|AuthKey_|APPLE_API_KEY|APPLE_API_ISSUER' \
+            "dist/release/logs/package-desktop-$version.log" \
+            "dist/release/desktop-firmware-release-$version.md"
+          then
+            echo "::error::Release logs contain credential-like arguments."
+            exit 1
+          fi
+
+      - name: Write release notes
+        id: notes
+        run: |
+          set -euo pipefail
+          notes="$RUNNER_TEMP/release-notes.md"
+          version="${{ steps.release.outputs.version }}"
+          cat >"$notes" <<EOF
+          Dev pre-release for the macOS firmware flashing flow.
+          EOF
+          if [[ -n "${{ inputs.supersedes }}" ]]; then
+            cat >>"$notes" <<EOF
+
+          Supersedes ${{ inputs.supersedes }}.
+          EOF
+          fi
+          cat >>"$notes" <<EOF
+
+          Artifacts:
+          - VibeLightApp-$version-notarized.zip
+            - SHA-256: ${{ steps.verify.outputs.zip_sha }}
+          - desktop-firmware-release-$version.md
+            - SHA-256: ${{ steps.verify.outputs.report_sha }}
+
+          Validation completed in GitHub Actions:
+          - ESP-IDF firmware build completed with ESP-IDF $ESP_IDF_VERSION.
+          - Developer ID signing completed for app, helper, bundled Python runtime, and nested Mach-O files.
+          - Apple notarization accepted; staple validation passed.
+          - syspolicy_check distribution and codesign --verify --deep --strict passed after ditto extraction.
+          - Bundled helper ran in strict mode with a narrowed PATH and reported esptool.py.
+          - Release logs were checked for Apple API key argument leakage.
+
+          Local follow-up still required:
+          - Download this release asset on a Mac.
+          - Use Finder / Archive Utility or ditto to extract the zip.
+          - Run the firmware flashing UI against a real ESP32-S3 and verify BLE health reconnect.
+          EOF
+          echo "path=$notes" >>"$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          args=(
+            release create "${{ steps.release.outputs.tag }}"
+            "${{ steps.verify.outputs.zip_path }}"
+            "${{ steps.verify.outputs.report_path }}"
+            --title "${{ steps.release.outputs.tag }}"
+            --notes-file "${{ steps.notes.outputs.path }}"
+            --target "$GITHUB_SHA"
+          )
+          if [[ "${{ inputs.prerelease }}" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          if [[ "${{ inputs.draft }}" == "true" ]]; then
+            args+=(--draft)
+          fi
+          gh "${args[@]}"

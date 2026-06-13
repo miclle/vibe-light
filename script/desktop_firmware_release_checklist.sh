@@ -276,7 +276,7 @@ if [[ -f "$NOTICE_URL" ]]; then
     echo "third-party notices are missing esptool metadata: $NOTICE_URL" >&2
     exit 1
   fi
-  if [[ "$REQUIRE_BUNDLED_PYTHON" -eq 1 ]] && ! grep -q '^## python-portable ' "$NOTICE_URL"; then
+  if [[ "$REQUIRE_BUNDLED_PYTHON" -eq 1 ]] && ! grep -q 'Bundled Python runtime used by the firmware flashing helper' "$NOTICE_URL"; then
     echo "third-party notices are missing bundled Python runtime metadata: $NOTICE_URL" >&2
     exit 1
   fi
@@ -311,7 +311,7 @@ if [[ -f "$NOTICE_URL" ]]; then
   append_report "- GPL source offer: \`$SOURCE_OFFER_URL\`"
   append_report "- esptool source archive: \`$esptool_source\`"
   append_report "- esptool source SHA-256: \`$esptool_source_sha\`"
-  append_report "- Required entries: \`esptool\`$([[ "$REQUIRE_BUNDLED_PYTHON" -eq 1 ]] && printf ', `python-portable`')"
+  append_report "- Required entries: \`esptool\`$([[ "$REQUIRE_BUNDLED_PYTHON" -eq 1 ]] && printf ', bundled Python runtime')"
 else
   append_report "- Status: missing"
   append_report "- File: \`$NOTICE_URL\`"
