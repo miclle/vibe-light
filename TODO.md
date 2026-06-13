@@ -45,6 +45,10 @@
 - 验证范围：Developer ID notarized desktop app。
 - 结果确认：`SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" NOTARYTOOL_PROFILE=vibe-light-notary script/package_desktop_release.sh --notarize` 已跑通，Apple Notary submission `d923ce8c-d4f9-4a03-b26b-008a2f5ec9a4` 返回 `Accepted`；`xcrun stapler validate dist/VibeLightApp.app` 通过，`spctl -a -vv --type execute dist/VibeLightApp.app` 返回 `accepted / source=Notarized Developer ID`；`codesign -dvvv` 显示 `Notarization Ticket=stapled`、Team ID `6UG7DDAY6C`、hardened runtime 和 sealed resources；签名 + notarized app 内 helper 在收窄 PATH + strict 模式下输出 bundled `esptool.py v4.11.0`；notarized app 可短暂启动。继续用 notarized app bundle 内 helper 对 `/dev/cu.usbmodem1101` 执行非破坏性 `chip_id` 读取，识别 `ESP32-S3 (QFN56)`、BLE、8MB PSRAM 和 MAC `1c:db:d4:7b:3f:cc`。随后在 notarized app UI 点击“烧录固件”，完成 bootloader、partition table 和 app 三段写入，日志显示三段 `Hash of data verified`；烧录后 app 扫描到 `VibeLight-S3`，重新连接并读取 health packet，健康卡显示运行时间、连接已连接、最近状态运行中、背光开启、heap 约 6.7 MB 和 render tick。
 
+- 时间：2026-06-13。
+- 验证范围：带 GPL source gate 的完整 desktop firmware release checklist。
+- 结果确认：在提交 `ffaf09f` 上运行 `SIGNING_IDENTITY="Developer ID Application: Miclle Zheng (6UG7DDAY6C)" NOTARYTOOL_PROFILE=vibe-light-notary script/desktop_firmware_release_checklist.sh --version 2026.06.13-dev-ffaf09f --minimum-desktop-version dev --python-runtime /Users/miclle/.platformio/python3 --require-bundled-python --notarize --chip-port /dev/cu.usbmodem1101` 通过；ESP-IDF 构建生成 app version `ffaf09f`，Developer ID 签名验证 83 个 nested Mach-O，Apple Notary submission `8c39946b-beab-421b-8b1f-48d9bea0b2c0` 返回 `Accepted`，staple / validate 和 Gatekeeper `source=Notarized Developer ID` 通过。release checklist 报告 `dist/release/desktop-firmware-release-2026.06.13-dev-ffaf09f.md` 记录 third-party notice、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-4.11.0.tar.gz`，源码包 SHA-256 为 `496571e4f6e36f7dc9a730dd485c4a9d522c9e7d6bb90ea2fec0a049275fbfad`；notarized zip `dist/release/VibeLightApp-2026.06.13-dev-ffaf09f-notarized.zip` 已抽查包含上述 GPL 材料。notarized app 内 strict helper 对 `/dev/cu.usbmodem1101` 读取到 `ESP32-S3 (QFN56) (revision v0.2)` 和 MAC `1c:db:d4:7b:3f:cc`。
+
 - 时间：2026-06-11。
 - 端口：`/dev/cu.usbmodem1101`。
 - 固件版本：`3215f23`。
@@ -68,7 +72,7 @@
    - `script/package_desktop_release.sh` 已提供本地 Developer ID 签名验证入口，可生成 `dist/VibeLightApp.app`、签名 bundle 内 nested Mach-O、签 resource bundle / 主 app、执行 `codesign --verify`、归档 zip，并支持显式 `--notarize` 后先校验凭证再提交、staple 和 Gatekeeper 校验。
    - `script/desktop_firmware_release_checklist.sh` 已把固件资源准备、desktop app 打包签名、可选 notarization、third-party notice / GPL source gate 检查和目标板 `chip_id` 读取串成 markdown checklist，日志写入 `dist/release/logs/`。
    - UI 已能针对下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失给出明确恢复提示。
-   - 正式发布前仍需人工审阅生成的 esptool/Python 许可证材料，尤其确认 `esptool` GPLv2+ source offer、源码归档和间接依赖 notice。
+   - 带 GPL source gate 的完整 release checklist 已通过；正式公开 / 商业发布前仍需人工审阅生成的 esptool/Python 许可证材料，尤其确认 `esptool` GPLv2+ source offer、源码归档和间接依赖 notice。
    - notarized app bundle 内 helper 已能访问 `/dev/cu.usbmodem1101` 并读取 `ESP32-S3 (QFN56)` 芯片信息；notarized app UI 已完成完整串口烧录、BLE 扫描 / 连接和 health packet 展示闭环。
    - dev app UI 已补齐烧录前芯片确认：读取前“烧录固件”禁用，点击“读取芯片”确认 `ESP32-S3 (QFN56)` 和 MAC 后才启用写入入口，避免直接进入写入。
    - 方案细节见 `docs/desktop-firmware-flashing.md`。

@@ -127,6 +127,7 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 已验证 notarized app bundle 内 helper 可访问 `/dev/cu.usbmodem1101` 并非破坏性读取 `ESP32-S3 (QFN56)` 芯片信息。
    - 已通过 notarized app UI 点击“烧录固件”完成完整写入：bootloader、partition table 和 app 三段均 hash verified；烧录后 app 扫描到 `VibeLight-S3`，重新连接并读取 health packet。
    - dev app UI 已补齐烧录前芯片确认：读取前“烧录固件”禁用，点击“读取芯片”确认 `ESP32-S3 (QFN56)` 和 MAC 后才启用写入入口。
+   - 2026-06-13 已在提交 `ffaf09f` 上跑通带 GPL source gate 的完整 `script/desktop_firmware_release_checklist.sh`：版本 `2026.06.13-dev-ffaf09f`，Apple Notary submission `8c39946b-beab-421b-8b1f-48d9bea0b2c0` 返回 `Accepted`，staple / Gatekeeper 通过，release 报告为 `dist/release/desktop-firmware-release-2026.06.13-dev-ffaf09f.md`，notarized zip 为 `dist/release/VibeLightApp-2026.06.13-dev-ffaf09f-notarized.zip`。
 
 2. Python runtime 发布路线已确定并完成本地验证
    - 第一版发布路线改为随 app bundle 内置完整 Python runtime，目标是用户只安装 desktop app 即可烧录。
@@ -140,7 +141,8 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - `package_firmware_tools.py` 已能根据 vendored Python package metadata 生成 `FirmwareTools/THIRD_PARTY_NOTICES.md`。
    - `package_firmware_tools.py` 会下载 `esptool` 对应源码归档，生成 `OPEN_SOURCE_NOTICES.md` 和 `SOURCE_OFFER.md`，并记录 GPL license 文件、源码路径和 SHA-256。
    - `script/desktop_firmware_release_checklist.sh` 会检查 `THIRD_PARTY_NOTICES.md` 存在 `esptool` 条目、`OPEN_SOURCE_NOTICES.md` / `SOURCE_OFFER.md` 存在 GPLv2+ 元数据、`sources/esptool-*.tar.*` 存在并把 SHA-256 写入 release 报告；启用 `--require-bundled-python` 时也会检查 `python-portable` 条目。
-   - 正式发布前仍需人工审阅生成内容，确认 `esptool` GPLv2+、Python runtime 和间接依赖的许可证材料符合当次发布要求。
+   - 2026-06-13 完整 checklist 已确认 notarized zip 内包含 `THIRD_PARTY_NOTICES.md`、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-4.11.0.tar.gz`；源码包 SHA-256 为 `496571e4f6e36f7dc9a730dd485c4a9d522c9e7d6bb90ea2fec0a049275fbfad`。
+   - 正式公开 / 商业发布前仍需人工审阅生成内容，确认 `esptool` GPLv2+、Python runtime 和间接依赖的许可证材料符合当次发布要求。
 
 4. 失败恢复体验仍偏基础
    - UI 当前记录 helper 日志，但没有把 esptool 进度解析成 progress bar。
@@ -156,10 +158,10 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
 
 推荐按以下顺序处理正式发布 gate：
 
-1. 跑正式 release checklist
-   - 选定 release version 和 desktop version。
-   - 用 `script/desktop_firmware_release_checklist.sh --python-runtime <path> --require-bundled-python --notarize --chip-port <port>` 生成自包含资源、签名/notarize app、检查 notice 并记录目标板 `chip_id`。
-   - 保留 `dist/release/desktop-firmware-release-<version>.md` 和 `dist/release/logs/` 作为发布证据。
+1. 审阅当前 release checklist 产物
+   - 最新通过版本为 `2026.06.13-dev-ffaf09f`。
+   - 报告：`dist/release/desktop-firmware-release-2026.06.13-dev-ffaf09f.md`。
+   - Notarized zip：`dist/release/VibeLightApp-2026.06.13-dev-ffaf09f-notarized.zip`。
 
 2. 人工审阅 license / notice
    - 审阅生成的 `FirmwareTools/THIRD_PARTY_NOTICES.md`。
