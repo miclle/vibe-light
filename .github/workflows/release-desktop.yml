@@ -110,15 +110,73 @@ jobs:
         id: python-runtime
         run: |
           set -euo pipefail
+          pyver="$(python3 - <<'PY'
+          import sys
+          print(f"{sys.version_info.major}.{sys.version_info.minor}")
+          PY
+          )"
           python_prefix="$(python3 - <<'PY'
           import pathlib
           import sys
-          print(pathlib.Path(sys.executable).resolve().parents[1])
+          print(pathlib.Path(sys.prefix).resolve())
           PY
           )"
           runtime_dir="$RUNNER_TEMP/python-runtime"
           rm -rf "$runtime_dir"
-          rsync -a "$python_prefix/" "$runtime_dir/"
+          mkdir -p "$runtime_dir/bin" "$runtime_dir/lib"
+          python3 - <<'PY' "$runtime_dir" "$pyver"
+          import os
+          import pathlib
+          import shutil
+          import stat
+          import sys
+          import sysconfig
+
+          runtime_dir = pathlib.Path(sys.argv[1])
+          pyver = sys.argv[2]
+          source_executable = pathlib.Path(sys.executable).resolve()
+          stdlib = pathlib.Path(sysconfig.get_path("stdlib")).resolve()
+          platstdlib = pathlib.Path(sysconfig.get_path("platstdlib")).resolve()
+          libdir_value = sysconfig.get_config_var("LIBDIR")
+          prefix = pathlib.Path(sys.prefix).resolve()
+
+          bin_dir = runtime_dir / "bin"
+          lib_dir = runtime_dir / "lib"
+          runtime_stdlib = lib_dir / f"python{pyver}"
+
+          shutil.copy2(source_executable, bin_dir / f"python{pyver}")
+          executable_mode = (bin_dir / f"python{pyver}").stat().st_mode
+          (bin_dir / f"python{pyver}").chmod(executable_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+          os.symlink(f"python{pyver}", bin_dir / "python3")
+
+          shutil.copytree(stdlib, runtime_stdlib, symlinks=True)
+          source_dynload = platstdlib / "lib-dynload"
+          target_dynload = runtime_stdlib / "lib-dynload"
+          if source_dynload.is_dir() and source_dynload.resolve() != target_dynload.resolve():
+              if target_dynload.exists():
+                  shutil.rmtree(target_dynload)
+              shutil.copytree(source_dynload, target_dynload, symlinks=True)
+
+          dylib_patterns = [f"libpython{pyver}*.dylib", f"libpython{pyver}*.so"]
+          lib_search_dirs = []
+          if libdir_value:
+              lib_search_dirs.append(pathlib.Path(libdir_value).resolve())
+          lib_search_dirs.extend([prefix / "lib", prefix])
+          seen = set()
+          for lib_search_dir in lib_search_dirs:
+              if not lib_search_dir.is_dir():
+                  continue
+              for pattern in dylib_patterns:
+                  for source_url in sorted(lib_search_dir.glob(pattern)):
+                      resolved = source_url.resolve()
+                      if resolved in seen or not resolved.is_file():
+                          continue
+                      seen.add(resolved)
+                      shutil.copy2(resolved, lib_dir / source_url.name)
+          framework_binary = prefix / "Python"
+          if framework_binary.is_file() and not (lib_dir / f"libpython{pyver}.dylib").exists():
+              shutil.copy2(framework_binary, lib_dir / f"libpython{pyver}.dylib")
+          PY
           version="$(python3 - <<'PY'
           import platform
           print(platform.python_version())
@@ -141,7 +199,34 @@ jobs:
           See https://docs.python.org/3/license.html for the complete license text.
           EOF
           fi
-          "$runtime_dir/bin/python3" --version
+          if [[ -f "$runtime_dir/lib/libpython$pyver.dylib" ]]; then
+            install_name_tool -id "@rpath/libpython$pyver.dylib" "$runtime_dir/lib/libpython$pyver.dylib" || true
+            for old_name in \
+              "@executable_path/../Python" \
+              "@loader_path/../Python" \
+              "$(python3 - <<'PY'
+          import pathlib
+          import sys
+          print(pathlib.Path(sys.prefix).resolve() / "Python")
+          PY
+          )"
+            do
+              install_name_tool -change "$old_name" "@rpath/libpython$pyver.dylib" "$runtime_dir/bin/python$pyver" || true
+            done
+            install_name_tool -add_rpath "@executable_path/../lib" "$runtime_dir/bin/python$pyver" || true
+          fi
+          otool -L "$runtime_dir/bin/python$pyver" || true
+          PYTHONHOME="$runtime_dir" "$runtime_dir/bin/python3" - <<'PY'
+          import bz2
+          import ctypes
+          import encodings
+          import json
+          import lzma
+          import pathlib
+          import ssl
+          import zlib
+          print("bundled runtime import check passed")
+          PY
           echo "path=$runtime_dir" >>"$GITHUB_OUTPUT"
 
       - name: Install ESP-IDF
