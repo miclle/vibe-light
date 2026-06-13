@@ -134,11 +134,12 @@ jobs:
 
           runtime_dir = pathlib.Path(sys.argv[1])
           pyver = sys.argv[2]
-          source_executable = pathlib.Path(sys.executable).resolve()
+          prefix = pathlib.Path(sys.prefix).resolve()
+          app_executable = prefix / "Resources" / "Python.app" / "Contents" / "MacOS" / "Python"
+          source_executable = app_executable if app_executable.is_file() else pathlib.Path(sys.executable).resolve()
           stdlib = pathlib.Path(sysconfig.get_path("stdlib")).resolve()
           platstdlib = pathlib.Path(sysconfig.get_path("platstdlib")).resolve()
           libdir_value = sysconfig.get_config_var("LIBDIR")
-          prefix = pathlib.Path(sys.prefix).resolve()
 
           bin_dir = runtime_dir / "bin"
           lib_dir = runtime_dir / "lib"
@@ -203,7 +204,11 @@ jobs:
             install_name_tool -id "@rpath/libpython$pyver.dylib" "$runtime_dir/lib/libpython$pyver.dylib" || true
             for old_name in \
               "@executable_path/../Python" \
+              "@executable_path/../../../Python" \
+              "@executable_path/../../../../Python" \
               "@loader_path/../Python" \
+              "@loader_path/../../../Python" \
+              "@loader_path/../../../../Python" \
               "$(python3 - <<'PY'
           import pathlib
           import sys
