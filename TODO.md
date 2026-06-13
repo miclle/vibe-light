@@ -61,6 +61,10 @@
 - 验证范围：烧录进度修复后的 GitHub pre-release 发布与下载包回归。
 - 结果确认：已发布 GitHub pre-release `v2026.06.13-dev-98427be`，release URL 为 `https://github.com/miclle/vibe-light/releases/tag/v2026.06.13-dev-98427be`，tag 指向 `98427bee72b1a3249f1b022ee794fefd0cd9cabf`，并在 release notes 标明 supersede `v2026.06.13-dev-ffaf09f`。完整 `script/desktop_firmware_release_checklist.sh --version 2026.06.13-dev-98427be --minimum-desktop-version dev --python-runtime /Users/miclle/.platformio/python3 --require-bundled-python --identity "Developer ID Application: Miclle Zheng (6UG7DDAY6C)" --notarize --notarytool-profile vibe-light-notary --chip-port /dev/cu.usbmodem1101` 通过；Apple Notary submission `0fe51533-2c15-493e-809d-07693eb43a2e` 返回 `Accepted`，staple / validate、`syspolicy_check distribution` 和 `codesign --verify --deep --strict` 通过。GitHub asset 重新下载后的 SHA-256 为 `55c31ef27c5a8957b2393d920bd159c8b42bd0840e13d4949b392ac0cae61bfa`（notarized zip）和 `44a0f3881635d2f769bcee7af4cdf25840c169d9213a4ab990638b418c0a2ea9`（checklist），与 release notes / GitHub digest 一致。下载 zip 用 `ditto -x -k` 解压后通过 stapler、distribution policy 和 codesign，manifest 为 `2026.06.13-dev-98427be / 98427be`，GPL 材料和 `sources/esptool-4.11.0.tar.gz` 均存在，源码包 SHA-256 仍为 `496571e4f6e36f7dc9a730dd485c4a9d522c9e7d6bb90ea2fec0a049275fbfad`。同一下载形态 app 内 strict helper 对 `/dev/cu.usbmodem1101` 完成完整 `write_flash`，bootloader、partition table 和 app 三段均 `Hash of data verified`，最后 `Hard resetting via RTS pin`。
 
+- 时间：2026-06-13。
+- 验证范围：`v2026.06.13-dev-98427be` 下载 app UI 试用和后续修复。
+- 结果确认：从 `~/Downloads` 启动下载形态 app 成功；固件烧录页读取芯片识别 `ESP32-S3 (QFN56)` / MAC `1c:db:d4:7b:3f:cc`，UI 完成 bootloader、partition table 和 app 三段写入，随后连接 `VibeLight-S3` 并刷新健康状态到运行中、背光开启。试用中发现 UI 会在 app 分区仍写入时提前显示 `校验完成 100%`，原因是累计日志里早期分区的 `Hash of data verified` 优先级高于后续写入行。`68e6244` 已修复为按累计日志里最后出现的 esptool 事件决定当前进度，并增加 Swift 测试；`swift test --package-path projects/macos/desktop` 通过 80 个测试。`v2026.06.13-dev-98427be` release notes 已补充该已知问题。尝试为 `68e6244` 生成替换版 notarized dev release 时，checklist 在 notarization 凭证预检处停止，因为本机 `vibe-light-notary` Keychain profile 当前不可用，`notarytool` 返回 `No Keychain password item found for profile`。
+
 - 时间：2026-06-11。
 - 端口：`/dev/cu.usbmodem1101`。
 - 固件版本：`3215f23`。
@@ -89,6 +93,7 @@
    - 后续非阻塞合规优化：把 `SOURCE_OFFER.md` fallback wording 写得更贴近 GPLv2 3(b)，明确 `any third party`、费用不超过实际源码分发成本，并提供稳定联系渠道；补齐 `pyserial 3.5` 等间接依赖的独立 license 文本归档，减少长期审计摩擦。
    - notarized app bundle 内 helper 已能访问 `/dev/cu.usbmodem1101` 并读取 `ESP32-S3 (QFN56)` 芯片信息；notarized app UI 已完成完整串口烧录、BLE 扫描 / 连接和 health packet 展示闭环。
    - GitHub pre-release 下载包已通过 hash、notarization/Gatekeeper、codesign、GPL 材料、app 启动和完整 UI 烧录 / BLE health 闭环验证；最新 `v2026.06.13-dev-98427be` 额外覆盖烧录进度修复后的发布 checklist、GitHub asset digest / 重新下载校验和下载形态 strict helper 完整写入。
+   - `v2026.06.13-dev-98427be` 已标记一个 UI 进度显示已知问题：app 分区仍写入时可能提前显示 `校验完成 100%`。修复已在 `68e6244` 合入并推送；新的 notarized pre-release 当前阻塞在本机 `vibe-light-notary` Keychain profile 缺失。
    - dev app UI 已补齐烧录前芯片确认：读取前“烧录固件”禁用，点击“读取芯片”确认 `ESP32-S3 (QFN56)` 和 MAC 后才启用写入入口，避免直接进入写入；写入阶段会解析 esptool 输出显示实时 stage/progress，并保留完整实时日志。
    - 方案细节见 `docs/desktop-firmware-flashing.md`。
 
@@ -107,7 +112,11 @@
 1. **先守住现有竖屏闭环**
    - 后续协议、任务摘要或硬件页改动优先补测试和实机回归，不再为已确认显示项保留单独待办。
 
-2. **再评估横屏原型**
+2. **恢复 notarization 凭证并发布替换版 pre-release**
+   - 先重新创建或恢复 `vibe-light-notary` Keychain profile。
+   - 然后基于 `68e6244` 重新运行完整 `desktop_firmware_release_checklist.sh --notarize`，发布替换版 notarized pre-release，并重复下载包 hash / Gatekeeper / codesign / UI 烧录回归。
+
+3. **再评估横屏原型**
    - 横屏是产品方向探索，不是当前链路可靠性的前置条件。
    - 建议在竖屏实机闭环稳定后，用 host-side preview 先做布局草图，再决定是否投入固件实现。
 
