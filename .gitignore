@@ -31,6 +31,10 @@ playground.xcworkspace
 
 .build/
 dist/
+.env
+.env.local
+.env.*.local
+AuthKey_*.p8
 
 # ESP-IDF
 projects/esp32/build/

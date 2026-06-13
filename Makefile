@@ -33,8 +33,11 @@ help:
 	@printf '  make desktop-logs      启动 app 并监听进程日志\n'
 	@printf '  make desktop-telemetry 启动 app 并监听应用 telemetry 日志\n'
 	@printf '  make desktop-verify    启动 app 并验证进程已运行\n'
+	@printf '  make notary-store      从 .env 创建/刷新 notarytool Keychain profile\n'
+	@printf '  make notary-validate   验证 .env 中的 notarization 凭证\n'
 	@printf '  make firmware-release  准备 desktop app 内置固件烧录发布资源\n'
 	@printf '  make desktop-release   运行 desktop 固件烧录发布 checklist\n'
+	@printf '  make desktop-release-notarized 读取 .env 并运行 notarized checklist\n'
 	@printf '  make hook-sample       发送一条 Codex hook 示例事件\n\n'
 	@printf 'ESP32 固件:\n'
 	@printf '  make idf-shell         进入已激活 ESP-IDF 的 shell\n'
@@ -75,7 +78,7 @@ clean:
 	rm -rf $(MACOS_DIR)/.build
 	rm -rf $(ESP32_DIR)/build
 
-.PHONY: desktop-build desktop-test desktop-run desktop-debug desktop-logs desktop-telemetry desktop-verify firmware-release desktop-release hook-sample
+.PHONY: desktop-build desktop-test desktop-run desktop-debug desktop-logs desktop-telemetry desktop-verify notary-store notary-validate firmware-release desktop-release desktop-release-notarized hook-sample
 desktop-build:
 	swift build --package-path $(MACOS_DIR)
 
@@ -97,11 +100,20 @@ desktop-telemetry:
 desktop-verify:
 	$(ROOT_DIR)/script/build_and_run.sh --verify
 
+notary-store:
+	$(ROOT_DIR)/script/notary_credentials.sh store
+
+notary-validate:
+	$(ROOT_DIR)/script/notary_credentials.sh validate
+
 firmware-release:
 	$(ROOT_DIR)/script/prepare_desktop_firmware_release.sh
 
 desktop-release:
 	$(ROOT_DIR)/script/desktop_firmware_release_checklist.sh
+
+desktop-release-notarized:
+	$(ROOT_DIR)/script/desktop_release_notarized.sh
 
 hook-sample:
 	printf '%s\n' '{"source":"codex","event":"PreToolUse","detail":"running shell"}' | swift run --package-path $(MACOS_DIR) vibe-light-hook

@@ -226,6 +226,16 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
 make quick
 ```
 
+恢复 notarization profile 并运行替换版 notarized release checklist：
+
+```bash
+cp .env.example .env
+$EDITOR .env
+make notary-store
+make notary-validate
+make desktop-release-notarized
+```
+
 文档验证：
 
 ```bash

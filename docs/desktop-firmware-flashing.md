@@ -160,6 +160,28 @@ xcrun notarytool store-credentials vibe-light-notary \
   --validate
 ```
 
+仓库也提供了 `.env.example` 和 Make 入口封装这一步，避免每次手写 `xcrun notarytool` 参数。先复制模板并填入真实值：
+
+```bash
+cp .env.example .env
+$EDITOR .env
+```
+
+然后创建 / 刷新 Keychain profile 并验证：
+
+```bash
+make notary-store
+make notary-validate
+```
+
+恢复 profile 后可以直接运行完整 notarized desktop firmware release checklist：
+
+```bash
+make desktop-release-notarized
+```
+
+`.env`、`.env.local`、`.env.*.local` 和 `AuthKey_*.p8` 已被 `.gitignore` 忽略；`.env.example` 只保留占位变量，可以提交。
+
 `script/package_desktop_release.sh --notarize` 会在 build/sign 前校验 notarization 凭证；如果没有 `NOTARYTOOL_PROFILE` 或 Apple API key 参数，会在打包前失败并提示配置方式。
 
 2026-06-12 后续已创建并验证 `vibe-light-notary` profile，并跑通完整 notarization：Apple Notary submission `d923ce8c-d4f9-4a03-b26b-008a2f5ec9a4` 返回 `Accepted`，`xcrun stapler validate dist/VibeLightApp.app` 通过，`spctl -a -vv --type execute dist/VibeLightApp.app` 返回 `accepted / source=Notarized Developer ID`，`codesign -dvvv` 显示 `Notarization Ticket=stapled`。签名 + notarized app 内 helper 在收窄 PATH + strict 模式下仍能加载 bundled `esptool.py v4.11.0`，notarized app 可短暂启动。继续用 notarized app bundle 内 helper 对 `/dev/cu.usbmodem1101` 执行非破坏性 `chip_id` 读取，已识别 `ESP32-S3 (QFN56)`、BLE、8MB PSRAM 和目标 MAC。随后在 notarized app UI 点击“烧录固件”，完成三段写入和 hash verification，烧录后 app 扫描到设备、重新连接并读取 health packet。dev app UI 已补齐烧录前芯片确认：读取前“烧录固件”禁用，读取 `/dev/cu.usbmodem1101` 确认 `ESP32-S3 (QFN56)` 和 MAC `1c:db:d4:7b:3f:cc` 后才启用写入入口。
