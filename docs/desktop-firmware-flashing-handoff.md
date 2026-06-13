@@ -142,7 +142,8 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - `package_firmware_tools.py` 会下载 `esptool` 对应源码归档，生成 `OPEN_SOURCE_NOTICES.md` 和 `SOURCE_OFFER.md`，并记录 GPL license 文件、源码路径和 SHA-256。
    - `script/desktop_firmware_release_checklist.sh` 会检查 `THIRD_PARTY_NOTICES.md` 存在 `esptool` 条目、`OPEN_SOURCE_NOTICES.md` / `SOURCE_OFFER.md` 存在 GPLv2+ 元数据、`sources/esptool-*.tar.*` 存在并把 SHA-256 写入 release 报告；启用 `--require-bundled-python` 时也会检查 `python-portable` 条目。
    - 2026-06-13 完整 checklist 已确认 notarized zip 内包含 `THIRD_PARTY_NOTICES.md`、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-4.11.0.tar.gz`；源码包 SHA-256 为 `496571e4f6e36f7dc9a730dd485c4a9d522c9e7d6bb90ea2fec0a049275fbfad`。
-   - 正式公开 / 商业发布前仍需人工审阅生成内容，确认 `esptool` GPLv2+、Python runtime 和间接依赖的许可证材料符合当次发布要求。
+   - 2026-06-13 已完成 zip 内实际文件的工程合规审阅：`esptool` GPL gate 对当前 dev release 可以放行；正式商业发布前仍建议法律 / 合规最终确认。
+   - 后续非阻塞优化：把 `SOURCE_OFFER.md` fallback wording 写得更贴近 GPLv2 3(b)，明确 `any third party`、费用不超过实际源码分发成本和稳定联系渠道；补齐 `pyserial 3.5` 等间接依赖的独立 license 文本归档。
 
 4. 失败恢复体验仍偏基础
    - UI 当前记录 helper 日志，但没有把 esptool 进度解析成 progress bar。
@@ -163,10 +164,10 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 报告：`dist/release/desktop-firmware-release-2026.06.13-dev-ffaf09f.md`。
    - Notarized zip：`dist/release/VibeLightApp-2026.06.13-dev-ffaf09f-notarized.zip`。
 
-2. 人工审阅 license / notice
-   - 审阅生成的 `FirmwareTools/THIRD_PARTY_NOTICES.md`。
-   - 审阅生成的 `FirmwareTools/OPEN_SOURCE_NOTICES.md`、`FirmwareTools/SOURCE_OFFER.md` 和 `FirmwareTools/sources/esptool-<version>.tar.gz`。
-   - 重点确认 `esptool` GPLv2+ 和 Python runtime / 间接依赖 notice 是否满足当次分发要求。
+2. 创建 GitHub draft pre-release
+   - Tag 指向实际构建提交 `ffaf09f`，避免后续文档提交改变二进制版本语义。
+   - 上传 notarized zip 和 release checklist 报告。
+   - Release notes 记录 notary submission ID、zip SHA-256、`esptool` 源码 SHA-256 和 dev release 限制。
 
 3. 继续体验优化
    - 如需要更细的用户反馈，再解析 esptool 输出显示 stage/progress。

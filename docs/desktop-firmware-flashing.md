@@ -164,6 +164,8 @@ xcrun notarytool store-credentials vibe-light-notary \
 
 2026-06-13 已在提交 `ffaf09f` 上跑通带 GPL source gate 的完整 release checklist：`script/desktop_firmware_release_checklist.sh --version 2026.06.13-dev-ffaf09f --minimum-desktop-version dev --python-runtime /Users/miclle/.platformio/python3 --require-bundled-python --notarize --chip-port /dev/cu.usbmodem1101`。Apple Notary submission `8c39946b-beab-421b-8b1f-48d9bea0b2c0` 返回 `Accepted`，staple / validate / Gatekeeper 通过，报告写入 `dist/release/desktop-firmware-release-2026.06.13-dev-ffaf09f.md`，notarized zip 写入 `dist/release/VibeLightApp-2026.06.13-dev-ffaf09f-notarized.zip`。报告记录了 `THIRD_PARTY_NOTICES.md`、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-4.11.0.tar.gz`；源码包 SHA-256 为 `496571e4f6e36f7dc9a730dd485c4a9d522c9e7d6bb90ea2fec0a049275fbfad`。已抽查 notarized zip 包含这些 GPL 材料，strict helper 读取 `/dev/cu.usbmodem1101` 识别 `ESP32-S3 (QFN56) (revision v0.2)` 和 MAC `1c:db:d4:7b:3f:cc`。
 
+同日已对 `dist/release/VibeLightApp-2026.06.13-dev-ffaf09f-notarized.zip` 内的实际文件完成 `esptool` GPL gate 工程合规审阅。审阅确认 `THIRD_PARTY_NOTICES.md`、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md`、GPLv2 license 文件和 `sources/esptool-4.11.0.tar.gz` 均存在，源码包 SHA-256 与 notice 一致，源码包包含 `LICENSE`、`PKG-INFO`、构建配置、`esptool/` 源码和 stub flasher 资源，`PKG-INFO` 标明 `esptool 4.11.0 / GPLv2+`。该 gate 对当前 dev release 可以放行；正式商业发布前仍建议法律 / 合规最终确认。
+
 CI 后续可以复用同一个脚本，但需要额外把 Developer ID Application 证书和私钥导入临时 keychain，再提供 `SIGNING_IDENTITY`。Notarization 可以使用 `NOTARYTOOL_PROFILE`，也可以使用 `APPLE_API_KEY` / `APPLE_API_KEY_PATH`、`APPLE_API_KEY_ID` 和 `APPLE_API_ISSUER`。
 
 需要重点验证：
@@ -211,6 +213,7 @@ CI 后续可以复用同一个脚本，但需要额外把 Developer ID Applicati
    - 已通过 notarized app UI 验证完整烧录、BLE 扫描 / 连接和 health packet。
    - dev app UI 已补齐烧录前芯片确认，写入入口会等 `chip_id` 读取并匹配目标芯片后才启用。
    - 已用带 GPL source gate 的完整 checklist 验证 Developer ID notarized 包和 `esptool` 源码材料随包存在。
+   - 已完成 zip 内实际文件的工程合规审阅，当前 dev release 的 `esptool` GPL gate 可以放行。
    - 正式 release 前选定 release version 和 desktop version，并保存 checklist 结果。
 
 4. **体验优化**
