@@ -1438,6 +1438,23 @@ import Testing
     #expect(resetting.percent == 100)
 }
 
+@Test func firmwareFlashProgressUsesLatestEventInAccumulatedOutput() throws {
+    let output = """
+    Writing at 0x00000000... (100 %)
+    Hash of data verified.
+    Writing at 0x00008000... (100 %)
+    Hash of data verified.
+    Compressed 990816 bytes to 571566...
+    Writing at 0x000bb47c... (71 %)
+    Writing at 0x000c12ff... (74 %)
+    """
+
+    let progress = try #require(FirmwareFlashProgressSnapshot.parse(output: output))
+
+    #expect(progress.stage == "写入固件")
+    #expect(progress.percent == 74)
+}
+
 @Test func firmwareFlashProgressIgnoresUnrelatedOutput() {
     #expect(FirmwareFlashProgressSnapshot.parse(output: "Chip is ESP32-S3 (QFN56)") == nil)
 }

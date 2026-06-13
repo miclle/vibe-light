@@ -182,32 +182,71 @@ public struct FirmwareFlashProgressSnapshot: Equatable, Sendable {
     }
 
     public static func parse(output: String) -> FirmwareFlashProgressSnapshot? {
-        if output.localizedCaseInsensitiveContains("Hard resetting") ||
-            output.localizedCaseInsensitiveContains("Leaving") {
-            return FirmwareFlashProgressSnapshot(stage: "重启设备", percent: 100)
+        var candidates: [ProgressCandidate] = []
+        appendLatestMarker(
+            "Connecting",
+            in: output,
+            to: &candidates,
+            snapshot: FirmwareFlashProgressSnapshot(stage: "连接设备", percent: nil)
+        )
+        appendLatestMarker(
+            "Stub running",
+            in: output,
+            to: &candidates,
+            snapshot: FirmwareFlashProgressSnapshot(stage: "准备写入", percent: nil)
+        )
+        appendLatestMarker(
+            "Changing baud rate",
+            in: output,
+            to: &candidates,
+            snapshot: FirmwareFlashProgressSnapshot(stage: "准备写入", percent: nil)
+        )
+        if let writingProgress = latestWritingProgress(in: output) {
+            candidates.append(writingProgress)
         }
+        appendLatestMarker(
+            "Hash of data verified",
+            in: output,
+            to: &candidates,
+            snapshot: FirmwareFlashProgressSnapshot(stage: "校验完成", percent: 100)
+        )
+        appendLatestMarker(
+            "Leaving",
+            in: output,
+            to: &candidates,
+            snapshot: FirmwareFlashProgressSnapshot(stage: "重启设备", percent: 100)
+        )
+        appendLatestMarker(
+            "Hard resetting",
+            in: output,
+            to: &candidates,
+            snapshot: FirmwareFlashProgressSnapshot(stage: "重启设备", percent: 100)
+        )
 
-        if output.localizedCaseInsensitiveContains("Hash of data verified") {
-            return FirmwareFlashProgressSnapshot(stage: "校验完成", percent: 100)
-        }
-
-        if let writingPercent = latestWritingPercent(in: output) {
-            return FirmwareFlashProgressSnapshot(stage: "写入固件", percent: writingPercent)
-        }
-
-        if output.localizedCaseInsensitiveContains("Stub running") ||
-            output.localizedCaseInsensitiveContains("Changing baud rate") {
-            return FirmwareFlashProgressSnapshot(stage: "准备写入", percent: nil)
-        }
-
-        if output.localizedCaseInsensitiveContains("Connecting") {
-            return FirmwareFlashProgressSnapshot(stage: "连接设备", percent: nil)
-        }
-
-        return nil
+        return candidates.max(by: { $0.location < $1.location })?.snapshot
     }
 
-    private static func latestWritingPercent(in output: String) -> Int? {
+    private struct ProgressCandidate {
+        let location: Int
+        let snapshot: FirmwareFlashProgressSnapshot
+    }
+
+    private static func appendLatestMarker(
+        _ marker: String,
+        in output: String,
+        to candidates: inout [ProgressCandidate],
+        snapshot: FirmwareFlashProgressSnapshot
+    ) {
+        guard let range = output.range(of: marker, options: [.caseInsensitive, .backwards]) else {
+            return
+        }
+        candidates.append(ProgressCandidate(
+            location: NSRange(range, in: output).location,
+            snapshot: snapshot
+        ))
+    }
+
+    private static func latestWritingProgress(in output: String) -> ProgressCandidate? {
         let pattern = #"Writing at\s+0x[0-9a-fA-F]+\.\.\.\s*\(\s*(\d+)\s*%\s*\)"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else {
             return nil
@@ -215,12 +254,17 @@ public struct FirmwareFlashProgressSnapshot: Equatable, Sendable {
         let range = NSRange(output.startIndex..<output.endIndex, in: output)
         return regex.matches(in: output, range: range)
             .last
-            .flatMap { match -> Int? in
+            .flatMap { match -> ProgressCandidate? in
                 guard match.numberOfRanges > 1,
                       let percentRange = Range(match.range(at: 1), in: output) else {
                     return nil
                 }
-                return Int(output[percentRange]).map { min(max($0, 0), 100) }
+                return Int(output[percentRange]).map { percent in
+                    ProgressCandidate(
+                        location: match.range.location,
+                        snapshot: FirmwareFlashProgressSnapshot(stage: "写入固件", percent: min(max(percent, 0), 100))
+                    )
+                }
             }
     }
 }
