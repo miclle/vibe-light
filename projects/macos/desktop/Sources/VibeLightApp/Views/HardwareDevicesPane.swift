@@ -16,7 +16,6 @@ struct HardwareDevicesPane: View {
                         .frame(minWidth: 300, maxWidth: 420, alignment: .top)
                 }
 
-                firmwareFlashCard
                 demoPacketsCard
             }
             .padding(.horizontal, 40)
@@ -185,85 +184,6 @@ struct HardwareDevicesPane: View {
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
-    private var firmwareFlashCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            CardTitle(
-                title: "固件烧录",
-                subtitle: firmwareSubtitle,
-                systemImage: "memorychip"
-            )
-
-            HStack(alignment: .center, spacing: 12) {
-                Picker("USB 串口", selection: $model.selectedFirmwareSerialPort) {
-                    if model.firmwareSerialPorts.isEmpty {
-                        Text("未发现串口").tag(String?.none)
-                    } else {
-                        ForEach(model.firmwareSerialPorts, id: \.self) { port in
-                            Text(port).tag(Optional(port))
-                        }
-                    }
-                }
-                .frame(minWidth: 280, maxWidth: 380)
-                .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing)
-
-                Button {
-                    model.refreshFirmwareFlashing()
-                } label: {
-                    Label("刷新", systemImage: "arrow.clockwise")
-                }
-                .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing)
-
-                Button {
-                    model.probeFirmwareChip()
-                } label: {
-                    Label(model.isFirmwareChipProbing ? "读取中" : "读取芯片", systemImage: "checkmark.shield")
-                }
-                .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing || model.firmwareBundle == nil || model.selectedFirmwareSerialPort == nil)
-
-                Button {
-                    model.flashFirmware()
-                } label: {
-                    Label(model.isFirmwareFlashing ? "烧录中" : "烧录固件", systemImage: "bolt.horizontal.circle")
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing || model.firmwareBundle == nil || model.selectedFirmwareSerialPort == nil || model.firmwareChipProbeResult == nil)
-
-                if model.isFirmwareFlashing || model.isFirmwareChipProbing {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-            }
-            .buttonStyle(.bordered)
-
-            if let chipProbeResult = model.firmwareChipProbeResult {
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.shield.fill")
-                        .foregroundStyle(.green)
-                    Text(firmwareChipProbeSummary(chipProbeResult))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Text(model.firmwareFlashMessage)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-
-            if !model.firmwareFlashLog.isEmpty {
-                Text(model.firmwareFlashLog)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(6)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(10)
-                    .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-        }
-        .padding(18)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-    }
-
     private var demoPacketsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             CardTitle(
@@ -321,21 +241,6 @@ struct HardwareDevicesPane: View {
         }
     }
 
-    private var firmwareSubtitle: String {
-        guard let bundle = model.firmwareBundle else {
-            return model.firmwareSerialPorts.isEmpty ? "连接 USB 后刷新串口" : "等待可用固件包"
-        }
-
-        return "\(bundle.manifest.version) / \(bundle.manifest.targetChip) / \(bundle.manifest.flashSize)"
-    }
-
-    private func firmwareChipProbeSummary(_ result: FirmwareChipProbeResult) -> String {
-        if let macAddress = result.macAddress {
-            return "已确认 \(result.chipName) / \(macAddress)"
-        }
-        return "已确认 \(result.chipName)"
-    }
-
     private var connectionIcon: String {
         switch model.hardwareConnectionState {
         case .disconnected: "antenna.radiowaves.left.and.right.slash"
@@ -352,29 +257,6 @@ struct HardwareDevicesPane: View {
         case .connecting, .scanning: .blue
         case .failed: .red
         case .disconnected: .secondary
-        }
-    }
-}
-
-private struct CardTitle: View {
-    var title: String
-    var subtitle: String
-    var systemImage: String
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.headline)
-                .foregroundStyle(.blue)
-                .frame(width: 24)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.headline)
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
         }
     }
 }

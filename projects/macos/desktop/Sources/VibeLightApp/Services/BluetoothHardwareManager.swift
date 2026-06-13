@@ -15,6 +15,7 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
     private var connectedPeripheral: CBPeripheral?
     private var shouldScanWhenPoweredOn = false
     private var shouldAutoConnectFirstDevice = false
+    private var shouldClearDevicesWhenPoweredOn = false
     private var isManualDisconnectInProgress = false
     private let store = HardwareDeviceStore()
 
@@ -44,7 +45,7 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
         connectedPeripheral != nil && statusCharacteristic != nil
     }
 
-    func startScan(autoConnectFirstDevice: Bool = false) {
+    func startScan(autoConnectFirstDevice: Bool = false, clearDevices: Bool = false) {
         guard let central else { return }
 
         switch central.state {
@@ -53,11 +54,13 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
         case .unknown, .resetting:
             shouldScanWhenPoweredOn = true
             shouldAutoConnectFirstDevice = autoConnectFirstDevice
+            shouldClearDevicesWhenPoweredOn = clearDevices
             publish("等待蓝牙就绪后扫描。")
             return
         default:
             shouldScanWhenPoweredOn = false
             shouldAutoConnectFirstDevice = false
+            shouldClearDevicesWhenPoweredOn = false
             store.fail(central.state.recoveryMessage)
             publish(central.state.recoveryMessage)
             return
@@ -65,7 +68,8 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
 
         shouldScanWhenPoweredOn = false
         shouldAutoConnectFirstDevice = autoConnectFirstDevice
-        store.startScanning()
+        shouldClearDevicesWhenPoweredOn = false
+        store.startScanning(clearDevices: clearDevices)
         publish("正在扫描 VibeLight 设备...")
         central.scanForPeripherals(withServices: [serviceUUID], options: [
             CBCentralManagerScanOptionAllowDuplicatesKey: true,
@@ -75,6 +79,7 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
     func stopScan() {
         shouldScanWhenPoweredOn = false
         shouldAutoConnectFirstDevice = false
+        shouldClearDevicesWhenPoweredOn = false
         central?.stopScan()
         store.stopScanning()
         publish("已停止扫描。")
@@ -103,6 +108,7 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
         statusCharacteristic = nil
         healthCharacteristic = nil
         shouldAutoConnectFirstDevice = false
+        shouldClearDevicesWhenPoweredOn = false
         onHealthChanged(nil)
         store.disconnect()
         publish("已断开设备。")
@@ -164,7 +170,10 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
         switch central.state {
         case .poweredOn:
             if shouldScanWhenPoweredOn {
-                startScan(autoConnectFirstDevice: shouldAutoConnectFirstDevice)
+                startScan(
+                    autoConnectFirstDevice: shouldAutoConnectFirstDevice,
+                    clearDevices: shouldClearDevicesWhenPoweredOn
+                )
             } else {
                 publish("蓝牙已就绪。")
             }
@@ -173,6 +182,7 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
         default:
             shouldScanWhenPoweredOn = false
             shouldAutoConnectFirstDevice = false
+            shouldClearDevicesWhenPoweredOn = false
             store.fail(central.state.recoveryMessage)
             publish(central.state.recoveryMessage)
         }

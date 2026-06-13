@@ -21,6 +21,9 @@ final class VibeLightAppModel: ObservableObject {
     @Published private(set) var firmwareFlashMessage = "未检查固件包。"
     @Published private(set) var firmwareFlashLog = ""
     @Published private(set) var firmwareChipProbeResult: FirmwareChipProbeResult?
+    @Published private(set) var firmwareFlashFailureKind: FirmwareFlashFailureKind?
+    @Published private(set) var didCompleteFirmwareFlash = false
+    @Published private(set) var isFirmwareAwaitingReconnect = false
     @Published private(set) var isFirmwareChipProbing = false
     @Published private(set) var isFirmwareFlashing = false
     @Published var selectedFirmwareSerialPort: String? {
@@ -53,7 +56,6 @@ final class VibeLightAppModel: ObservableObject {
     private var lastForwardedPacketData: Data?
     private var demoPacketHold = HardwareDemoPacketHold()
     private var didStartHardwareAutoConnect = false
-    private var isAwaitingFirmwareReconnect = false
     private var confirmedFirmwareSerialPort: String?
 
     init(
@@ -173,8 +175,13 @@ final class VibeLightAppModel: ObservableObject {
         refreshAgentStatuses()
     }
 
-    func startHardwareScan() {
-        bluetoothManager?.startScan()
+    func startHardwareScan(clearDevices: Bool = false) {
+        bluetoothManager?.startScan(clearDevices: clearDevices)
+    }
+
+    func restartHardwareScan(clearDevices: Bool = false) {
+        bluetoothManager?.stopScan()
+        bluetoothManager?.startScan(clearDevices: clearDevices)
     }
 
     func startHardwareAutoConnectIfNeeded() {
@@ -230,6 +237,7 @@ final class VibeLightAppModel: ObservableObject {
             selectedFirmwareSerialPort = firmwareSerialPorts.first
         }
         clearFirmwareChipProbeConfirmation()
+        firmwareFlashFailureKind = nil
 
         do {
             guard let bundleURL = bundledFirmwareURL() else {
@@ -245,6 +253,18 @@ final class VibeLightAppModel: ObservableObject {
             firmwareBundle = nil
             firmwareFlashMessage = "固件包不可用：\(error.localizedDescription)"
         }
+    }
+
+    func startNewFirmwareFlash() {
+        guard !isFirmwareChipProbing, !isFirmwareFlashing else {
+            return
+        }
+
+        didCompleteFirmwareFlash = false
+        isFirmwareAwaitingReconnect = false
+        firmwareFlashFailureKind = nil
+        firmwareFlashLog = ""
+        refreshFirmwareFlashing()
     }
 
     func probeFirmwareChip() {
@@ -266,26 +286,38 @@ final class VibeLightAppModel: ObservableObject {
 
         let command = FirmwareChipProbeCommand(targetChip: firmwareBundle.manifest.targetChip, port: selectedFirmwareSerialPort)
         clearFirmwareChipProbeConfirmation()
+        firmwareFlashFailureKind = nil
         isFirmwareChipProbing = true
         firmwareFlashMessage = "正在读取 \(selectedFirmwareSerialPort) 的芯片信息..."
         firmwareFlashLog = ""
 
         Task { [helperURL, command, selectedFirmwareSerialPort] in
+            let logStream = makeFirmwareFlashLogStream()
             do {
-                let output = try await runFirmwareTool(helperURL: helperURL, arguments: command.esptoolArguments)
+                let output = try await runFirmwareTool(
+                    helperURL: helperURL,
+                    arguments: command.esptoolArguments,
+                    onOutput: logStream.append
+                )
+                await drainFirmwareFlashLogStream(logStream)
                 let result = try FirmwareChipProbeResult.parse(output: output)
                 firmwareFlashLog = output
                 if result.matches(targetChip: command.targetChip) {
                     firmwareChipProbeResult = result
                     confirmedFirmwareSerialPort = selectedFirmwareSerialPort
+                    firmwareFlashFailureKind = nil
                     firmwareFlashMessage = firmwareChipProbeMessage(for: result)
                 } else {
+                    firmwareFlashFailureKind = .unsupportedChip
                     firmwareFlashMessage = "芯片确认失败：读取到 \(result.chipName)，目标固件需要 \(command.targetChip)。"
                 }
                 isFirmwareChipProbing = false
             } catch {
+                await drainFirmwareFlashLogStream(logStream)
                 firmwareFlashLog = (error as? FirmwareFlashProcessError)?.output ?? firmwareFlashLog
-                firmwareFlashMessage = FirmwareFlashFailureAdvice(error: error).message
+                let advice = FirmwareFlashFailureAdvice(error: error)
+                firmwareFlashFailureKind = advice.kind
+                firmwareFlashMessage = advice.message
                 isFirmwareChipProbing = false
                 clearFirmwareChipProbeConfirmation()
             }
@@ -315,23 +347,37 @@ final class VibeLightAppModel: ObservableObject {
 
         let command = FirmwareFlashCommand(bundle: firmwareBundle, port: selectedFirmwareSerialPort)
         isFirmwareFlashing = true
-        isAwaitingFirmwareReconnect = false
+        didCompleteFirmwareFlash = false
+        firmwareFlashFailureKind = nil
+        hardwareHealthPacket = nil
+        isFirmwareAwaitingReconnect = false
         firmwareFlashMessage = "正在烧录 \(selectedFirmwareSerialPort)..."
         firmwareFlashLog = ""
 
         Task { [helperURL, command] in
+            let logStream = makeFirmwareFlashLogStream()
             do {
-                let output = try await runFirmwareFlash(helperURL: helperURL, command: command)
+                let output = try await runFirmwareFlash(
+                    helperURL: helperURL,
+                    command: command,
+                    onOutput: logStream.append
+                )
+                await drainFirmwareFlashLogStream(logStream)
                 firmwareFlashLog = output
-                isAwaitingFirmwareReconnect = true
-                firmwareFlashMessage = "烧录完成。正在扫描 VibeLight-S3..."
+                didCompleteFirmwareFlash = true
+                isFirmwareAwaitingReconnect = true
+                firmwareFlashFailureKind = nil
+                firmwareFlashMessage = "烧录完成。请点按 RST 正常启动设备，App 会继续扫描 VibeLight-S3。"
                 isFirmwareFlashing = false
-                startHardwareScan()
+                startHardwareScan(clearDevices: true)
             } catch {
+                await drainFirmwareFlashLogStream(logStream)
                 firmwareFlashLog = (error as? FirmwareFlashProcessError)?.output ?? firmwareFlashLog
-                firmwareFlashMessage = FirmwareFlashFailureAdvice(error: error).message
+                let advice = FirmwareFlashFailureAdvice(error: error)
+                firmwareFlashFailureKind = advice.kind
+                firmwareFlashMessage = advice.message
                 isFirmwareFlashing = false
-                isAwaitingFirmwareReconnect = false
+                isFirmwareAwaitingReconnect = false
             }
         }
     }
@@ -339,6 +385,31 @@ final class VibeLightAppModel: ObservableObject {
     private func clearFirmwareChipProbeConfirmation() {
         firmwareChipProbeResult = nil
         confirmedFirmwareSerialPort = nil
+    }
+
+    private func appendFirmwareFlashLog(_ chunk: String) {
+        firmwareFlashLog.append(chunk)
+    }
+
+    private func makeFirmwareFlashLogStream() -> FirmwareFlashLogStream {
+        let group = DispatchGroup()
+        let append: @Sendable (String) -> Void = { [weak self] chunk in
+            group.enter()
+            DispatchQueue.main.async {
+                self?.appendFirmwareFlashLog(chunk)
+                group.leave()
+            }
+        }
+        return FirmwareFlashLogStream(group: group, append: append)
+    }
+
+    private func drainFirmwareFlashLogStream(_ stream: FirmwareFlashLogStream) async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                stream.group.wait()
+                continuation.resume()
+            }
+        }
     }
 
     private func firmwareChipProbeMessage(for result: FirmwareChipProbeResult) -> String {
@@ -349,7 +420,7 @@ final class VibeLightAppModel: ObservableObject {
     }
 
     private func updateFirmwareReconnectMessage(for state: HardwareConnectionState) {
-        guard isAwaitingFirmwareReconnect else {
+        guard isFirmwareAwaitingReconnect else {
             return
         }
         if state.isConnected {
@@ -358,11 +429,11 @@ final class VibeLightAppModel: ObservableObject {
     }
 
     private func finishFirmwareReconnectIfNeeded(health: HealthPacket?) {
-        guard isAwaitingFirmwareReconnect, health != nil else {
+        guard isFirmwareAwaitingReconnect, health != nil else {
             return
         }
         firmwareFlashMessage = "烧录完成。已重新连接 VibeLight-S3，健康状态已更新。"
-        isAwaitingFirmwareReconnect = false
+        isFirmwareAwaitingReconnect = false
     }
 
     func pollEvents() async {
@@ -405,14 +476,23 @@ final class VibeLightAppModel: ObservableObject {
         return developerCandidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }
 
-    private func runFirmwareFlash(helperURL: URL, command: FirmwareFlashCommand) async throws -> String {
-        try await runFirmwareTool(helperURL: helperURL, arguments: command.esptoolArguments)
+    private func runFirmwareFlash(
+        helperURL: URL,
+        command: FirmwareFlashCommand,
+        onOutput: (@Sendable (String) -> Void)? = nil
+    ) async throws -> String {
+        try await runFirmwareTool(helperURL: helperURL, arguments: command.esptoolArguments, onOutput: onOutput)
     }
 
-    private func runFirmwareTool(helperURL: URL, arguments: [String]) async throws -> String {
+    private func runFirmwareTool(
+        helperURL: URL,
+        arguments: [String],
+        onOutput: (@Sendable (String) -> Void)? = nil
+    ) async throws -> String {
         try await firmwareFlashProcessRunner.run(
             executableURL: helperURL,
-            arguments: arguments
+            arguments: arguments,
+            onOutput: onOutput
         )
     }
 
@@ -439,10 +519,16 @@ final class VibeLightAppModel: ObservableObject {
     }
 }
 
+private struct FirmwareFlashLogStream: @unchecked Sendable {
+    let group: DispatchGroup
+    let append: @Sendable (String) -> Void
+}
+
 enum AppTab: String, CaseIterable, Identifiable {
     case general
     case agents
     case hardware
+    case firmware
     case events
 
     var id: String { rawValue }
@@ -452,6 +538,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .general: "通用"
         case .agents: "智能体安装"
         case .hardware: "硬件设备"
+        case .firmware: "固件烧录"
         case .events: "事件"
         }
     }
@@ -461,6 +548,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .general: "gearshape"
         case .agents: "terminal"
         case .hardware: "dot.radiowaves.left.and.right"
+        case .firmware: "memorychip"
         case .events: "waveform.path.ecg"
         }
     }

@@ -17,7 +17,7 @@
   - `bootloader/bootloader.bin` at `0x0`
   - `partition_table/partition-table.bin` at `0x8000`
   - `vibe_light_esp32.bin` at `0x10000`
-- macOS app 已经有“硬件设备”页，包含 BLE 扫描、连接、状态写入、健康读取和演示包发送能力，适合作为固件烧录入口。
+- macOS app 已经有“硬件设备”页，包含 BLE 扫描、连接、状态写入、健康读取和演示包发送能力；固件烧录现在作为独立侧边栏入口，复用同一套 BLE 扫描 / 重连能力完成烧录后的验证。
 
 ## 当前实现
 
@@ -29,7 +29,8 @@
 - `projects/esp32/tools/package_firmware_tools.py`：把 `esptool` 及其 Python 依赖 vendor 到 app resource 的 `FirmwareTools/python-packages/`，同时下载 `esptool` 对应源码包并生成 GPL 分发说明。
 - `projects/macos/desktop/Sources/VibeLightCore/FirmwareFlashing.swift`：解析 manifest、按 offset 排序写入项、校验每个 bin 的 SHA-256、生成 `esptool chip_id` / `write_flash` 参数、解析芯片读取输出，并枚举 macOS 常见 ESP32 串口。
 - `projects/macos/desktop/Sources/VibeLightApp/Models/VibeLightAppModel.swift`：加载内置固件包、刷新串口、先调用 helper 读取芯片信息、确认目标芯片后再允许烧录、记录日志，并在成功后启动 BLE 扫描。
-- `projects/macos/desktop/Sources/VibeLightApp/Views/HardwareDevicesPane.swift`：在“硬件设备”页新增“固件烧录”区域，提供串口选择、刷新、读取芯片、烧录按钮、状态文本和 helper 日志摘要。
+- `projects/macos/desktop/Sources/VibeLightApp/Views/FirmwareFlashPane.swift`：提供独立“固件烧录”侧边栏页面。
+- `projects/macos/desktop/Sources/VibeLightApp/Views/FirmwareFlashWizardCard.swift`：提供 step-by-step 向导，覆盖串口选择、刷新、读取芯片、下载模式恢复、烧录、RST 重启、BLE 连接和完成状态。
 - `projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/vibe-light-firmware-flasher`：app 内置烧录 helper，接受 `esptool` 兼容参数，优先使用同目录 vendor 的 runtime，开发环境可 fallback 到本机 `esptool`。
 
 2026-06-12 已完成发布形态资源和 UI 路径实机烟测：`dist/VibeLightApp.app` 中的 `FirmwareBundle` 和 `FirmwareTools/vibe-light-firmware-flasher` 可在 `/dev/cu.usbmodem2101` 写入目标 ESP32-S3；默认 PATH 下使用 `esptool.py v4.8.1` 成功，收窄 PATH 到 `/usr/bin:/bin:/usr/sbin:/sbin` 后使用 vendored `python-packages` 的 `esptool.py v4.11.0` 成功。写入均完成 bootloader、partition table 和 app 分区 hash 校验。重启后串口确认 `LCD initialized`、`advertising as VibeLight-S3`、desktop Central connected 和连续 `v:2` 状态写入。同日通过 macOS “硬件设备”页点击“烧录固件”完成一次 UI 路径烧录；UI 展示写入日志和 hash verified，随后自动扫描、重新连接 `VibeLight-S3` 并展示 health packet。
@@ -82,17 +83,18 @@ desktop app 的职责保持独立：
 4. 先调用烧录 helper 执行非破坏性 `chip_id`，读取并展示芯片型号和 MAC。
 5. 确认读取到的芯片匹配固件目标 `esp32s3` 后，才允许继续执行 `write_flash`。
 6. 将状态、日志摘要和失败原因回传给 SwiftUI。
-7. 烧录完成后触发硬件页 BLE 扫描，用户可连接 `VibeLight-S3` 并读取 health packet。
+7. 烧录完成后触发 BLE 扫描，用户可在向导中连接 `VibeLight-S3` 并读取 health packet。
 
-UI 位于“硬件设备”页的独立“固件烧录”区域：
+UI 位于侧边栏的独立“固件烧录”页面。向导按任务阶段展示当前动作，并保留详细 helper 日志折叠入口：
 
-- 未连接 USB 时提示插入设备。
-- 发现多个串口时让用户选择。
-- 烧录前显示目标固件版本和硬件型号，并要求先点击“读取芯片”完成 ESP32-S3 确认。
-- “烧录固件”按钮在芯片确认前保持禁用，切换串口或刷新后需要重新确认。
-- 烧录中显示当前状态和 helper 输出摘要。
-- 如果进入下载模式失败，提示按住 BOOT 后单击 RST，再重试。
-- 烧录成功后自动扫描 BLE 并读取设备健康状态。
+- 连接 USB：提示用户用数据线连接设备，刷新并选择 macOS 识别到的串口。
+- 读取芯片：执行非破坏性 `chip_id`，展示 ESP32-S3 芯片型号和 MAC。
+- 进入下载模式：当读取失败且判断为 download mode 问题时，分步提示按住 `BOOT`、点按 `RST`、继续按住约 1 秒、松开 `BOOT` 后重新读取。
+- 确认并烧录：显示目标固件版本、硬件型号和 flash 参数，芯片确认前不启用烧录。
+- 写入固件：提示等待 bootloader、partition table 和 app 分区写入 / hash 校验完成，写入期间不要拔线或按 `RST`。
+- 重启设备：烧录成功后提示只点按 `RST` 正常启动；如果屏幕没有画面，可再点按一次 `RST`，不要按住 `BOOT`。
+- 连接 VibeLight：继续扫描 BLE，发现 `VibeLight-S3` 后可直接连接并读取 health packet。
+- 完成：展示健康状态摘要，并保留“开始新的烧录”和刷新健康状态入口。
 
 ## 烧录工具选择
 

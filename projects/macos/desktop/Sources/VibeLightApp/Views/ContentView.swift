@@ -25,6 +25,8 @@ struct ContentView: View {
                     AgentInstallPane(model: model)
                 case .hardware:
                     HardwareDevicesPane(model: model)
+                case .firmware:
+                    FirmwareFlashPane(model: model)
                 case .events:
                     EventsPane(model: model)
                 }

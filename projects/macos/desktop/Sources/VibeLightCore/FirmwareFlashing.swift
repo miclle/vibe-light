@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 
 public struct FirmwareBundleManifest: Codable, Equatable {
@@ -276,38 +277,88 @@ public struct FirmwareChipProbeResult: Equatable {
 public struct FirmwareFlashProcessRunner: Sendable {
     public init() {}
 
-    public func run(executableURL: URL, arguments: [String]) async throws -> String {
+    public func run(
+        executableURL: URL,
+        arguments: [String],
+        onOutput: (@Sendable (String) -> Void)? = nil
+    ) async throws -> String {
         try await Task.detached(priority: .userInitiated) {
-            let process = Process()
-            process.executableURL = executableURL
-            process.arguments = arguments
-
-            let outputURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("vibe-firmware-flash-\(UUID().uuidString).log")
-            FileManager.default.createFile(atPath: outputURL.path, contents: nil)
-            let outputHandle = try FileHandle(forWritingTo: outputURL)
-            defer {
-                try? outputHandle.close()
-                try? FileManager.default.removeItem(at: outputURL)
-            }
-
-            process.standardOutput = outputHandle
-            process.standardError = outputHandle
-
-            try process.run()
-            process.waitUntilExit()
-
-            try outputHandle.close()
-            let outputData = try Data(contentsOf: outputURL)
-            let outputString = String(data: outputData, encoding: .utf8) ?? ""
-            guard process.terminationStatus == 0 else {
-                throw FirmwareFlashProcessError(status: process.terminationStatus, output: outputString)
-            }
-            return outputString
+            try Self.runSynchronously(executableURL: executableURL, arguments: arguments, onOutput: onOutput)
         }.value
+    }
+
+    private static func runSynchronously(
+        executableURL: URL,
+        arguments: [String],
+        onOutput: (@Sendable (String) -> Void)?
+    ) throws -> String {
+        let process = Process()
+        process.executableURL = executableURL
+        process.arguments = arguments
+        var environment = ProcessInfo.processInfo.environment
+        environment["PYTHONUNBUFFERED"] = "1"
+        process.environment = environment
+
+        let outputPipe = Pipe()
+        let outputBuffer = FirmwareFlashOutputBuffer()
+        let outputHandle = outputPipe.fileHandleForReading
+
+        process.standardOutput = outputPipe
+        process.standardError = outputPipe
+        defer {
+            try? outputHandle.close()
+        }
+
+        try process.run()
+        let outputReaderDone = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .userInitiated).async {
+            defer { outputReaderDone.signal() }
+
+            var buffer = [UInt8](repeating: 0, count: 4_096)
+            while true {
+                let bytesRead = read(outputHandle.fileDescriptor, &buffer, buffer.count)
+                if bytesRead > 0 {
+                    let data = Data(buffer.prefix(bytesRead))
+                    outputBuffer.append(data)
+                    if let chunk = String(data: data, encoding: .utf8), !chunk.isEmpty {
+                        onOutput?(chunk)
+                    }
+                    continue
+                }
+
+                if bytesRead == 0 || errno != EINTR {
+                    return
+                }
+            }
+        }
+        process.waitUntilExit()
+        outputReaderDone.wait()
+
+        let finalOutputData = outputBuffer.snapshot()
+        let outputString = String(data: finalOutputData, encoding: .utf8) ?? ""
+        guard process.terminationStatus == 0 else {
+            throw FirmwareFlashProcessError(status: process.terminationStatus, output: outputString)
+        }
+        return outputString
     }
 }
 
+private final class FirmwareFlashOutputBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+
+    func append(_ newData: Data) {
+        lock.lock()
+        data.append(newData)
+        lock.unlock()
+    }
+
+    func snapshot() -> Data {
+        lock.lock()
+        defer { lock.unlock() }
+        return data
+    }
+}
 public struct FirmwareFlashProcessError: Error, LocalizedError {
     public let status: Int32
     public let output: String

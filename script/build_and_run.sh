@@ -83,8 +83,14 @@ case "$MODE" in
     ;;
   --verify|verify)
     open_app
-    sleep 1
-    pgrep -x "$APP_NAME" >/dev/null
+    for _ in {1..20}; do
+      if pgrep -x "$APP_NAME" >/dev/null; then
+        exit 0
+      fi
+      sleep 0.5
+    done
+    echo "$APP_NAME did not start within 10 seconds" >&2
+    exit 1
     ;;
   *)
     echo "usage: $0 [run|--package|--debug|--logs|--telemetry|--verify]" >&2

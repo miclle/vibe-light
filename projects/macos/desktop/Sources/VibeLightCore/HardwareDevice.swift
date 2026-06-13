@@ -61,7 +61,10 @@ public final class HardwareDeviceStore {
         self.isScanning = isScanning
     }
 
-    public func startScanning() {
+    public func startScanning(clearDevices: Bool = false) {
+        if clearDevices {
+            devices.removeAll()
+        }
         isScanning = true
         connectionState = .scanning
     }

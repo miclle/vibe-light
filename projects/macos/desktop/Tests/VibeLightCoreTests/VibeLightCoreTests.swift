@@ -1252,6 +1252,18 @@ import Testing
     #expect(store.connectionState == .connected(device.id))
 }
 
+@Test func hardwareDeviceStoreCanClearStaleDevicesWhenStartingFreshScan() {
+    let store = HardwareDeviceStore()
+    let staleDevice = HardwareDevice(id: "old-esp32", name: "VibeLight-S3", rssi: -44)
+
+    store.upsert(staleDevice)
+    store.startScanning(clearDevices: true)
+
+    #expect(store.isScanning)
+    #expect(store.devices.isEmpty)
+    #expect(store.connectionState == .scanning)
+}
+
 @Test func hardwareConnectionStateReportsActionAvailability() {
     #expect(HardwareConnectionState.connected("esp32").isConnected)
     #expect(!HardwareConnectionState.connected("esp32").isConnecting)
@@ -1560,6 +1572,54 @@ import Testing
     #expect(output.count == 200_000)
 }
 
+@Test func firmwareFlashProcessRunnerStreamsOutputBeforeProcessExits() async throws {
+    let directory = temporaryDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let scriptURL = directory.appendingPathComponent("streaming-output-helper.sh")
+    let continueURL = directory.appendingPathComponent("continue")
+    try """
+    #!/usr/bin/env bash
+    python3 -u - "\(continueURL.path)" <<'PY'
+    import pathlib
+    import sys
+    import time
+
+    continue_path = pathlib.Path(sys.argv[1])
+    sys.stdout.write("first line\\n")
+    sys.stdout.flush()
+    deadline = time.time() + 10
+    while not continue_path.exists() and time.time() < deadline:
+        time.sleep(0.05)
+    sys.stdout.write("second line\\n")
+    sys.stdout.flush()
+    PY
+    """.write(to: scriptURL, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
+
+    let collector = OutputChunkCollector()
+    let runTask = Task {
+        try await FirmwareFlashProcessRunner().run(executableURL: scriptURL, arguments: []) { chunk in
+            collector.append(chunk)
+        }
+    }
+
+    var partialOutput = ""
+    for _ in 0..<40 {
+        partialOutput = collector.output
+        if partialOutput.contains("first line") {
+            break
+        }
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    #expect(partialOutput.contains("first line"))
+    #expect(!partialOutput.contains("second line"))
+    _ = FileManager.default.createFile(atPath: continueURL.path, contents: Data())
+
+    let output = try await runTask.value
+    #expect(output.contains("first line"))
+    #expect(output.contains("second line"))
+}
+
 @Test func firmwareFlashFailureAdviceExplainsDownloadModeRecovery() {
     let error = FirmwareFlashProcessError(
         status: 2,
@@ -1601,6 +1661,23 @@ private func temporaryDirectory() -> URL {
 private struct ProcessResult {
     let exitCode: Int32
     let output: String
+}
+
+private final class OutputChunkCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var chunks: [String] = []
+
+    var output: String {
+        lock.withLock {
+            chunks.joined()
+        }
+    }
+
+    func append(_ chunk: String) {
+        lock.withLock {
+            chunks.append(chunk)
+        }
+    }
 }
 
 private func runProcess(
