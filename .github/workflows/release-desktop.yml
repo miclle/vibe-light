@@ -214,6 +214,8 @@ jobs:
               install_name_tool -change "$old_name" "@rpath/libpython$pyver.dylib" "$runtime_dir/bin/python$pyver" || true
             done
             install_name_tool -add_rpath "@executable_path/../lib" "$runtime_dir/bin/python$pyver" || true
+            codesign --force --sign - "$runtime_dir/lib/libpython$pyver.dylib"
+            codesign --force --sign - "$runtime_dir/bin/python$pyver"
           fi
           otool -L "$runtime_dir/bin/python$pyver" || true
           PYTHONHOME="$runtime_dir" "$runtime_dir/bin/python3" - <<'PY'
