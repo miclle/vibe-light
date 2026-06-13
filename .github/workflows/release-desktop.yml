@@ -100,6 +100,12 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install CJK font build dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install --upgrade pip Pillow
+          echo "VIBE_CJK_FONT_PYTHON=$(command -v python3)" >>"$GITHUB_ENV"
+
       - name: Prepare bundled Python runtime
         id: python-runtime
         run: |
