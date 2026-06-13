@@ -232,18 +232,19 @@ if [[ "$SKIP_PACKAGE" -eq 0 ]]; then
   fi
   if [[ -n "$NOTARYTOOL_PROFILE_VALUE" ]]; then
     package_args+=(--notarytool-profile "$NOTARYTOOL_PROFILE_VALUE")
-  fi
-  if [[ -n "$APPLE_API_KEY_VALUE" ]]; then
-    package_args+=(--apple-api-key "$APPLE_API_KEY_VALUE")
-  fi
-  if [[ -n "$APPLE_API_KEY_PATH_VALUE" ]]; then
-    package_args+=(--apple-api-key-path "$APPLE_API_KEY_PATH_VALUE")
-  fi
-  if [[ -n "$APPLE_API_KEY_ID_VALUE" ]]; then
-    package_args+=(--apple-api-key-id "$APPLE_API_KEY_ID_VALUE")
-  fi
-  if [[ -n "$APPLE_API_ISSUER_VALUE" ]]; then
-    package_args+=(--apple-api-issuer "$APPLE_API_ISSUER_VALUE")
+  else
+    if [[ -n "$APPLE_API_KEY_VALUE" ]]; then
+      package_args+=(--apple-api-key "$APPLE_API_KEY_VALUE")
+    fi
+    if [[ -n "$APPLE_API_KEY_PATH_VALUE" ]]; then
+      package_args+=(--apple-api-key-path "$APPLE_API_KEY_PATH_VALUE")
+    fi
+    if [[ -n "$APPLE_API_KEY_ID_VALUE" ]]; then
+      package_args+=(--apple-api-key-id "$APPLE_API_KEY_ID_VALUE")
+    fi
+    if [[ -n "$APPLE_API_ISSUER_VALUE" ]]; then
+      package_args+=(--apple-api-issuer "$APPLE_API_ISSUER_VALUE")
+    fi
   fi
   if [[ -n "$NOTARYTOOL_TIMEOUT_VALUE" ]]; then
     package_args+=(--notarytool-timeout "$NOTARYTOOL_TIMEOUT_VALUE")
