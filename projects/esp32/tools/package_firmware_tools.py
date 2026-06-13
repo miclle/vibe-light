@@ -178,6 +178,7 @@ def prune_python_runtime(runtime_dir: Path) -> None:
         if binary_url.name not in {"python3", "python3.11"}:
             remove_file(binary_url)
 
+    remove_broken_symlinks(runtime_dir)
     zip_python_stdlib(runtime_dir)
 
 
@@ -225,6 +226,12 @@ def remove_file(path: Path) -> None:
         path.unlink()
     except FileNotFoundError:
         pass
+
+
+def remove_broken_symlinks(path: Path) -> None:
+    for child_url in path.rglob("*"):
+        if child_url.is_symlink() and not child_url.exists():
+            remove_file(child_url)
 
 
 def zip_python_stdlib(runtime_dir: Path) -> None:
