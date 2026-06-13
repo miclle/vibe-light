@@ -4,16 +4,13 @@ enum AppResourceBundle {
     private static let resourceBundleName = "VibeLight_VibeLightApp.bundle"
 
     static var bundle: Bundle {
-        let candidates = [
-            Bundle.main.resourceURL?.appendingPathComponent(resourceBundleName),
-            Bundle.main.bundleURL.appendingPathComponent(resourceBundleName),
-            Bundle.module.bundleURL,
-        ]
+        if let resourceURL = Bundle.main.resourceURL?.appendingPathComponent(resourceBundleName),
+           let bundle = Bundle(url: resourceURL) {
+            return bundle
+        }
 
-        for candidate in candidates {
-            guard let candidate, let bundle = Bundle(url: candidate) else {
-                continue
-            }
+        let adjacentURL = Bundle.main.bundleURL.appendingPathComponent(resourceBundleName)
+        if let bundle = Bundle(url: adjacentURL) {
             return bundle
         }
 
