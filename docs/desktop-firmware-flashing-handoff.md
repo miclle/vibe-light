@@ -128,7 +128,8 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 已通过 notarized app UI 点击“烧录固件”完成完整写入：bootloader、partition table 和 app 三段均 hash verified；烧录后 app 扫描到 `VibeLight-S3`，重新连接并读取 health packet。
    - dev app UI 已补齐烧录前芯片确认：读取前“烧录固件”禁用，点击“读取芯片”确认 `ESP32-S3 (QFN56)` 和 MAC 后才启用写入入口。
    - 2026-06-13 已在提交 `ffaf09f` 上跑通带 GPL source gate 的完整 `script/desktop_firmware_release_checklist.sh`：版本 `2026.06.13-dev-ffaf09f`，Apple Notary submission `8c39946b-beab-421b-8b1f-48d9bea0b2c0` 返回 `Accepted`，staple / Gatekeeper 通过，release 报告为 `dist/release/desktop-firmware-release-2026.06.13-dev-ffaf09f.md`，notarized zip 为 `dist/release/VibeLightApp-2026.06.13-dev-ffaf09f-notarized.zip`。
-   - 2026-06-13 已从 GitHub draft release 下载 notarized zip 和 checklist 报告回归验证：SHA-256 与 release notes 一致，`ditto -x -k` 解压出的 app 通过 stapler、Gatekeeper 和 codesign，zip 内 GPL 材料复核通过，下载 app 可启动并退出。
+   - 2026-06-13 已发布 GitHub pre-release `v2026.06.13-dev-ffaf09f`：`https://github.com/miclle/vibe-light/releases/tag/v2026.06.13-dev-ffaf09f`，tag 指向实际构建提交 `ffaf09fec89a13ba26a86f6139255c26d3836d57`。
+   - 2026-06-13 已从 GitHub pre-release 下载 notarized zip 和 checklist 报告回归验证：SHA-256 与 release notes 一致，`ditto -x -k` 解压出的 app 通过 stapler、Gatekeeper 和 codesign，zip 内 GPL 材料复核通过，下载 app 可启动并退出。
    - 同日已用下载 app 完成完整 UI 闭环：手动让目标板进入 ROM download mode 后，UI 读取芯片识别 `ESP32-S3 (QFN56)` / MAC `1c:db:d4:7b:3f:cc`，UI 烧录 bootloader / partition table / app 三段均 hash verified，随后发现并连接 `VibeLight-S3`，健康状态显示运行中、背光开启、heap 约 6.7 MB 和 render tick。
    - 注意不要在发布说明中建议用户用命令行 `unzip` 解压 macOS app bundle；本地验证发现 `unzip` 解出的 app 会出现 sealed resource 校验失败。建议 Finder / Archive Utility 或 `ditto -x -k`。
 
@@ -153,25 +154,24 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 常见失败已经有明确提示：下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失。
    - app 已在写入前单独执行 `chip_id` pre-read 并展示确认，写入入口会等确认后才启用。
 
-5. 发布自动化已有 checklist 入口，正式 release 参数仍需确定
+5. 发布自动化已有 checklist 和 GitHub pre-release 入口
    - `script/prepare_desktop_firmware_release.sh` 已串起 ESP32 构建、固件包生成、工具 vendoring 和 helper 收窄 PATH 验证。
    - `script/desktop_firmware_release_checklist.sh` 已把固件资源准备、desktop app 打包签名、可选 notarization、third-party notice 检查和目标板 `chip_id` 读取串成 markdown checklist，日志写入 `dist/release/logs/`。
-   - 当前 `manifest.json` 版本仍以 `dev-test` / 本地 commit 为主，正式 release 前需要明确 release version、desktop version、runtime 来源和 checklist 归档规则。
+   - 当前 dev pre-release 已发布；正式公开 / 稳定 release 前需要明确 stable release version、desktop version、runtime 来源和 checklist 归档规则。
 
 ## 建议下一步
 
-推荐按以下顺序处理正式发布 gate：
+推荐按以下顺序继续推进：
 
-1. 审阅当前 release checklist 产物
-   - 最新通过版本为 `2026.06.13-dev-ffaf09f`。
-   - 报告：`dist/release/desktop-firmware-release-2026.06.13-dev-ffaf09f.md`。
-   - Notarized zip：`dist/release/VibeLightApp-2026.06.13-dev-ffaf09f-notarized.zip`。
+1. 观察 dev pre-release 反馈
+   - 当前版本为 `v2026.06.13-dev-ffaf09f`。
+   - Release URL：`https://github.com/miclle/vibe-light/releases/tag/v2026.06.13-dev-ffaf09f`。
+   - 重点关注下载解压、首次启动、USB 串口权限、BOOT/RST 指引和 BLE 重连反馈。
 
-2. 创建 GitHub draft pre-release
-   - Tag 指向实际构建提交 `ffaf09f`，避免后续文档提交改变二进制版本语义。
-   - 上传 notarized zip 和 release checklist 报告。
-   - Release notes 记录 notary submission ID、zip SHA-256、`esptool` 源码 SHA-256 和 dev release 限制。
-   - Draft 已创建并补充下载解压注意事项；下载 app 的“读取芯片 -> 烧录固件 -> BLE 重连 / health packet”闭环已完成验证。
+2. 准备后续稳定 release gate
+   - 正式公开 / 商业发布前完成法律 / 合规最终确认。
+   - 选定 stable release version 和 desktop version。
+   - 复用 checklist 重新生成并归档正式 release 报告。
 
 3. 继续体验优化
    - 如需要更细的用户反馈，再解析 esptool 输出显示 stage/progress。
