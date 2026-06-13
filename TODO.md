@@ -53,6 +53,10 @@
 - 验证范围：发布包内 `esptool` GPL gate 工程合规审阅。
 - 结果确认：审阅对象为 zip 内实际文件 `dist/release/VibeLightApp-2026.06.13-dev-ffaf09f-notarized.zip`。审阅确认 `THIRD_PARTY_NOTICES.md`、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md`、`python-packages/esptool-4.11.0.dist-info/licenses/LICENSE` 和 `sources/esptool-4.11.0.tar.gz` 均存在；源码包 SHA-256 与 notice 一致，源码包包含 `LICENSE`、`PKG-INFO`、`pyproject.toml`、`setup.py`、`setup.cfg`、`esptool/` 源码和 stub flasher 资源，`PKG-INFO` 标明 `Name: esptool`、`Version: 4.11.0`、`License: GPLv2+`。工程审阅结论为当前 dev release 的 `esptool` GPL gate 可以放行；正式商业发布前仍建议法律 / 合规最终确认。
 
+- 时间：2026-06-13。
+- 验证范围：GitHub draft pre-release 下载产物回归。
+- 结果确认：已从 GitHub draft release 下载 `VibeLightApp-2026.06.13-dev-ffaf09f-notarized.zip` 和 checklist 报告到 `/tmp/vibe-light-release-test-2026.06.13-dev-ffaf09f`，SHA-256 分别为 `260b0b4e30fc44e408cbfd83ef5286802a949523b1fc36f9955c0f1688577f7d` 和 `41a407d026fdbb7502c940f3e55613307417d00ba8cf7035f4210cec5b573737`，与 release notes 一致。用 `ditto -x -k` 解压出的 app 通过 `xcrun stapler validate`、`spctl -a -vv --type execute` 和 `codesign --verify --deep --strict`，zip 内 GPL 材料和 `esptool` 源码包 hash 复核通过，下载 app 可启动并退出。用命令行 `unzip` 解压同一 zip 时出现 sealed resource 校验失败；draft release notes 已补充建议使用 Finder / Archive Utility 或 `ditto` 解压。下载 app 内 strict helper 能启动 bundled `esptool.py v4.11.0`，但当前连接的板子未进入 ROM download 握手，`chip_id` 返回 `No serial data received`；需按住 BOOT 点 RST 或重新插拔后重试完整 UI 烧录闭环。
+
 - 时间：2026-06-11。
 - 端口：`/dev/cu.usbmodem1101`。
 - 固件版本：`3215f23`。
@@ -79,6 +83,7 @@
    - 带 GPL source gate 的完整 release checklist 已通过；正式公开 / 商业发布前仍需人工审阅生成的 esptool/Python 许可证材料，尤其确认 `esptool` GPLv2+ source offer、源码归档和间接依赖 notice。
    - 后续非阻塞合规优化：把 `SOURCE_OFFER.md` fallback wording 写得更贴近 GPLv2 3(b)，明确 `any third party`、费用不超过实际源码分发成本，并提供稳定联系渠道；补齐 `pyserial 3.5` 等间接依赖的独立 license 文本归档，减少长期审计摩擦。
    - notarized app bundle 内 helper 已能访问 `/dev/cu.usbmodem1101` 并读取 `ESP32-S3 (QFN56)` 芯片信息；notarized app UI 已完成完整串口烧录、BLE 扫描 / 连接和 health packet 展示闭环。
+   - GitHub draft release 下载包已通过 hash、notarization/Gatekeeper、codesign、GPL 材料和 app 启动验证；下载包的最终 UI 烧录闭环仍需在目标板进入 ROM download 模式后复测。
    - dev app UI 已补齐烧录前芯片确认：读取前“烧录固件”禁用，点击“读取芯片”确认 `ESP32-S3 (QFN56)` 和 MAC 后才启用写入入口，避免直接进入写入。
    - 方案细节见 `docs/desktop-firmware-flashing.md`。
 

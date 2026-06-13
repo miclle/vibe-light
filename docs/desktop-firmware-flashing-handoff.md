@@ -128,6 +128,8 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 已通过 notarized app UI 点击“烧录固件”完成完整写入：bootloader、partition table 和 app 三段均 hash verified；烧录后 app 扫描到 `VibeLight-S3`，重新连接并读取 health packet。
    - dev app UI 已补齐烧录前芯片确认：读取前“烧录固件”禁用，点击“读取芯片”确认 `ESP32-S3 (QFN56)` 和 MAC 后才启用写入入口。
    - 2026-06-13 已在提交 `ffaf09f` 上跑通带 GPL source gate 的完整 `script/desktop_firmware_release_checklist.sh`：版本 `2026.06.13-dev-ffaf09f`，Apple Notary submission `8c39946b-beab-421b-8b1f-48d9bea0b2c0` 返回 `Accepted`，staple / Gatekeeper 通过，release 报告为 `dist/release/desktop-firmware-release-2026.06.13-dev-ffaf09f.md`，notarized zip 为 `dist/release/VibeLightApp-2026.06.13-dev-ffaf09f-notarized.zip`。
+   - 2026-06-13 已从 GitHub draft release 下载 notarized zip 和 checklist 报告回归验证：SHA-256 与 release notes 一致，`ditto -x -k` 解压出的 app 通过 stapler、Gatekeeper 和 codesign，zip 内 GPL 材料复核通过，下载 app 可启动并退出。
+   - 注意不要在发布说明中建议用户用命令行 `unzip` 解压 macOS app bundle；本地验证发现 `unzip` 解出的 app 会出现 sealed resource 校验失败。建议 Finder / Archive Utility 或 `ditto -x -k`。
 
 2. Python runtime 发布路线已确定并完成本地验证
    - 第一版发布路线改为随 app bundle 内置完整 Python runtime，目标是用户只安装 desktop app 即可烧录。
@@ -168,6 +170,7 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - Tag 指向实际构建提交 `ffaf09f`，避免后续文档提交改变二进制版本语义。
    - 上传 notarized zip 和 release checklist 报告。
    - Release notes 记录 notary submission ID、zip SHA-256、`esptool` 源码 SHA-256 和 dev release 限制。
+   - Draft 已创建并补充下载解压注意事项；发布前还需要在目标板进入 ROM download 模式后，从下载 app 走一次 UI 的“读取芯片 -> 烧录固件 -> BLE 重连 / health packet”闭环。
 
 3. 继续体验优化
    - 如需要更细的用户反馈，再解析 esptool 输出显示 stage/progress。
