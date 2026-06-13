@@ -15,8 +15,15 @@ projects/esp32/tools/package_firmware_tools.py \
   --require-python-runtime
 ```
 
-Generated `python/`, `python-packages/` and `THIRD_PARTY_NOTICES.md` contents
-are intentionally ignored by git.
+Generated `python/`, `python-packages/`, `THIRD_PARTY_NOTICES.md`,
+`OPEN_SOURCE_NOTICES.md`, `SOURCE_OFFER.md`, and `sources/` contents are
+intentionally ignored by git.
+
+Release builds must keep the generated GPL materials with the app bundle:
+
+- `OPEN_SOURCE_NOTICES.md`
+- `SOURCE_OFFER.md`
+- `sources/esptool-<version>.tar.gz`
 
 Use `VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1` during release validation to prove
 the helper does not fall back to system Python, Homebrew `esptool` or user PATH.

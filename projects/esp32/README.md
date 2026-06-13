@@ -114,7 +114,7 @@ projects/esp32/tools/package_firmware_bundle.py --version dev --minimum-desktop-
 projects/esp32/tools/package_firmware_tools.py --clean
 ```
 
-固件包脚本会读取 `build/flasher_args.json`，复制 bootloader、partition table 和 app bin，并生成带 SHA-256 校验的 `manifest.json` 到 desktop app 的 `Resources/FirmwareBundle/`。工具脚本会把 `esptool` 及其 Python 依赖安装到 `Resources/FirmwareTools/python-packages/`，供 app 内置 helper 使用。这些生成产物不提交到 git；发布构建应在打包 app 前执行。
+固件包脚本会读取 `build/flasher_args.json`，复制 bootloader、partition table 和 app bin，并生成带 SHA-256 校验的 `manifest.json` 到 desktop app 的 `Resources/FirmwareBundle/`。工具脚本会把 `esptool` 及其 Python 依赖安装到 `Resources/FirmwareTools/python-packages/`，供 app 内置 helper 使用；同时为 GPLv2+ 的 `esptool` 生成 `OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-<version>.tar.gz`。这些生成产物不提交到 git；发布构建应在打包 app 前执行。
 
 Host-side 快速测试：
 

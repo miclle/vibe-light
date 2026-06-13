@@ -42,6 +42,9 @@ projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareBundle/manifest.js
 projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/python-packages/
 projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/python/
 projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/THIRD_PARTY_NOTICES.md
+projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/OPEN_SOURCE_NOTICES.md
+projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/SOURCE_OFFER.md
+projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/sources/
 
 # CocoaPods
 #

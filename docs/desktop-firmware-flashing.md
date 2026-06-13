@@ -26,7 +26,7 @@
 发布流程提前构建并签名一份固件包，desktop app 随包携带该固件包，运行时只负责通过串口把预编译二进制写入设备 flash。已落地的代码边界如下：
 
 - `projects/esp32/tools/package_firmware_bundle.py`：从 `projects/esp32/build/flasher_args.json` 和 bin 产物生成 app resource 使用的 `FirmwareBundle`。
-- `projects/esp32/tools/package_firmware_tools.py`：把 `esptool` 及其 Python 依赖 vendor 到 app resource 的 `FirmwareTools/python-packages/`。
+- `projects/esp32/tools/package_firmware_tools.py`：把 `esptool` 及其 Python 依赖 vendor 到 app resource 的 `FirmwareTools/python-packages/`，同时下载 `esptool` 对应源码包并生成 GPL 分发说明。
 - `projects/macos/desktop/Sources/VibeLightCore/FirmwareFlashing.swift`：解析 manifest、按 offset 排序写入项、校验每个 bin 的 SHA-256、生成 `esptool chip_id` / `write_flash` 参数、解析芯片读取输出，并枚举 macOS 常见 ESP32 串口。
 - `projects/macos/desktop/Sources/VibeLightApp/Models/VibeLightAppModel.swift`：加载内置固件包、刷新串口、先调用 helper 读取芯片信息、确认目标芯片后再允许烧录、记录日志，并在成功后启动 BLE 扫描。
 - `projects/macos/desktop/Sources/VibeLightApp/Views/HardwareDevicesPane.swift`：在“硬件设备”页新增“固件烧录”区域，提供串口选择、刷新、读取芯片、烧录按钮、状态文本和 helper 日志摘要。
@@ -62,7 +62,7 @@ projects/esp32/tools/package_firmware_bundle.py --version dev --minimum-desktop-
 projects/esp32/tools/package_firmware_tools.py --clean
 ```
 
-生成的 `manifest.json` 和 bin 文件会写入 `projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareBundle/`，`esptool` 依赖会写入 `Resources/FirmwareTools/python-packages/`，这些生成产物被 `.gitignore` 忽略；发布构建应在构建 app 前执行这些步骤。
+生成的 `manifest.json` 和 bin 文件会写入 `projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareBundle/`，`esptool` 依赖会写入 `Resources/FirmwareTools/python-packages/`。工具脚本还会生成 `THIRD_PARTY_NOTICES.md`、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md`，并把 `esptool` 对应源码归档放到 `Resources/FirmwareTools/sources/`。这些生成产物被 `.gitignore` 忽略；发布构建应在构建 app 前执行这些步骤。
 
 2026-06-12 本地已用 PlatformIO portable Python 3.11.7 arm64 runtime 跑通自包含 release-prep：`FirmwareTools/python` 约 105MB，`FirmwareTools/python-packages` 约 37MB，`FirmwareBundle` 约 1MB。第一版 Developer ID 发布路线选定该 portable runtime：PlatformIO 官方集成文档明确给自定义应用提供 Portable Python 3 下载 / 解包路径，当前 runtime 随包 `package.json` 记录 `python-portable 1.31107.0`、`darwin_arm64`、`PSF-2.0` 和 Python/CPython 来源，随包 `LICENSE` 保留 Python Software Foundation License 文本。该验证证明当前脚本和 helper 可以脱离系统 Python / PATH 运行；正式发布时仍要在 checklist 中留存 runtime 版本、license 文件和签名结果。
 
@@ -102,7 +102,7 @@ UI 位于“硬件设备”页的独立“固件烧录”区域：
 
 发布前仍需要重点评估：
 
-- `esptool` 的 GPLv2+ 许可证和分发说明是否需要额外 release notes。
+- `esptool` 的 GPLv2+ 分发材料是否已随包生成并进入 release notes：`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md`、GPL license 文件和 `sources/esptool-<version>.tar.gz`。
 - 内置 Python runtime 的体积、架构和签名结果是否符合当次发布目标。
 - 独立 helper tool 的签名、权限和日志隔离。
 - 是否需要未来替换为更小的原生 Swift / C / Rust 烧录实现。
@@ -192,8 +192,8 @@ CI 后续可以复用同一个脚本，但需要额外把 Developer ID Applicati
    - `script/prepare_desktop_firmware_release.sh` 已串起固件包生成、`esptool` 依赖 vendoring 和收窄 PATH helper 验证，可作为发布资产准备入口。
    - `projects/esp32/tools/package_firmware_tools.py --python-runtime <path> --require-python-runtime` 可把预备好的独立 Python runtime 复制到 `FirmwareTools/python/`，并验证 `python/bin/python3` 可执行。
    - `VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1` 会让 helper 只使用 bundled Python runtime 和 bundled `esptool`，用于证明发布包不依赖用户系统环境；release-prep 还会用 bundled Python import `esptool`、`pyserial`、`cryptography`、`PyYAML` 和 `cffi`，避免二进制依赖 ABI 问题漏过。
-   - `projects/esp32/tools/package_firmware_tools.py` 会从 vendored Python package metadata 生成 `FirmwareTools/THIRD_PARTY_NOTICES.md`，让许可证材料跟实际依赖版本保持一致。
-   - 第一版 runtime 来源已选定为 PlatformIO portable Python；正式 release 前按 checklist 完整跑通工具 vendoring，并审阅生成的第三方 notices。
+   - `projects/esp32/tools/package_firmware_tools.py` 会从 vendored Python package metadata 生成 `FirmwareTools/THIRD_PARTY_NOTICES.md`，并为 GPLv2+ 的 `esptool` 生成 `OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-<version>.tar.gz`，让许可证材料跟实际依赖版本保持一致。
+   - 第一版 runtime 来源已选定为 PlatformIO portable Python；正式 release 前按 checklist 完整跑通工具 vendoring，并审阅生成的第三方 notices、GPL source offer 和源码归档。
 
 2. **真实应用闭环验证**
    - 已用 `dist/VibeLightApp.app` resource 通过 USB 烧录目标板，并验证重启、BLE 广播、desktop 连接和状态写入。
@@ -203,7 +203,7 @@ CI 后续可以复用同一个脚本，但需要额外把 Developer ID Applicati
 3. **发布签名**
    - 给固件包增加版本、校验和 release notes。
    - `script/package_desktop_release.sh` 已串接 desktop build、Developer ID signing、nested Mach-O signing、zip 归档和可选 notarization / staple。
-   - `script/desktop_firmware_release_checklist.sh` 已把固件资源准备、desktop 打包签名、可选 notarization、third-party notice 检查和目标板 `chip_id` 读取串成 release checklist 报告；notice 检查会要求存在 `esptool` 条目，启用 `--require-bundled-python` 时也要求存在 `python-portable` 条目。
+   - `script/desktop_firmware_release_checklist.sh` 已把固件资源准备、desktop 打包签名、可选 notarization、third-party notice 检查和目标板 `chip_id` 读取串成 release checklist 报告；notice 检查会要求存在 `esptool` 条目、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-*.tar.*`，启用 `--require-bundled-python` 时也要求存在 `python-portable` 条目。
    - 已用真实 Apple notarization profile 验证 notarized app、staple、Gatekeeper 和 helper strict 模式。
    - 已用 notarized app bundle 内 helper 验证目标板串口握手和芯片读取。
    - 已通过 notarized app UI 验证完整烧录、BLE 扫描 / 连接和 health packet。
@@ -219,4 +219,4 @@ CI 后续可以复用同一个脚本，但需要额外把 Developer ID Applicati
 
 ## 结论
 
-该功能已经具备 app 内入口、固件包校验、串口发现、helper 调用和成功后 BLE 扫描的最小闭环。最大的剩余工程风险不在固件本身，而在 macOS 分发权限、helper 签名、烧录工具许可证和真实发布包的失败恢复体验。
+该功能已经具备 app 内入口、固件包校验、串口发现、helper 调用和成功后 BLE 扫描的最小闭环。发布流程已经把 `esptool` GPLv2+ 源码归档和 source offer 纳入生成与 checklist gate；最大的剩余工程风险不在固件本身，而在 macOS 分发权限、helper 签名、正式发布的法律/合规审阅和真实发布包的失败恢复体验。

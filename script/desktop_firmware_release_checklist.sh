@@ -264,7 +264,10 @@ else
   append_report ""
 fi
 
-NOTICE_URL="projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/THIRD_PARTY_NOTICES.md"
+FIRMWARE_TOOLS_URL="projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools"
+NOTICE_URL="$FIRMWARE_TOOLS_URL/THIRD_PARTY_NOTICES.md"
+OPEN_SOURCE_NOTICE_URL="$FIRMWARE_TOOLS_URL/OPEN_SOURCE_NOTICES.md"
+SOURCE_OFFER_URL="$FIRMWARE_TOOLS_URL/SOURCE_OFFER.md"
 append_report "## Third-Party Notices"
 append_report ""
 if [[ -f "$NOTICE_URL" ]]; then
@@ -276,8 +279,37 @@ if [[ -f "$NOTICE_URL" ]]; then
     echo "third-party notices are missing bundled Python runtime metadata: $NOTICE_URL" >&2
     exit 1
   fi
+  if [[ ! -f "$OPEN_SOURCE_NOTICE_URL" ]]; then
+    echo "open source notices are missing: $OPEN_SOURCE_NOTICE_URL" >&2
+    exit 1
+  fi
+  if ! grep -q '^## esptool$' "$OPEN_SOURCE_NOTICE_URL" || ! grep -q 'GPLv2+' "$OPEN_SOURCE_NOTICE_URL"; then
+    echo "open source notices are missing esptool GPL metadata: $OPEN_SOURCE_NOTICE_URL" >&2
+    exit 1
+  fi
+  if [[ ! -f "$SOURCE_OFFER_URL" ]]; then
+    echo "GPL source offer is missing: $SOURCE_OFFER_URL" >&2
+    exit 1
+  fi
+  if ! grep -q '^## esptool$' "$SOURCE_OFFER_URL" || ! grep -q 'GPLv2+' "$SOURCE_OFFER_URL"; then
+    echo "GPL source offer is missing esptool metadata: $SOURCE_OFFER_URL" >&2
+    exit 1
+  fi
+  shopt -s nullglob
+  esptool_sources=("$FIRMWARE_TOOLS_URL"/sources/esptool-*.tar.* "$FIRMWARE_TOOLS_URL"/sources/esptool-*.zip)
+  shopt -u nullglob
+  if [[ "${#esptool_sources[@]}" -eq 0 ]]; then
+    echo "GPL source archive is missing: $FIRMWARE_TOOLS_URL/sources/esptool-*.tar.*" >&2
+    exit 1
+  fi
+  esptool_source="${esptool_sources[0]}"
+  esptool_source_sha="$(shasum -a 256 "$esptool_source" | awk '{print $1}')"
   append_report "- Status: present"
   append_report "- File: \`$NOTICE_URL\`"
+  append_report "- Open source notice: \`$OPEN_SOURCE_NOTICE_URL\`"
+  append_report "- GPL source offer: \`$SOURCE_OFFER_URL\`"
+  append_report "- esptool source archive: \`$esptool_source\`"
+  append_report "- esptool source SHA-256: \`$esptool_source_sha\`"
   append_report "- Required entries: \`esptool\`$([[ "$REQUIRE_BUNDLED_PYTHON" -eq 1 ]] && printf ', `python-portable`')"
 else
   append_report "- Status: missing"
