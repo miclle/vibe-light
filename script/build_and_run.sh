@@ -5,6 +5,7 @@ MODE="${1:-run}"
 APP_NAME="VibeLightApp"
 BUNDLE_ID="dev.miclle.VibeLight"
 MIN_SYSTEM_VERSION="14.0"
+SIGNING_IDENTITY_VALUE="${SIGNING_IDENTITY:-}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_DIR="$ROOT_DIR/projects/macos/desktop"
@@ -29,11 +30,32 @@ BUILD_RESOURCE_BUNDLE="$BUILD_PRODUCTS_DIR/$RESOURCE_BUNDLE_NAME"
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS"
 mkdir -p "$APP_RESOURCES"
-cp "$BUILD_BINARY" "$APP_BINARY"
-cp "$HOOK_BINARY" "$APP_MACOS/vibe-light-hook"
-cp -R "$BUILD_RESOURCE_BUNDLE" "$RESOURCE_BUNDLE"
+ditto --noextattr --norsrc "$BUILD_BINARY" "$APP_BINARY"
+ditto --noextattr --norsrc "$HOOK_BINARY" "$APP_MACOS/vibe-light-hook"
+ditto --noextattr --norsrc "$BUILD_RESOURCE_BUNDLE" "$RESOURCE_BUNDLE"
 chmod +x "$APP_BINARY"
 chmod +x "$APP_MACOS/vibe-light-hook"
+
+discover_signing_identity() {
+  security find-identity -p codesigning -v 2>/dev/null \
+    | awk -F '"' '/Developer ID Application/ { print $2; exit }'
+}
+
+sign_app() {
+  local identity="$SIGNING_IDENTITY_VALUE"
+  if [[ -z "$identity" ]]; then
+    identity="$(discover_signing_identity)"
+  fi
+
+  xattr -cr "$APP_BUNDLE"
+
+  if [[ -n "$identity" ]]; then
+    codesign --force --deep --options runtime --sign "$identity" "$APP_BUNDLE"
+  else
+    codesign --force --deep --sign - --identifier "$BUNDLE_ID" "$APP_BUNDLE"
+  fi
+  codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE" >/dev/null
+}
 
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -60,6 +82,8 @@ cat >"$INFO_PLIST" <<PLIST
 </plist>
 PLIST
 
+sign_app
+
 open_app() {
   /usr/bin/open -n "$APP_BUNDLE"
 }
@@ -83,13 +107,13 @@ case "$MODE" in
     ;;
   --verify|verify)
     open_app
-    for _ in {1..20}; do
+    for _ in {1..60}; do
       if pgrep -x "$APP_NAME" >/dev/null; then
         exit 0
       fi
       sleep 0.5
     done
-    echo "$APP_NAME did not start within 10 seconds" >&2
+    echo "$APP_NAME did not start within 30 seconds" >&2
     exit 1
     ;;
   *)

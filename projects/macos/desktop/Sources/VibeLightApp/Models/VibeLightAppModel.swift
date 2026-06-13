@@ -20,6 +20,7 @@ final class VibeLightAppModel: ObservableObject {
     @Published private(set) var firmwareBundle: FirmwareBundle?
     @Published private(set) var firmwareFlashMessage = "未检查固件包。"
     @Published private(set) var firmwareFlashLog = ""
+    @Published private(set) var firmwareFlashProgress: FirmwareFlashProgressSnapshot?
     @Published private(set) var firmwareChipProbeResult: FirmwareChipProbeResult?
     @Published private(set) var firmwareFlashFailureKind: FirmwareFlashFailureKind?
     @Published private(set) var didCompleteFirmwareFlash = false
@@ -264,6 +265,7 @@ final class VibeLightAppModel: ObservableObject {
         isFirmwareAwaitingReconnect = false
         firmwareFlashFailureKind = nil
         firmwareFlashLog = ""
+        firmwareFlashProgress = nil
         refreshFirmwareFlashing()
     }
 
@@ -290,6 +292,7 @@ final class VibeLightAppModel: ObservableObject {
         isFirmwareChipProbing = true
         firmwareFlashMessage = "正在读取 \(selectedFirmwareSerialPort) 的芯片信息..."
         firmwareFlashLog = ""
+        firmwareFlashProgress = nil
 
         Task { [helperURL, command, selectedFirmwareSerialPort] in
             let logStream = makeFirmwareFlashLogStream()
@@ -302,6 +305,7 @@ final class VibeLightAppModel: ObservableObject {
                 await drainFirmwareFlashLogStream(logStream)
                 let result = try FirmwareChipProbeResult.parse(output: output)
                 firmwareFlashLog = output
+                firmwareFlashProgress = FirmwareFlashProgressSnapshot.parse(output: output)
                 if result.matches(targetChip: command.targetChip) {
                     firmwareChipProbeResult = result
                     confirmedFirmwareSerialPort = selectedFirmwareSerialPort
@@ -315,6 +319,7 @@ final class VibeLightAppModel: ObservableObject {
             } catch {
                 await drainFirmwareFlashLogStream(logStream)
                 firmwareFlashLog = (error as? FirmwareFlashProcessError)?.output ?? firmwareFlashLog
+                firmwareFlashProgress = FirmwareFlashProgressSnapshot.parse(output: firmwareFlashLog)
                 let advice = FirmwareFlashFailureAdvice(error: error)
                 firmwareFlashFailureKind = advice.kind
                 firmwareFlashMessage = advice.message
@@ -353,6 +358,7 @@ final class VibeLightAppModel: ObservableObject {
         isFirmwareAwaitingReconnect = false
         firmwareFlashMessage = "正在烧录 \(selectedFirmwareSerialPort)..."
         firmwareFlashLog = ""
+        firmwareFlashProgress = nil
 
         Task { [helperURL, command] in
             let logStream = makeFirmwareFlashLogStream()
@@ -364,6 +370,7 @@ final class VibeLightAppModel: ObservableObject {
                 )
                 await drainFirmwareFlashLogStream(logStream)
                 firmwareFlashLog = output
+                firmwareFlashProgress = FirmwareFlashProgressSnapshot.parse(output: output)
                 didCompleteFirmwareFlash = true
                 isFirmwareAwaitingReconnect = true
                 firmwareFlashFailureKind = nil
@@ -373,6 +380,7 @@ final class VibeLightAppModel: ObservableObject {
             } catch {
                 await drainFirmwareFlashLogStream(logStream)
                 firmwareFlashLog = (error as? FirmwareFlashProcessError)?.output ?? firmwareFlashLog
+                firmwareFlashProgress = FirmwareFlashProgressSnapshot.parse(output: firmwareFlashLog)
                 let advice = FirmwareFlashFailureAdvice(error: error)
                 firmwareFlashFailureKind = advice.kind
                 firmwareFlashMessage = advice.message
@@ -389,6 +397,7 @@ final class VibeLightAppModel: ObservableObject {
 
     private func appendFirmwareFlashLog(_ chunk: String) {
         firmwareFlashLog.append(chunk)
+        firmwareFlashProgress = FirmwareFlashProgressSnapshot.parse(output: firmwareFlashLog)
     }
 
     private func makeFirmwareFlashLogStream() -> FirmwareFlashLogStream {

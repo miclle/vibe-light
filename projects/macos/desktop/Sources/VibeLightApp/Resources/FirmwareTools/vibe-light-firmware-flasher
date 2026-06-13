@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -euo pipefail
 
 TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -7,6 +7,11 @@ STRICT_MODE="${VIBE_LIGHT_FIRMWARE_FLASHER_STRICT:-0}"
 run_with_python() {
   local python="$1"
   shift
+  if [[ "$python" == "$TOOL_DIR/python/"* ]]; then
+    export PYTHONHOME="$TOOL_DIR/python"
+  else
+    unset PYTHONHOME
+  fi
 
   if [[ -f "$TOOL_DIR/esptool.py" ]]; then
     exec "$python" "$TOOL_DIR/esptool.py" "$@"

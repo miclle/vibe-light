@@ -238,6 +238,35 @@ struct FirmwareFlashWizardCard: View {
     private var writeFirmwarePanel: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("正在写入 bootloader、partition table 和 app 分区。", systemImage: "square.and.arrow.down")
+
+            if let progress = model.firmwareFlashProgress {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Text(progress.stage)
+                            .font(.callout.weight(.semibold))
+                        if let percent = progress.percent {
+                            Text("\(percent)%")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    if let fraction = progress.fraction {
+                        ProgressView(value: fraction)
+                            .progressViewStyle(.linear)
+                    } else {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+            } else if model.isFirmwareFlashing {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("等待 esptool 输出...")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Label("写入和校验期间不要拔掉 USB，也不要按 RST。", systemImage: "exclamationmark.triangle")
                 .foregroundStyle(.orange)
         }

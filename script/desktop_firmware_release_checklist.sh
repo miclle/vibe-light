@@ -329,7 +329,7 @@ if [[ -n "$CHIP_PORT" ]]; then
   run_logged "Read target chip" "$chip_log" env \
     PATH=/usr/bin:/bin:/usr/sbin:/sbin \
     VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1 \
-    "$helper_url" --chip esp32s3 --port "$CHIP_PORT" --baud "$CHIP_BAUD" chip_id
+    /bin/bash "$helper_url" --chip esp32s3 --port "$CHIP_PORT" --baud "$CHIP_BAUD" chip_id
 
   append_report "## Target Chip"
   append_report ""

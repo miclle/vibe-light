@@ -168,6 +168,63 @@ public struct FirmwareFlashCommand: Equatable {
     }
 }
 
+public struct FirmwareFlashProgressSnapshot: Equatable, Sendable {
+    public let stage: String
+    public let percent: Int?
+
+    public init(stage: String, percent: Int?) {
+        self.stage = stage
+        self.percent = percent
+    }
+
+    public var fraction: Double? {
+        percent.map { Double($0) / 100.0 }
+    }
+
+    public static func parse(output: String) -> FirmwareFlashProgressSnapshot? {
+        if output.localizedCaseInsensitiveContains("Hard resetting") ||
+            output.localizedCaseInsensitiveContains("Leaving") {
+            return FirmwareFlashProgressSnapshot(stage: "重启设备", percent: 100)
+        }
+
+        if output.localizedCaseInsensitiveContains("Hash of data verified") {
+            return FirmwareFlashProgressSnapshot(stage: "校验完成", percent: 100)
+        }
+
+        if let writingPercent = latestWritingPercent(in: output) {
+            return FirmwareFlashProgressSnapshot(stage: "写入固件", percent: writingPercent)
+        }
+
+        if output.localizedCaseInsensitiveContains("Stub running") ||
+            output.localizedCaseInsensitiveContains("Changing baud rate") {
+            return FirmwareFlashProgressSnapshot(stage: "准备写入", percent: nil)
+        }
+
+        if output.localizedCaseInsensitiveContains("Connecting") {
+            return FirmwareFlashProgressSnapshot(stage: "连接设备", percent: nil)
+        }
+
+        return nil
+    }
+
+    private static func latestWritingPercent(in output: String) -> Int? {
+        let pattern = #"Writing at\s+0x[0-9a-fA-F]+\.\.\.\s*\(\s*(\d+)\s*%\s*\)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return nil
+        }
+        let range = NSRange(output.startIndex..<output.endIndex, in: output)
+        return regex.matches(in: output, range: range)
+            .last
+            .flatMap { match -> Int? in
+                guard match.numberOfRanges > 1,
+                      let percentRange = Range(match.range(at: 1), in: output) else {
+                    return nil
+                }
+                return Int(output[percentRange]).map { min(max($0, 0), 100) }
+            }
+    }
+}
+
 public struct FirmwareChipProbeCommand: Equatable {
     public let targetChip: String
     public let port: String

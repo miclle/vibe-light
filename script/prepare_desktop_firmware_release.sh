@@ -100,10 +100,10 @@ fi
 
 if [[ "$REQUIRE_BUNDLED_PYTHON" -eq 1 ]]; then
   PYTHONPATH="projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/python-packages" \
+    PYTHONHOME="projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/python" \
     projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/python/bin/python3 - <<'PY'
-import cffi
-import cryptography
 import esptool
+import intelhex
 import serial
 import yaml
 PY

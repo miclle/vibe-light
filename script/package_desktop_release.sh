@@ -125,7 +125,6 @@ require_command codesign
 require_command ditto
 require_command file
 require_command security
-require_command spctl
 require_command xcrun
 
 api_key_path() {
@@ -197,6 +196,8 @@ if [[ ! -d "$APP_BUNDLE" ]]; then
   exit 1
 fi
 
+xattr -cr "$APP_BUNDLE"
+
 sign_path() {
   local path="$1"
   codesign --force --timestamp --options runtime --sign "$SIGNING_IDENTITY_VALUE" "$path"
@@ -226,7 +227,7 @@ make_archive() {
   local archive_url="$RELEASE_DIR/$APP_NAME-$VERSION$suffix.zip"
   mkdir -p "$RELEASE_DIR"
   rm -f "$archive_url"
-  ditto -c -k --keepParent "$APP_BUNDLE" "$archive_url"
+  ditto -c -k --keepParent --noextattr --norsrc "$APP_BUNDLE" "$archive_url"
   printf '%s\n' "$archive_url"
 }
 
@@ -276,7 +277,10 @@ if [[ "$NOTARIZE" -eq 1 ]]; then
   printf 'Wrote notarized archive: %s\n' "$ARCHIVE_PATH"
 fi
 
-if spctl -a -vv --type execute "$APP_BUNDLE"; then
+if command -v syspolicy_check >/dev/null 2>&1; then
+  syspolicy_check distribution "$APP_BUNDLE"
+  printf 'Distribution policy check passed.\n'
+elif command -v spctl >/dev/null 2>&1 && spctl -a -vv --type execute "$APP_BUNDLE"; then
   printf 'Gatekeeper assessment passed.\n'
 elif [[ "$NOTARIZE" -eq 1 ]]; then
   echo "Gatekeeper assessment failed after notarization." >&2

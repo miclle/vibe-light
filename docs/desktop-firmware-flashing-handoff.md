@@ -150,11 +150,11 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 2026-06-13 已完成 zip 内实际文件的工程合规审阅：`esptool` GPL gate 对当前 dev release 可以放行；正式商业发布前仍建议法律 / 合规最终确认。
    - 后续非阻塞优化：把 `SOURCE_OFFER.md` fallback wording 写得更贴近 GPLv2 3(b)，明确 `any third party`、费用不超过实际源码分发成本和稳定联系渠道；补齐 `pyserial 3.5` 等间接依赖的独立 license 文本归档。
 
-4. 固件烧录向导已落地，进度细化仍可继续
+4. 固件烧录向导和进度展示已落地
    - 侧边栏已经有独立“固件烧录”入口；“硬件设备”页保留 BLE 发现、连接、health 和演示包，不再混入烧录流程。
    - 固件烧录页使用 step-by-step 向导：连接 USB、读取芯片、按需进入下载模式、确认并烧录、写入固件、RST 重启、BLE 连接和完成状态。
    - 向导会在 download mode 失败时分步提示 `BOOT` / `RST` 操作，并在烧录成功后提示只点按 `RST` 正常启动，避免用户继续按住 `BOOT`。
-   - UI 当前仍是状态级引导和折叠日志，没有把 esptool 输出解析成实时 progress bar；后续可继续做 stage/progress 细化。
+   - UI 会解析 esptool 输出显示实时 stage/progress，并保留完整 helper 日志。
    - 常见失败已经有明确提示：下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失。
    - app 已在写入前单独执行 `chip_id` pre-read 并展示确认，写入入口会等确认后才启用。
 
@@ -178,12 +178,12 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 复用 checklist 重新生成并归档正式 release 报告。
 
 3. 继续体验优化
-   - 如需要更细的用户反馈，再解析 esptool 输出显示实时 stage/progress。
+   - 如需要更细的用户反馈，可继续把 progress 拆成 bootloader、partition table 和 app 分区级别的阶段展示。
    - 如果 Developer ID 路线稳定，再评估 App Store sandbox 可行性。
 
 4. 保持失败恢复测试
    - 保持 download mode、串口占用、checksum mismatch、非 ESP32-S3 设备和 helper runtime 缺失提示的测试覆盖。
-   - 烧录前芯片读取、硬件确认和 step-by-step 向导已落地，后续继续补进度展示。
+   - 烧录前芯片读取、硬件确认、step-by-step 向导和 esptool 进度展示已落地，后续继续保持失败恢复覆盖。
 
 ## 常用命令
 

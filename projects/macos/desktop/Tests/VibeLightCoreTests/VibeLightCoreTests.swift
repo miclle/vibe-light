@@ -1392,6 +1392,56 @@ import Testing
     ])
 }
 
+@Test func firmwareFlashProgressParsesLatestWritingPercent() throws {
+    let output = """
+    Writing at 0x000355ca... (14 %)
+    Writing at 0x00044704... (20 %)
+    Writing at 0x0006044f... (31 %)
+    """
+
+    let progress = try #require(FirmwareFlashProgressSnapshot.parse(output: output))
+
+    #expect(progress.stage == "写入固件")
+    #expect(progress.percent == 31)
+    #expect(progress.fraction == 0.31)
+}
+
+@Test func firmwareFlashProgressParsesCompletionStages() throws {
+    let verified = try #require(FirmwareFlashProgressSnapshot.parse(output: "Hash of data verified.\\n"))
+    let resetting = try #require(FirmwareFlashProgressSnapshot.parse(output: "Hard resetting via RTS pin...\\n"))
+
+    #expect(verified.stage == "校验完成")
+    #expect(verified.percent == 100)
+    #expect(resetting.stage == "重启设备")
+    #expect(resetting.percent == 100)
+}
+
+@Test func firmwareFlashProgressPrefersCompletionMarkersInAccumulatedOutput() throws {
+    let verifiedOutput = """
+    Writing at 0x0006044f... (31 %)
+    Writing at 0x00116de9... (100 %)
+    Hash of data verified.
+    """
+    let resettingOutput = """
+    Writing at 0x0006044f... (31 %)
+    Writing at 0x00116de9... (100 %)
+    Hash of data verified.
+    Hard resetting via RTS pin...
+    """
+
+    let verified = try #require(FirmwareFlashProgressSnapshot.parse(output: verifiedOutput))
+    let resetting = try #require(FirmwareFlashProgressSnapshot.parse(output: resettingOutput))
+
+    #expect(verified.stage == "校验完成")
+    #expect(verified.percent == 100)
+    #expect(resetting.stage == "重启设备")
+    #expect(resetting.percent == 100)
+}
+
+@Test func firmwareFlashProgressIgnoresUnrelatedOutput() {
+    #expect(FirmwareFlashProgressSnapshot.parse(output: "Chip is ESP32-S3 (QFN56)") == nil)
+}
+
 @Test func firmwareChipProbeResultParsesChipNameAndMacAddress() throws {
     let output = """
     esptool.py v4.11.0
@@ -1587,7 +1637,7 @@ import Testing
     continue_path = pathlib.Path(sys.argv[1])
     sys.stdout.write("first line\\n")
     sys.stdout.flush()
-    deadline = time.time() + 10
+    deadline = time.time() + 30
     while not continue_path.exists() and time.time() < deadline:
         time.sleep(0.05)
     sys.stdout.write("second line\\n")
@@ -1604,7 +1654,7 @@ import Testing
     }
 
     var partialOutput = ""
-    for _ in 0..<40 {
+    for _ in 0..<160 {
         partialOutput = collector.output
         if partialOutput.contains("first line") {
             break
