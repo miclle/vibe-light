@@ -132,6 +132,10 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 2026-06-13 已发布 GitHub pre-release `v2026.06.13-dev-ffaf09f`：`https://github.com/miclle/vibe-light/releases/tag/v2026.06.13-dev-ffaf09f`，tag 指向实际构建提交 `ffaf09fec89a13ba26a86f6139255c26d3836d57`。
    - 2026-06-13 已从 GitHub pre-release 下载 notarized zip 和 checklist 报告回归验证：SHA-256 与 release notes 一致，`ditto -x -k` 解压出的 app 通过 stapler、Gatekeeper 和 codesign，zip 内 GPL 材料复核通过，下载 app 可启动并退出。
    - 同日已用下载 app 完成完整 UI 闭环：手动让目标板进入 ROM download mode 后，UI 读取芯片识别 `ESP32-S3 (QFN56)` / MAC `1c:db:d4:7b:3f:cc`，UI 烧录 bootloader / partition table / app 三段均 hash verified，随后发现并连接 `VibeLight-S3`，健康状态显示运行中、背光开启、heap 约 6.7 MB 和 render tick。
+   - 2026-06-13 已发布后续 GitHub pre-release `v2026.06.13-dev-98427be`：`https://github.com/miclle/vibe-light/releases/tag/v2026.06.13-dev-98427be`，tag 指向 `98427bee72b1a3249f1b022ee794fefd0cd9cabf`，并在 release notes 标明 supersede `v2026.06.13-dev-ffaf09f`。
+   - 2026-06-13 已在 `98427be` 上重新跑通完整 checklist：版本 `2026.06.13-dev-98427be`，Apple Notary submission `0fe51533-2c15-493e-809d-07693eb43a2e` 返回 `Accepted`，staple / validate、`syspolicy_check distribution` 和 `codesign --verify --deep --strict` 通过；release 报告为 `dist/release/desktop-firmware-release-2026.06.13-dev-98427be.md`，notarized zip 为 `dist/release/VibeLightApp-2026.06.13-dev-98427be-notarized.zip`。
+   - 已从 GitHub release 重新下载 `98427be` notarized zip 和 checklist：SHA-256 分别为 `55c31ef27c5a8957b2393d920bd159c8b42bd0840e13d4949b392ac0cae61bfa` 和 `44a0f3881635d2f769bcee7af4cdf25840c169d9213a4ab990638b418c0a2ea9`，与 release notes / GitHub digest 一致。下载 zip 用 `ditto -x -k` 解压后通过 stapler、distribution policy 和 codesign，manifest 为 `2026.06.13-dev-98427be / 98427be`，GPL 材料和 `esptool` 源码包 hash 复核通过。
+   - 同一下载形态 app 内 strict helper 已对 `/dev/cu.usbmodem1101` 完成完整 `write_flash`，bootloader、partition table 和 app 三段均 `Hash of data verified`，最后 `Hard resetting via RTS pin`。
    - 注意不要在发布说明中建议用户用命令行 `unzip` 解压 macOS app bundle；本地验证发现 `unzip` 解出的 app 会出现 sealed resource 校验失败。建议 Finder / Archive Utility 或 `ditto -x -k`。
 
 2. Python runtime 发布路线已确定并完成本地验证
@@ -161,15 +165,15 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
 5. 发布自动化已有 checklist 和 GitHub pre-release 入口
    - `script/prepare_desktop_firmware_release.sh` 已串起 ESP32 构建、固件包生成、工具 vendoring 和 helper 收窄 PATH 验证。
    - `script/desktop_firmware_release_checklist.sh` 已把固件资源准备、desktop app 打包签名、可选 notarization、third-party notice 检查和目标板 `chip_id` 读取串成 markdown checklist，日志写入 `dist/release/logs/`。
-   - 当前 dev pre-release 已发布；正式公开 / 稳定 release 前需要明确 stable release version、desktop version、runtime 来源和 checklist 归档规则。
+   - 当前 dev pre-release `v2026.06.13-dev-98427be` 已发布；正式公开 / 稳定 release 前需要明确 stable release version、desktop version、runtime 来源和 checklist 归档规则。
 
 ## 建议下一步
 
 推荐按以下顺序继续推进：
 
 1. 观察 dev pre-release 反馈
-   - 当前版本为 `v2026.06.13-dev-ffaf09f`。
-   - Release URL：`https://github.com/miclle/vibe-light/releases/tag/v2026.06.13-dev-ffaf09f`。
+   - 当前版本为 `v2026.06.13-dev-98427be`。
+   - Release URL：`https://github.com/miclle/vibe-light/releases/tag/v2026.06.13-dev-98427be`。
    - 重点关注下载解压、首次启动、USB 串口权限、BOOT/RST 指引和 BLE 重连反馈。
 
 2. 准备后续稳定 release gate
