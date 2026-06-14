@@ -22,19 +22,28 @@ let package = Package(
             targets: ["VibeLightHook"]
         ),
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.3"),
+    ],
     targets: [
         .target(
             name: "VibeLightCore"
         ),
         .executableTarget(
             name: "VibeLightApp",
-            dependencies: ["VibeLightCore"],
+            dependencies: [
+                "VibeLightCore",
+                .product(name: "Sparkle", package: "Sparkle"),
+            ],
             resources: [
                 .process("Resources/AppIcon.icns"),
                 .process("Resources/Assets.xcassets"),
                 .process("Resources/icon.svg"),
                 .copy("Resources/FirmwareBundle"),
                 .copy("Resources/FirmwareTools"),
+            ],
+            linkerSettings: [
+                .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"]),
             ]
         ),
         .executableTarget(

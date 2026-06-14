@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_BUNDLE="${1:-$ROOT_DIR/dist/VibeLightApp.app}"
 INFO_PLIST="$APP_BUNDLE/Contents/Info.plist"
+REQUIRE_SPARKLE_METADATA="${VIBE_LIGHT_REQUIRE_SPARKLE_METADATA:-0}"
 
 if [[ ! -d "$APP_BUNDLE" ]]; then
   echo "app bundle does not exist: $APP_BUNDLE" >&2
@@ -33,4 +34,23 @@ if [[ ! -s "$icon_path" ]]; then
   exit 1
 fi
 
+if [[ "$REQUIRE_SPARKLE_METADATA" == "1" ]]; then
+  for key in SUFeedURL SUPublicEDKey CFBundleShortVersionString CFBundleVersion; do
+    value="$(/usr/libexec/PlistBuddy -c "Print :$key" "$INFO_PLIST" 2>/dev/null || true)"
+    if [[ -z "$value" ]]; then
+      echo "app Info.plist is missing $key: $INFO_PLIST" >&2
+      exit 1
+    fi
+  done
+
+  automatic_checks="$(/usr/libexec/PlistBuddy -c 'Print :SUEnableAutomaticChecks' "$INFO_PLIST" 2>/dev/null || true)"
+  if [[ "$automatic_checks" != "true" ]]; then
+    echo "app Info.plist must enable SUEnableAutomaticChecks for release updates: $INFO_PLIST" >&2
+    exit 1
+  fi
+fi
+
 printf 'Verified desktop app bundle icon: %s\n' "$icon_path"
+if [[ "$REQUIRE_SPARKLE_METADATA" == "1" ]]; then
+  printf 'Verified desktop app Sparkle update metadata.\n'
+fi

@@ -119,6 +119,7 @@ security find-identity -p codesigning -v
 
 ```bash
 SIGNING_IDENTITY="Developer ID Application: <name> (<team-id>)" \
+SPARKLE_PUBLIC_ED_KEY=<sparkle-public-ed-key> \
   script/package_desktop_release.sh \
   --version <release-version>
 ```
@@ -128,6 +129,7 @@ SIGNING_IDENTITY="Developer ID Application: <name> (<team-id>)" \
 ```bash
 SIGNING_IDENTITY="Developer ID Application: <name> (<team-id>)" \
 NOTARYTOOL_PROFILE=<notarytool-profile> \
+SPARKLE_PUBLIC_ED_KEY=<sparkle-public-ed-key> \
   script/package_desktop_release.sh \
   --version <release-version> \
   --notarize
@@ -140,20 +142,38 @@ SIGNING_IDENTITY="Developer ID Application: <name> (<team-id>)" \
 APPLE_API_KEY_PATH=/path/to/AuthKey_KEYID.p8 \
 APPLE_API_KEY_ID=KEYID \
 APPLE_API_ISSUER=ISSUER_UUID \
+SPARKLE_PUBLIC_ED_KEY=<sparkle-public-ed-key> \
   script/package_desktop_release.sh \
   --version <release-version> \
   --notarize
 ```
 
+`SPARKLE_PUBLIC_ED_KEY` 是 Sparkle EdDSA 公钥，会写入 app `Info.plist` 的 `SUPublicEDKey`。私钥不要写入仓库；本地生成 appcast 时可通过 `SPARKLE_PRIVATE_KEY` 环境变量传给 `script/generate_desktop_appcast.sh`，CI 则从 GitHub secret 注入。
+
 `script/package_desktop_release.sh` 会：
 
 - 构建 `dist/VibeLightApp.app`，除非传入 `--skip-build`。
+- 写入 `CFBundleShortVersionString`、`CFBundleVersion`、`SUFeedURL`、`SUPublicEDKey` 和 `SUEnableAutomaticChecks`。
 - 清理 app bundle xattrs。
 - 对 app bundle 内 nested Mach-O 逐个签名。
 - 签 resource bundle 和主 app bundle。
 - 运行 `codesign --verify --deep --strict`。
 - 生成 `dist/release/VibeLightApp-<version>.zip`。
 - 在 `--notarize` 下提交 notarytool、等待结果、staple ticket、验证 Gatekeeper，并生成 `VibeLightApp-<version>-notarized.zip`。
+
+生成 Sparkle appcast：
+
+```bash
+SPARKLE_PRIVATE_KEY=<sparkle-private-ed-key> \
+  script/generate_desktop_appcast.sh \
+  --version <release-version> \
+  --archive dist/release/VibeLightApp-<release-version>-notarized.zip \
+  --release-notes dist/release/desktop-firmware-release-<release-version>.md \
+  --download-url-prefix https://github.com/miclle/vibe-light/releases/download/v<release-version>/ \
+  --output dist/release/appcast.xml
+```
+
+默认 app 内 feed URL 是 `https://github.com/miclle/vibe-light/releases/latest/download/appcast.xml`。如果将来切换为独立 CDN 或 beta feed，可用 `VIBE_LIGHT_SPARKLE_FEED_URL` 覆盖构建时写入的 `SUFeedURL`。
 
 ## 一键发布 checklist
 
@@ -234,7 +254,8 @@ make desktop-release-notarized
 6. 创建临时 notarytool profile。
 7. 运行 notarized release checklist。
 8. 解压并验证 notarized zip。
-9. 创建 GitHub draft / pre-release / release assets。
+9. 生成 Sparkle `appcast.xml`。
+10. 创建 GitHub draft / pre-release / release assets。
 
 仓库需要配置：
 
@@ -244,6 +265,8 @@ make desktop-release-notarized
 - `APPLE_API_KEY`
 - `APPLE_API_KEY_ID`
 - `APPLE_API_ISSUER`
+- `SPARKLE_PUBLIC_ED_KEY`
+- `SPARKLE_PRIVATE_KEY`
 
 workflow 当前使用 `actions/checkout@v6`、`actions/setup-python@v6` 和 `espressif/install-esp-idf-action@v1`。`release-desktop.yml` 已设置 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true`；如果 GitHub 仍提示 `espressif/install-esp-idf-action@v1` 声明 Node.js 20，这是上游 action metadata 未更新导致的非阻塞提醒。
 

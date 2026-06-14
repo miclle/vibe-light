@@ -51,6 +51,8 @@ jobs:
       APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
       APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
       APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
+      SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
       NOTARYTOOL_TIMEOUT: 30m
       ESP_IDF_VERSION: v5.5
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -71,7 +73,9 @@ jobs:
             MACOS_CERTIFICATE_PASSWORD \
             APPLE_API_KEY \
             APPLE_API_KEY_ID \
-            APPLE_API_ISSUER
+            APPLE_API_ISSUER \
+            SPARKLE_PUBLIC_ED_KEY \
+            SPARKLE_PRIVATE_KEY
           do
             if [[ -z "${!name:-}" ]]; then
               echo "::error::Missing required secret: $name"
@@ -307,7 +311,7 @@ jobs:
           mkdir -p "$test_dir"
           ditto -x -k "$zip_path" "$test_dir"
           app_path="$test_dir/VibeLightApp.app"
-          script/verify_desktop_app_bundle.sh "$app_path"
+          VIBE_LIGHT_REQUIRE_SPARKLE_METADATA=1 script/verify_desktop_app_bundle.sh "$app_path"
           xcrun stapler validate "$app_path"
           syspolicy_check distribution "$app_path"
           codesign --verify --deep --strict --verbose=2 "$app_path"
@@ -326,7 +330,7 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ steps.release.outputs.version }}"
-          if grep -E -q 'apple-api|AuthKey_|APPLE_API_KEY|APPLE_API_ISSUER' \
+          if grep -E -q 'apple-api|AuthKey_|APPLE_API_KEY|APPLE_API_ISSUER|SPARKLE_PRIVATE_KEY|sparkle-private-key' \
             "dist/release/logs/package-desktop-$version.log" \
             "dist/release/desktop-firmware-release-$version.md"
           then
@@ -374,6 +378,32 @@ jobs:
           EOF
           echo "path=$notes" >>"$GITHUB_OUTPUT"
 
+      - name: Generate Sparkle appcast
+        id: appcast
+        run: |
+          set -euo pipefail
+          version="${{ steps.release.outputs.version }}"
+          asset_prefix="https://github.com/${GITHUB_REPOSITORY}/releases/download/${{ steps.release.outputs.tag }}/"
+          script/generate_desktop_appcast.sh \
+            --version "$version" \
+            --archive "${{ steps.verify.outputs.zip_path }}" \
+            --release-notes "${{ steps.notes.outputs.path }}" \
+            --download-url-prefix "$asset_prefix" \
+            --output dist/release/appcast.xml
+          appcast_sha="$(shasum -a 256 dist/release/appcast.xml | awk '{print $1}')"
+          echo "path=dist/release/appcast.xml" >>"$GITHUB_OUTPUT"
+          echo "sha=$appcast_sha" >>"$GITHUB_OUTPUT"
+
+      - name: Append appcast digest to release notes
+        run: |
+          set -euo pipefail
+          cat >>"${{ steps.notes.outputs.path }}" <<EOF
+
+          Sparkle appcast:
+          - appcast.xml
+            - SHA-256: ${{ steps.appcast.outputs.sha }}
+          EOF
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -383,6 +413,7 @@ jobs:
             release create "${{ steps.release.outputs.tag }}"
             "${{ steps.verify.outputs.zip_path }}"
             "${{ steps.verify.outputs.report_path }}"
+            "${{ steps.appcast.outputs.path }}"
             --title "${{ steps.release.outputs.tag }}"
             --notes-file "${{ steps.notes.outputs.path }}"
             --target "$GITHUB_SHA"

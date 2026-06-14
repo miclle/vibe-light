@@ -16,6 +16,7 @@ APPLE_API_KEY_PATH_VALUE="${APPLE_API_KEY_PATH:-}"
 APPLE_API_KEY_ID_VALUE="${APPLE_API_KEY_ID:-}"
 APPLE_API_ISSUER_VALUE="${APPLE_API_ISSUER:-}"
 NOTARYTOOL_TIMEOUT="${NOTARYTOOL_TIMEOUT:-30m}"
+SPARKLE_PUBLIC_ED_KEY_VALUE="${SPARKLE_PUBLIC_ED_KEY:-}"
 TEMP_KEY_FILE=""
 
 cleanup() {
@@ -39,6 +40,7 @@ Environment:
   APPLE_API_KEY_ID      Required for API key notarization.
   APPLE_API_ISSUER      Required for API key notarization.
   NOTARYTOOL_TIMEOUT    Optional. Defaults to 30m.
+  SPARKLE_PUBLIC_ED_KEY Required. Sparkle EdDSA public key for update verification.
 
 Options:
   --identity VALUE      Override SIGNING_IDENTITY.
@@ -179,6 +181,12 @@ if [[ -z "$SIGNING_IDENTITY_VALUE" ]]; then
   exit 2
 fi
 
+if [[ -z "$SPARKLE_PUBLIC_ED_KEY_VALUE" ]]; then
+  echo "SPARKLE_PUBLIC_ED_KEY is required for release builds." >&2
+  echo "Generate/import Sparkle keys with Sparkle's generate_keys tool, then export only the public key into this environment." >&2
+  exit 2
+fi
+
 if ! security find-identity -p codesigning -v | grep -F -- "$SIGNING_IDENTITY_VALUE" >/dev/null; then
   echo "signing identity is not available in the current keychain: $SIGNING_IDENTITY_VALUE" >&2
   security find-identity -p codesigning -v >&2
@@ -188,7 +196,14 @@ fi
 validate_notarization_credentials
 
 if [[ "$SKIP_BUILD" -eq 0 ]]; then
-  "$ROOT_DIR/script/build_and_run.sh" --package
+  release_short_version="$VERSION"
+  if [[ ! "$release_short_version" =~ ^[0-9]+([.][0-9]+){0,2}$ ]]; then
+    release_short_version="$(printf '%s\n' "$VERSION" | sed -E 's/[^0-9]+/./g; s/^\.//; s/\.$//' | awk -F. '{ printf "%d.%d.%d", ($1 == "" ? 0 : $1), ($2 == "" ? 0 : $2), ($3 == "" ? 0 : $3) }')"
+  fi
+  VIBE_LIGHT_APP_VERSION="$release_short_version" \
+    VIBE_LIGHT_REQUIRE_SPARKLE_METADATA=1 \
+    SPARKLE_PUBLIC_ED_KEY="$SPARKLE_PUBLIC_ED_KEY_VALUE" \
+    "$ROOT_DIR/script/build_and_run.sh" --package
 fi
 
 if [[ ! -d "$APP_BUNDLE" ]]; then
@@ -214,12 +229,35 @@ sign_nested_macho() {
   printf 'Signed %s nested Mach-O files.\n' "$signed_count"
 }
 
+sign_nested_bundles() {
+  local signed_count=0
+  while IFS= read -r bundle_url; do
+    sign_path "$bundle_url"
+    signed_count=$((signed_count + 1))
+  done < <(find "$APP_BUNDLE" \
+    \( -name '*.app' -o -name '*.framework' -o -name '*.xpc' \) \
+    ! -path "$APP_BUNDLE" \
+    -type d \
+    | sort -r)
+  printf 'Signed %s nested code bundles.\n' "$signed_count"
+}
+
 verify_nested_macho() {
   while IFS= read -r -d '' file_url; do
     if /usr/bin/file -b "$file_url" | grep -q "Mach-O"; then
       codesign --verify --strict --verbose=2 "$file_url"
     fi
   done < <(find "$APP_BUNDLE" -type f -print0)
+}
+
+verify_nested_bundles() {
+  while IFS= read -r bundle_url; do
+    codesign --verify --strict --verbose=2 "$bundle_url"
+  done < <(find "$APP_BUNDLE" \
+    \( -name '*.app' -o -name '*.framework' -o -name '*.xpc' \) \
+    ! -path "$APP_BUNDLE" \
+    -type d \
+    | sort -r)
 }
 
 make_archive() {
@@ -258,14 +296,16 @@ notarytool_submit() {
 }
 
 sign_nested_macho
+sign_nested_bundles
 if [[ -d "$RESOURCE_BUNDLE" ]]; then
   sign_path "$RESOURCE_BUNDLE"
 fi
 sign_path "$APP_BUNDLE"
 
 verify_nested_macho
+verify_nested_bundles
 codesign --verify --strict --verbose=4 "$APP_BUNDLE"
-"$ROOT_DIR/script/verify_desktop_app_bundle.sh" "$APP_BUNDLE"
+VIBE_LIGHT_REQUIRE_SPARKLE_METADATA=1 "$ROOT_DIR/script/verify_desktop_app_bundle.sh" "$APP_BUNDLE"
 
 ARCHIVE_PATH="$(make_archive "")"
 printf 'Wrote signed archive: %s\n' "$ARCHIVE_PATH"

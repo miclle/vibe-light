@@ -6,6 +6,10 @@ APP_NAME="VibeLightApp"
 BUNDLE_ID="dev.miclle.VibeLight"
 MIN_SYSTEM_VERSION="14.0"
 SIGNING_IDENTITY_VALUE="${SIGNING_IDENTITY:-}"
+APP_VERSION="${VIBE_LIGHT_APP_VERSION:-0.0.0}"
+APP_BUILD_NUMBER="${VIBE_LIGHT_BUILD_NUMBER:-}"
+SPARKLE_FEED_URL="${VIBE_LIGHT_SPARKLE_FEED_URL:-https://github.com/miclle/vibe-light/releases/latest/download/appcast.xml}"
+SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_DIR="$ROOT_DIR/projects/macos/desktop"
@@ -14,6 +18,7 @@ APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
 APP_RESOURCES="$APP_CONTENTS/Resources"
+APP_FRAMEWORKS="$APP_CONTENTS/Frameworks"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 RESOURCE_BUNDLE_NAME="VibeLight_VibeLightApp.bundle"
@@ -27,14 +32,23 @@ BUILD_PRODUCTS_DIR="$(swift build --package-path "$PROJECT_DIR" --show-bin-path)
 BUILD_BINARY="$BUILD_PRODUCTS_DIR/$APP_NAME"
 HOOK_BINARY="$BUILD_PRODUCTS_DIR/vibe-light-hook"
 BUILD_RESOURCE_BUNDLE="$BUILD_PRODUCTS_DIR/$RESOURCE_BUNDLE_NAME"
+SPARKLE_FRAMEWORK="$(find "$PROJECT_DIR/.build" -path '*/Sparkle.framework' -type d -prune | head -n 1 || true)"
+
+if [[ -z "$APP_BUILD_NUMBER" ]]; then
+  APP_BUILD_NUMBER="$(git -C "$ROOT_DIR" rev-list --count HEAD 2>/dev/null || echo 1)"
+fi
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS"
 mkdir -p "$APP_RESOURCES"
+mkdir -p "$APP_FRAMEWORKS"
 ditto --noextattr --norsrc "$BUILD_BINARY" "$APP_BINARY"
 ditto --noextattr --norsrc "$HOOK_BINARY" "$APP_MACOS/vibe-light-hook"
 ditto --noextattr --norsrc "$BUILD_RESOURCE_BUNDLE" "$RESOURCE_BUNDLE"
 ditto --noextattr --norsrc "$RESOURCE_BUNDLE/$APP_ICON_NAME" "$APP_RESOURCES/$APP_ICON_NAME"
+if [[ -n "$SPARKLE_FRAMEWORK" ]]; then
+  ditto --noextattr --norsrc "$SPARKLE_FRAMEWORK" "$APP_FRAMEWORKS/Sparkle.framework"
+fi
 chmod +x "$APP_BINARY"
 chmod +x "$APP_MACOS/vibe-light-hook"
 
@@ -74,6 +88,10 @@ cat >"$INFO_PLIST" <<PLIST
   <string>Vibe Light</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$APP_VERSION</string>
+  <key>CFBundleVersion</key>
+  <string>$APP_BUILD_NUMBER</string>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_SYSTEM_VERSION</string>
   <key>NSPrincipalClass</key>
@@ -82,9 +100,17 @@ cat >"$INFO_PLIST" <<PLIST
   <string>Vibe Light scans for ESP32 devices and sends status packets over BLE.</string>
   <key>NSBluetoothPeripheralUsageDescription</key>
   <string>Vibe Light scans for ESP32 devices and sends status packets over BLE.</string>
+  <key>SUEnableAutomaticChecks</key>
+  <true/>
+  <key>SUFeedURL</key>
+  <string>$SPARKLE_FEED_URL</string>
 </dict>
 </plist>
 PLIST
+
+if [[ -n "$SPARKLE_PUBLIC_ED_KEY" ]]; then
+  /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string $SPARKLE_PUBLIC_ED_KEY" "$INFO_PLIST"
+fi
 
 sign_app
 "$ROOT_DIR/script/verify_desktop_app_bundle.sh" "$APP_BUNDLE"

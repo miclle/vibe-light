@@ -39,6 +39,7 @@ Vibe Light 目前已有 `v0.1.0` macOS release，核心链路已经具备 macOS 
 - 面向 Waveshare `ESP32-S3-LCD-3.16` 的预编译固件。
 - 固件烧录 helper 和 bundled Python runtime。
 - `esptool` 依赖，以及对应的 open-source notices、source offer 和 source archive。
+- Sparkle 自动更新入口，用于后续从 GitHub release appcast 检查新版本。
 
 发布流程已经完成 Developer ID 签名、notarization、release checklist、open-source notices 和 source offer 检查；历史下载包回归也覆盖过启动 app、通过 USB 读取 ESP32-S3 芯片、写入 bootloader / partition table / app firmware、重启、BLE 重连和读取设备 health 的闭环验证。
 
@@ -67,6 +68,7 @@ Vibe Light 目前已有 `v0.1.0` macOS release，核心链路已经具备 macOS 
 7. 在 app 中安装 Codex / Claude hooks，然后正常使用你的 AI 编程工具。
 
 内置烧录路径不要求用户安装 ESP-IDF、`idf.py`、Homebrew `esptool` 或本地 Python 环境。
+后续版本会通过 app 菜单中的“检查更新...”和后台自动检查发现新 release。
 
 ## macOS App
 

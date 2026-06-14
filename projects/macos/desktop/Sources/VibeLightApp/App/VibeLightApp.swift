@@ -1,4 +1,5 @@
 import AppKit
+import Sparkle
 import SwiftUI
 
 private let mainWindowMinimumSize = NSSize(width: 1040, height: 680)
@@ -6,6 +7,11 @@ private let mainWindowMinimumSize = NSSize(width: 1040, height: 680)
 @main
 struct VibeLightApp: App {
     @StateObject private var model = VibeLightAppModel()
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+    )
 
     init() {
         if let iconURL = AppResourceBundle.bundle.url(forResource: "AppIcon", withExtension: "icns"),
@@ -24,6 +30,10 @@ struct VibeLightApp: App {
                 .background(WindowMinimumSizeSetter(minSize: mainWindowMinimumSize))
         }
         .commands {
+            CommandGroup(after: .appInfo) {
+                CheckForUpdatesView(updater: updaterController.updater)
+            }
+
             CommandGroup(after: .newItem) {
                 Button("刷新事件") {
                     model.refreshEvents()
