@@ -79,6 +79,10 @@
 - 验证范围：Sparkle 自动更新 beta 链路。
 - 结果确认：`release-desktop.yml` 在提交 `2a026786ad691676e36b85f4fb51e11755896341` 上通过并发布公开 pre-release `v2026.06.14-dev-2a02678`，包含 `VibeLightApp-2026.06.14-dev-2a02678-notarized.zip`、`desktop-firmware-release-2026.06.14-dev-2a02678.md` 和 `appcast.xml`。下载资产 SHA-256 分别为 `05a77f47c7ba4c56149a2d72c8d85a65c590b8754c4c29ba1f5f1e35fdeabb34`、`80443291396742d5929caa7e77b20bf0aa2c7c41c965ce5346135a6875fd567d` 和 `e24e38b037ca496272ee5f1c6e706b06516b9b04a6b573b3e3d257df2b635691`；下载 zip 用 `ditto -x -k` 解压后通过 bundle icon、Sparkle metadata、`xcrun stapler validate`、`syspolicy_check distribution`、`codesign --verify --deep --strict` 和启动验证。用本地旧版测试 app（`CFBundleVersion=182`，`SUFeedURL` 指向该 pre-release `appcast.xml`）点击“检查更新...”，Sparkle 显示 `Vibe Light 2026.6.14 is now available—you have 2026.6.13`，随后完成下载、`Install and Relaunch`、替换安装和重启；替换后的 app 为 `CFBundleShortVersionString=2026.6.14`、`CFBundleVersion=183`，并再次通过 Sparkle metadata、stapler、distribution policy 和 codesign 验证。
 
+- 时间：2026-06-14。
+- 验证范围：Sparkle 自动更新 stable 链路和 `v0.1.1` 下载包真实用户路径。
+- 结果确认：`release-desktop.yml` 在提交 `2dee78b70fcdc43bd82f4eac64fe02b49804e882` 上通过并发布正式非 draft / 非 pre-release `v0.1.1`，该 release 已成为 GitHub Latest，包含 `VibeLightApp-0.1.1-notarized.zip`、`desktop-firmware-release-0.1.1.md` 和 `appcast.xml`。下载资产 SHA-256 分别为 `9d36726c3a41f62167f44083b9da406bfcaa5e923f24ffe5affc778c5d11966d`、`256b52b6ac3216978153da9b7514632d051163ffbbc3dd95bbe90a48070fc16f` 和 `e70a19af5d066a944973cbf30448f6846b97593d8b82c019ad09ba5c2243208a`；`https://github.com/miclle/vibe-light/releases/latest/download/appcast.xml` 可匿名下载，内容与 tag appcast 一致，指向 `VibeLightApp-0.1.1-notarized.zip`，Sparkle 版本为 `185 / 0.1.1` 并带 EdDSA 签名。下载 zip 用 `ditto -x -k` 解压后通过 bundle icon、Sparkle metadata、`xcrun stapler validate`、`syspolicy_check distribution`、`codesign --verify --deep --strict` 和启动验证；用户随后手动确认旧版 app 通过默认 stable feed 完成 Sparkle 检查更新、安装并重启到 `0.1.1`，并确认 `v0.1.1` 下载 app 完成 USB 固件烧录和 BLE 重连。
+
 - 时间：2026-06-11。
 - 端口：目标板 USB 串口。
 - 固件版本：`3215f23`。
@@ -100,7 +104,7 @@
    - `script/prepare_desktop_firmware_release.sh` 已提供发布资产准备入口，串起 ESP32 构建、固件包生成、esptool vendoring 和 helper 收窄 PATH 验证；`package_firmware_tools.py` 会生成 `FirmwareTools/THIRD_PARTY_NOTICES.md`、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-<version>.tar.gz` 供发布审阅。
    - 第一版发布路线已切到内置 Python runtime：`package_firmware_tools.py --python-runtime <path> --require-python-runtime` 可复制 runtime 到 `FirmwareTools/python/`，`VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1` 可验证 helper 不依赖系统 Python、Homebrew `esptool` 或用户 PATH；本地 PlatformIO portable Python 3.11.7 arm64 runtime 已完成 release-prep 和 import smoke，随包 `package.json` 记录 `python-portable 1.31107.0`、`darwin_arm64`、`PSF-2.0` 和 Python/CPython 来源。
    - `script/package_desktop_release.sh` 已提供本地 Developer ID 签名验证入口，可生成 `dist/VibeLightApp.app`、签名 bundle 内 nested Mach-O、签 resource bundle / 主 app、执行 `codesign --verify`、归档 zip，并支持显式 `--notarize` 后先校验凭证再提交、staple 和 Gatekeeper 校验。
-   - macOS app 已接入 Sparkle 自动更新：app 菜单提供“检查更新...”，bundle 发布元数据会写入 `SUFeedURL` / `SUPublicEDKey` / 版本字段，`script/generate_desktop_appcast.sh` 可基于 notarized zip 生成 `appcast.xml`，GitHub release workflow 会把 appcast 作为 release asset 上传。
+   - macOS app 已接入 Sparkle 自动更新：app 菜单提供“检查更新...”，bundle 发布元数据会写入 `SUFeedURL` / `SUPublicEDKey` / 版本字段，`script/generate_desktop_appcast.sh` 可基于 notarized zip 生成 `appcast.xml`，GitHub release workflow 会把 appcast 作为 release asset 上传；`v0.1.1` 已完成默认 stable feed 更新、USB 固件烧录和 BLE 重连验证。
    - 默认 Sparkle feed 指向 `releases/latest/download/appcast.xml`，作为稳定发布渠道；pre-release / beta 自动更新验证使用显式 tag feed，draft release asset 不能作为匿名 Sparkle feed。
    - `script/desktop_firmware_release_checklist.sh` 已把固件资源准备、desktop app 打包签名、可选 notarization、third-party notice / GPL source gate 检查和目标板 `chip_id` 读取串成 markdown checklist，日志写入 `dist/release/logs/`。
    - UI 已把固件烧录改成独立侧边栏入口和 step-by-step 向导，覆盖连接 USB、读取芯片、按需进入下载模式、确认并烧录、写入固件、RST 正常启动、BLE 连接和完成状态；download mode 失败会分步提示 `BOOT` / `RST` 操作，烧录成功后会提示只点按 `RST` 正常启动。
@@ -109,7 +113,7 @@
    - 2026-06-14 已补强生成脚本：`SOURCE_OFFER.md` fallback wording 明确 `any third party`、费用不超过实际源码分发成本和 GitHub 仓库联系入口；`package_firmware_tools.py` 会为 `pyserial 3.5` 补齐独立 `LICENSE.txt`，让生成的 `THIRD_PARTY_NOTICES.md` 能记录该 license 文件，减少长期审计摩擦。
    - Vibe Light 自有源码已经切换为 source-available 非商用许可；继续保留 GPL/source 材料即可。如果未来修改 bundled `esptool`，修改后的对应源码也必须按 GPLv2+ 提供，并同步更新 notice、source archive 和 hash。
    - notarized app bundle 内 helper 已能访问目标板 USB 串口并读取 `ESP32-S3 (QFN56)` 芯片信息；notarized app UI 已完成完整串口烧录、BLE 扫描 / 连接和 health packet 展示闭环。
-   - GitHub Actions 生成的 Developer ID notarized release 包已经覆盖 hash、notarization/Gatekeeper、codesign、GPL/source 材料和 checklist gate；真实 USB 烧录、BLE 重连和 health packet 仍需要按下载包形态做人工回归。
+   - GitHub Actions 生成的 Developer ID notarized release 包已经覆盖 hash、notarization/Gatekeeper、codesign、GPL/source 材料和 checklist gate；`v0.1.1` 下载包形态已人工确认 USB 固件烧录和 BLE 重连通过。
    - `v0.1.0` 当前公开 release 的 checklist 资产已确认固件资源、desktop app、bundle icon、third-party notices、GPL source offer 和 `esptool` 源码包检查通过；该 release checklist 没有提供 `--chip-port`，目标芯片读取为 skipped。
    - dev app UI 已补齐烧录前芯片确认：读取前“烧录固件”禁用，点击“读取芯片”确认 `ESP32-S3 (QFN56)` 和 MAC 后才启用写入入口，避免直接进入写入；写入阶段会解析 esptool 输出显示实时 stage/progress，并保留完整实时日志。
    - 方案细节见 `docs/desktop-firmware-flashing.md`。
