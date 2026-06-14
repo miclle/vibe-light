@@ -84,7 +84,7 @@ idf.py set-target esp32s3
 idf.py build
 ```
 
-当前本机使用 ESP-IDF v5.5.1 构建通过。`get_idf` 会先避开 PlatformIO 的 Python 环境，再加载 `/Users/miclle/esp/esp-idf/export.sh`。
+当前使用 ESP-IDF v5.5.x 构建通过。`get_idf` 会先避开 PlatformIO 的 Python 环境，再加载 `IDF_PATH` 指向的 ESP-IDF `export.sh`。
 
 中文字体 asset 由 `tools/generate_cjk_font.py` 在构建期生成。生成脚本需要可 `import PIL` 的 Python 解释器；CMake 会优先使用 `VIBE_CJK_FONT_PYTHON` 指定的解释器，再查找本机常见 Python 路径。字体源可用 `VIBE_CJK_FONT=/path/to/font.ttf` 覆盖，默认优先使用 macOS 系统中文字体。
 
