@@ -75,6 +75,10 @@
 - 验证范围：`v0.1.0` release 远端发布状态和 checklist 资产。
 - 结果确认：GitHub 当前公开 release 为 `v0.1.0`，tag 指向 `7c9781aebdfd02c9be96dc078324599e51a40cd5`，发布时间为 `2026-06-14T04:32:31Z`；asset `VibeLightApp-0.1.0-notarized.zip` 的 GitHub digest 为 `sha256:27e570b66fb3e7e33da4474a0436b7f1d21e53711216c3b986a181cf76f974a6`，checklist asset `desktop-firmware-release-0.1.0.md` 的 digest 为 `sha256:0f73df1b82e27ac3cdfb350aef325b83c105a2186148d6b87516eb1a8019dc6e`。下载 checklist 显示 CI release flow 在 commit `7c9781aebdfd02c9be96dc078324599e51a40cd5` 上通过：固件资源、desktop app、bundle icon、third-party notices、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-4.11.0.tar.gz` 均通过检查，`esptool` 源码包 SHA-256 为 `496571e4f6e36f7dc9a730dd485c4a9d522c9e7d6bb90ea2fec0a049275fbfad`；该 checklist 未提供 `--chip-port`，所以目标芯片读取为 skipped，真实 USB 烧录仍以历史下载包回归记录为准。
 
+- 时间：2026-06-14。
+- 验证范围：Sparkle 自动更新 beta 链路。
+- 结果确认：`release-desktop.yml` 在提交 `2a026786ad691676e36b85f4fb51e11755896341` 上通过并发布公开 pre-release `v2026.06.14-dev-2a02678`，包含 `VibeLightApp-2026.06.14-dev-2a02678-notarized.zip`、`desktop-firmware-release-2026.06.14-dev-2a02678.md` 和 `appcast.xml`。下载资产 SHA-256 分别为 `05a77f47c7ba4c56149a2d72c8d85a65c590b8754c4c29ba1f5f1e35fdeabb34`、`80443291396742d5929caa7e77b20bf0aa2c7c41c965ce5346135a6875fd567d` 和 `e24e38b037ca496272ee5f1c6e706b06516b9b04a6b573b3e3d257df2b635691`；下载 zip 用 `ditto -x -k` 解压后通过 bundle icon、Sparkle metadata、`xcrun stapler validate`、`syspolicy_check distribution`、`codesign --verify --deep --strict` 和启动验证。用本地旧版测试 app（`CFBundleVersion=182`，`SUFeedURL` 指向该 pre-release `appcast.xml`）点击“检查更新...”，Sparkle 显示 `Vibe Light 2026.6.14 is now available—you have 2026.6.13`，随后完成下载、`Install and Relaunch`、替换安装和重启；替换后的 app 为 `CFBundleShortVersionString=2026.6.14`、`CFBundleVersion=183`，并再次通过 Sparkle metadata、stapler、distribution policy 和 codesign 验证。
+
 - 时间：2026-06-11。
 - 端口：目标板 USB 串口。
 - 固件版本：`3215f23`。
