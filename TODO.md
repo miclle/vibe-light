@@ -17,7 +17,7 @@
 - 健康状态包已经包含运行时长、BLE 连接状态、最近显示状态、heap 余量、启动后 heap 低水位、渲染 tick、背光状态和最近解析错误；macOS 硬件页会展示这些诊断信息。
 - macOS app 已有独立“固件烧录”页，可枚举常见 ESP32 USB 串口、加载并校验内置 `FirmwareBundle`、调用 helper 执行 `write_flash`，成功后启动 BLE 扫描；`projects/esp32/tools/package_firmware_bundle.py` 可从 ESP-IDF build 产物生成带 SHA-256 的 app resource 固件包，`projects/esp32/tools/package_firmware_tools.py` 可把 `esptool` 依赖 vendor 到 `FirmwareTools/python-packages/`，并生成 GPL source offer / 对应源码归档。
 - Vibe Light 自有源码已经切换为 source-available 非商用许可：个人、学习、研究和其他非商业用途可免费使用；商业使用、商业分发或作为商业产品 / 服务的一部分使用，需要原作者单独书面授权；fork、复制、修改和再分发必须保留原作者署名、非商用限制和商业授权要求。
-- 当前公开 release 为 `v0.1.0`，tag 指向 `7c9781aebdfd02c9be96dc078324599e51a40cd5`；release asset 包含 `VibeLightApp-0.1.0-notarized.zip` 和 `desktop-firmware-release-0.1.0.md`。下一次发布前，release notes / manifest / checklist 继续记录构建 commit、日期、许可边界和第三方许可证材料。
+- 当前公开 latest release 为 `v0.1.1`，tag 指向 `2dee78b70fcdc43bd82f4eac64fe02b49804e882`；release asset 包含 `VibeLightApp-0.1.1-notarized.zip`、`desktop-firmware-release-0.1.1.md` 和 `appcast.xml`。`v0.1.1` 已完成默认 stable feed Sparkle 更新、下载包启动、USB 固件烧录和 BLE 重连验证；后续 release notes / manifest / checklist 继续记录构建 commit、日期、许可边界、第三方许可证材料和 appcast digest。
 - 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试、生成迷宫 / 全屏 PNG 预览并执行 Git whitespace 检查；ESP32 显示闭环已完成一次实机烧录和屏幕确认。
 - 固件版本 `82d2180` 已在目标板完成烧录、串口启动、BLE 连接、健康特征实机读取、肉眼屏幕复核和长时间稳定性观察：LCD 初始化、BLE 广播、Central 连接、连续 `v: 2` 状态写入、token 摘要、页脚、底部余量、任务色块内缩、无边缘蓝线、macOS 硬件页健康读数和稳定性表现均正常；坏状态包后会回传 `lastParseError:"invalid JSON"`。
 - 固件版本 `3215f23` 已完成目标板烧录和实机观察，确认结构拆分后的固件启动、屏幕显示和 BLE 链路正常。
@@ -114,7 +114,7 @@
    - Vibe Light 自有源码已经切换为 source-available 非商用许可；继续保留 GPL/source 材料即可。如果未来修改 bundled `esptool`，修改后的对应源码也必须按 GPLv2+ 提供，并同步更新 notice、source archive 和 hash。
    - notarized app bundle 内 helper 已能访问目标板 USB 串口并读取 `ESP32-S3 (QFN56)` 芯片信息；notarized app UI 已完成完整串口烧录、BLE 扫描 / 连接和 health packet 展示闭环。
    - GitHub Actions 生成的 Developer ID notarized release 包已经覆盖 hash、notarization/Gatekeeper、codesign、GPL/source 材料和 checklist gate；`v0.1.1` 下载包形态已人工确认 USB 固件烧录和 BLE 重连通过。
-   - `v0.1.0` 当前公开 release 的 checklist 资产已确认固件资源、desktop app、bundle icon、third-party notices、GPL source offer 和 `esptool` 源码包检查通过；该 release checklist 没有提供 `--chip-port`，目标芯片读取为 skipped。
+   - `v0.1.1` 当前 latest release 已确认 Sparkle stable feed、下载包启动、USB 固件烧录和 BLE 重连通过；`v0.1.0` checklist 资产仍作为历史记录，确认固件资源、desktop app、bundle icon、third-party notices、GPL source offer 和 `esptool` 源码包检查通过，但该 checklist 没有提供 `--chip-port`，目标芯片读取为 skipped。
    - dev app UI 已补齐烧录前芯片确认：读取前“烧录固件”禁用，点击“读取芯片”确认 `ESP32-S3 (QFN56)` 和 MAC 后才启用写入入口，避免直接进入写入；写入阶段会解析 esptool 输出显示实时 stage/progress，并保留完整实时日志。
    - 方案细节见 `docs/desktop-firmware-flashing.md`。
 

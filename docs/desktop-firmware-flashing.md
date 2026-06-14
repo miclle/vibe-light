@@ -11,9 +11,9 @@
 - macOS app：`projects/macos/desktop`。
 - app 内烧录入口：侧边栏“固件烧录”页面。
 - BLE 设备名：`VibeLight-S3`。
-- 当前公开 release：`v0.1.0`，tag 指向 `7c9781aebdfd02c9be96dc078324599e51a40cd5`。
-- 当前 release assets：`VibeLightApp-0.1.0-notarized.zip` 和 `desktop-firmware-release-0.1.0.md`。
-- `v0.1.0` checklist 已通过固件资源、desktop app、bundle icon、third-party notices、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-4.11.0.tar.gz` 检查；该 checklist 未提供 `--chip-port`，所以真实 USB 烧录仍需单独人工回归。
+- 当前公开 latest release：`v0.1.1`，tag 指向 `2dee78b70fcdc43bd82f4eac64fe02b49804e882`。
+- 当前 release assets：`VibeLightApp-0.1.1-notarized.zip`、`desktop-firmware-release-0.1.1.md` 和 `appcast.xml`。
+- `v0.1.1` 已验证 GitHub latest appcast 可匿名下载，Sparkle stable feed 可从旧版更新到 `0.1.1`，下载包可启动并完成 USB 固件烧录和 BLE 重连。历史 `v0.1.0` checklist 已通过固件资源、desktop app、bundle icon、third-party notices、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-4.11.0.tar.gz` 检查，但该 checklist 未提供 `--chip-port`，所以只能作为无设备 CI gate 记录。
 
 ## 用户烧录流程
 
@@ -382,6 +382,6 @@ Vibe Light 自有源码使用 source-available 非商用许可，和第三方 GP
 ## 已知后续事项
 
 - 每次 release 前继续保存当次 checklist 报告和下载包验证记录。
-- 当前 `v0.1.0` checklist 未做 `--chip-port`，后续 release 应尽量补真实目标板读取。
+- 历史 `v0.1.0` checklist 未做 `--chip-port`；后续 release 应尽量保留真实目标板读取、UI 烧录、BLE 重连和 Sparkle feed 验证记录。
 - 持续关注 `espressif/install-esp-idf-action@v1` 是否发布原生 Node 24 版本。
 - 如果将来考虑 App Store 分发，需要重新评估 sandbox 串口 / USB 权限；当前第一阶段更适合 Developer ID notarized 直分发。

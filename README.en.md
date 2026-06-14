@@ -31,7 +31,7 @@ The project combines a native macOS app with ESP32-S3 display firmware. Codex / 
 
 ## Current Status
 
-Vibe Light has a `v0.1.0` macOS release. The core loop already includes the macOS app, ESP32-S3 firmware, BLE status sync, and in-app firmware flashing.
+Vibe Light has a `v0.1.1` macOS release. The core loop already includes the macOS app, ESP32-S3 firmware, BLE status sync, in-app firmware flashing, and Sparkle app updates.
 
 The current release package includes:
 
@@ -39,8 +39,9 @@ The current release package includes:
 - Prebuilt firmware for the Waveshare `ESP32-S3-LCD-3.16`.
 - A firmware flashing helper and bundled Python runtime.
 - `esptool` dependencies, plus open-source notices, a source offer, and a source archive.
+- Sparkle update metadata and an appcast for checking stable GitHub releases.
 
-The release flow now covers Developer ID signing, notarization, the release checklist, open-source notices, and source-offer checks. Historical downloaded-package regressions have also covered launching the app, reading the ESP32-S3 chip over USB, writing the bootloader / partition table / app firmware, rebooting, reconnecting over BLE, and reading device health.
+The release flow now covers Developer ID signing, notarization, the release checklist, open-source notices, source-offer checks, and Sparkle appcast generation. The `v0.1.1` downloaded package has been validated through the real user path: launching the app, updating from an older build through the default stable feed, flashing ESP32-S3 firmware over USB, reconnecting over BLE, and reading device health.
 
 ## Hardware
 
@@ -67,6 +68,7 @@ Regular test users can use the GitHub release package directly. They do not need
 7. Install the Codex / Claude hooks from the app, then use your AI coding tools normally.
 
 The bundled flashing path does not require ESP-IDF, `idf.py`, Homebrew `esptool`, or a local Python environment.
+Stable updates are discovered through the app's "Check for Updates..." menu item and automatic background checks.
 
 ## macOS App
 
