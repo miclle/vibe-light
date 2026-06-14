@@ -373,18 +373,15 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
     vibe_display_usage_summary_t usage;
     vibe_display_format_usage_summary(packet, &usage);
     char usage_line[32];
-    usage_line[0] = '\0';
-    if (usage.reset_hint[0] != '\0') {
-        snprintf(usage_line, sizeof(usage_line), "CODEX: %s", usage.reset_hint);
-    } else if (usage.five_hour[0] != '\0' && usage.weekly[0] != '\0') {
-        snprintf(usage_line, sizeof(usage_line), "CODEX: %s %s", usage.five_hour, usage.weekly);
-    } else if (usage.five_hour[0] != '\0') {
-        snprintf(usage_line, sizeof(usage_line), "CODEX: %s", usage.five_hour);
-    } else if (usage.weekly[0] != '\0') {
-        snprintf(usage_line, sizeof(usage_line), "CODEX: %s", usage.weekly);
-    }
+    char reset_line[24];
+    vibe_display_format_usage_line(&usage, usage_line, sizeof(usage_line));
+    vibe_display_format_usage_reset_line(&usage, reset_line, sizeof(reset_line));
     if (usage_line[0] != '\0') {
-        vibe_display_text_draw(24, 56, usage_line, 2, RGB565_WHITE);
+        vibe_display_text_draw(16, 52, usage_line, 2, RGB565_WHITE);
+    }
+    if (reset_line[0] != '\0') {
+        int reset_x = (LCD_H_RES - vibe_display_text_width(reset_line, 1)) / 2;
+        vibe_display_text_draw(reset_x < 16 ? 16 : reset_x, 72, reset_line, 1, RGB565_AMBER);
     }
     render_maze(packet, animation_phase);
 

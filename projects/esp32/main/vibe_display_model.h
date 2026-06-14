@@ -178,6 +178,8 @@ void vibe_display_maze_high_score_init(vibe_display_maze_high_score_t *high_scor
 bool vibe_display_maze_high_score_update(vibe_display_maze_high_score_t *high_score, int score);
 void vibe_display_maze_ghost_frame(int tick, vibe_display_maze_ghost_frame_t *frame);
 void vibe_display_format_usage_summary(const vibe_status_packet_t *packet, vibe_display_usage_summary_t *summary);
+void vibe_display_format_usage_line(const vibe_display_usage_summary_t *summary, char *text, size_t text_size);
+void vibe_display_format_usage_reset_line(const vibe_display_usage_summary_t *summary, char *text, size_t text_size);
 void vibe_display_format_empty_state(const vibe_status_packet_t *packet, vibe_display_empty_state_t *empty);
 void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, size_t text_size);
 void vibe_display_firmware_version_text(const char *app_version, char *text, size_t text_size);

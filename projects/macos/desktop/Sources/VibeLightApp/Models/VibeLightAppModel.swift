@@ -102,9 +102,10 @@ final class VibeLightAppModel: ObservableObject {
     func refreshEvents() {
         do {
             let loadedEvents = try eventLog.readRecent(limit: 80)
+            let latestCodexUsage = try eventLog.readLatestCodexUsage()
             events = loadedEvents
 
-            let snapshot = taskTracker.snapshot(from: loadedEvents)
+            let snapshot = taskTracker.snapshot(from: loadedEvents, fallbackCodexUsage: latestCodexUsage)
             let packet = snapshot.statusPacket
             let packetData = try? packet.encodedJSON()
 

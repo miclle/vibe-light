@@ -141,6 +141,40 @@ void vibe_display_format_usage_summary(const vibe_status_packet_t *packet, vibe_
     }
 }
 
+void vibe_display_format_usage_line(const vibe_display_usage_summary_t *summary, char *text, size_t text_size)
+{
+    if (text == NULL || text_size == 0) {
+        return;
+    }
+
+    text[0] = '\0';
+    if (summary == NULL) {
+        return;
+    }
+
+    if (summary->five_hour[0] != '\0' && summary->weekly[0] != '\0') {
+        snprintf(text, text_size, "CODEX: %s %s", summary->five_hour, summary->weekly);
+    } else if (summary->five_hour[0] != '\0') {
+        snprintf(text, text_size, "CODEX: %s", summary->five_hour);
+    } else if (summary->weekly[0] != '\0') {
+        snprintf(text, text_size, "CODEX: %s", summary->weekly);
+    }
+}
+
+void vibe_display_format_usage_reset_line(const vibe_display_usage_summary_t *summary, char *text, size_t text_size)
+{
+    if (text == NULL || text_size == 0) {
+        return;
+    }
+
+    text[0] = '\0';
+    if (summary == NULL || summary->reset_hint[0] == '\0') {
+        return;
+    }
+
+    snprintf(text, text_size, "%s", summary->reset_hint);
+}
+
 void vibe_display_format_empty_state(const vibe_status_packet_t *packet, vibe_display_empty_state_t *empty)
 {
     if (empty == NULL) {

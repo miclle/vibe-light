@@ -138,6 +138,8 @@ static void test_v2_usage_packet_formats_low_remaining_reset_hint(void)
 
     vibe_status_packet_t packet;
     vibe_display_usage_summary_t usage;
+    char usage_line[32];
+    char reset_line[24];
     vibe_status_default(&packet);
 
     assert(parse(json, &packet));
@@ -148,6 +150,11 @@ static void test_v2_usage_packet_formats_low_remaining_reset_hint(void)
     assert(strcmp(usage.five_hour, "5H 15%") == 0);
     assert(strcmp(usage.weekly, "7D 60%") == 0);
     assert(strcmp(usage.reset_hint, "5H RESET 45m") == 0);
+
+    vibe_display_format_usage_line(&usage, usage_line, sizeof(usage_line));
+    vibe_display_format_usage_reset_line(&usage, reset_line, sizeof(reset_line));
+    assert(strcmp(usage_line, "CODEX: 5H 15% 7D 60%") == 0);
+    assert(strcmp(reset_line, "5H RESET 45m") == 0);
 }
 
 static void test_v2_usage_packet_accepts_legacy_context_remaining(void)

@@ -27,6 +27,24 @@ import Testing
     #expect(object["ts"] as? Int64 == 1_780_300_800_000)
 }
 
+@Test func statusPacketFromEventKeepsCollectedCodexUsage() throws {
+    let event = VibeHookEvent(
+        source: .codex,
+        kind: .stop,
+        detail: "completed",
+        timestamp: Date(timeIntervalSince1970: 1_780_300_800),
+        codexUsage: CodexUsage(fiveHourRemainingPercent: 88, weeklyRemainingPercent: 60)
+    )
+
+    let packet = StatusPacket(event: event)
+    let data = try packet.encodedJSON()
+    let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let usage = try #require(object["usage"] as? [String: Any])
+
+    #expect(usage["codex5hRemainingPercent"] as? Int == 88)
+    #expect(usage["codex7dRemainingPercent"] as? Int == 60)
+}
+
 @Test func statusPacketKeepsDetailShortForBleWrite() throws {
     let packet = StatusPacket(
         source: .codex,
@@ -227,6 +245,33 @@ import Testing
     #expect(expired.state == .idle)
     #expect(expired.detail == "no active tasks")
     #expect(expired.tasks.isEmpty)
+}
+
+@Test func taskTrackerKeepsFallbackCodexUsageWhenVisibleTasksHaveNoUsage() throws {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(
+            taskID: "codex:task-a",
+            source: .codex,
+            kind: .stop,
+            timestamp: base,
+            summary: "make quick passed",
+            workspace: "vibe-light"
+        ),
+    ]
+
+    let packet = tracker.snapshot(
+        from: events,
+        now: base.addingTimeInterval(180),
+        fallbackCodexUsage: CodexUsage(fiveHourRemainingPercent: 86, weeklyRemainingPercent: 100)
+    ).statusPacket
+    let data = try packet.encodedJSON()
+    let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let usage = try #require(object["usage"] as? [String: Any])
+
+    #expect(usage["codex5hRemainingPercent"] as? Int == 86)
+    #expect(usage["codex7dRemainingPercent"] as? Int == 100)
 }
 
 @Test func taskTrackerSummarizesLastToolResultFromCompactAction() {
@@ -1067,6 +1112,29 @@ import Testing
         "event-1198-正在处理较长输出",
         "event-1197-正在处理较长输出",
     ])
+}
+
+@Test func eventLogFindsLatestCodexUsageOutsideRecentWindow() throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let log = EventLog(directory: directory, retentionLimit: 2_000)
+
+    try log.append(.init(
+        source: .codex,
+        kind: .preToolUse,
+        detail: "usage",
+        codexUsage: CodexUsage(fiveHourRemainingPercent: 86, weeklyRemainingPercent: 100)
+    ))
+    for index in 0..<120 {
+        try log.append(.init(source: .claude, kind: .preToolUse, detail: "event-\(index)"))
+    }
+
+    let recentEvents = try log.readRecent(limit: 80)
+    let usage = try #require(try log.readLatestCodexUsage())
+
+    #expect(recentEvents.allSatisfy { $0.codexUsage == nil })
+    #expect(usage.fiveHourRemainingPercent == 86)
+    #expect(usage.weeklyRemainingPercent == 100)
 }
 
 @Test func eventLogSerializesConcurrentAppends() async throws {

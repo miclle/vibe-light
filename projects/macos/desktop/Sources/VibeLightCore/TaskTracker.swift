@@ -136,13 +136,17 @@ public struct TaskTracker: Sendable {
         self.staleAfter = staleAfter
     }
 
-    public func snapshot(from newestFirstEvents: [VibeHookEvent], now: Date = Date()) -> DisplaySnapshot {
+    public func snapshot(
+        from newestFirstEvents: [VibeHookEvent],
+        now: Date = Date(),
+        fallbackCodexUsage: CodexUsage? = nil
+    ) -> DisplaySnapshot {
         var tasksByID: [String: TrackedTask] = [:]
         var usageCache: [String: CodexUsage] = [:]
         var usageMisses = Set<String>()
         let codexUsage = newestFirstEvents.lazy.compactMap {
             codexUsageResolver.resolve(for: $0, cache: &usageCache, misses: &usageMisses)
-        }.first
+        }.first ?? fallbackCodexUsage
 
         for event in newestFirstEvents.reversed() where shouldTrack(event) {
             let identity = resolvedIdentity(for: event)

@@ -308,6 +308,24 @@ public struct EventLog: Sendable {
             }
     }
 
+    public func readLatestCodexUsage() throws -> CodexUsage? {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            return nil
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        return try TailLineReader.readLinesFromEnd(from: fileURL) { line in
+            guard let event = try? decoder.decode(VibeHookEvent.self, from: Data(line.utf8)),
+                  event.source == .codex,
+                  let usage = event.codexUsage else {
+                return nil
+            }
+            return usage
+        }
+    }
+
     public static func defaultDirectory() -> URL {
         let base = FileManager.default.urls(
             for: .applicationSupportDirectory,
@@ -376,7 +394,7 @@ private enum TailLineReader {
         return Array(lines.reversed())
     }
 
-    private static func readLinesFromEnd<T>(from url: URL, onLine: (String) -> T?) throws -> T? {
+    fileprivate static func readLinesFromEnd<T>(from url: URL, onLine: (String) -> T?) throws -> T? {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
 

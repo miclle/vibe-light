@@ -263,10 +263,19 @@ public struct StatusPacket: Codable, Equatable, Sendable {
 
     public init(event: VibeHookEvent) {
         self.init(
+            v: event.codexUsage == nil ? 1 : 2,
             source: event.source,
             state: event.displayState,
             detail: event.displayDetail,
-            timestamp: event.timestamp
+            timestamp: event.timestamp,
+            usage: event.codexUsage.map {
+                StatusUsage(
+                    codex5hRemainingPercent: $0.fiveHourRemainingPercent,
+                    codex7dRemainingPercent: $0.weeklyRemainingPercent,
+                    codex5hResetAt: $0.fiveHourResetAtMilliseconds,
+                    codex7dResetAt: $0.weeklyResetAtMilliseconds
+                )
+            }
         )
     }
 
