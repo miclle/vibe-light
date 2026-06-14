@@ -39,9 +39,9 @@ Vibe Light 目前已有 `v0.1.1` macOS release，核心链路已经具备 macOS 
 - 面向 Waveshare `ESP32-S3-LCD-3.16` 的预编译固件。
 - 固件烧录 helper 和 bundled Python runtime。
 - `esptool` 依赖，以及对应的 open-source notices、source offer 和 source archive。
-- Sparkle 自动更新入口，默认通过 GitHub latest release appcast 检查稳定版本。
+- Sparkle 自动更新入口，Apple Silicon 默认通过 GitHub latest release `appcast.xml` 检查稳定版本，Intel 版本使用 `appcast-x86_64.xml`。
 
-发布流程已经完成 Developer ID 签名、notarization、release checklist、open-source notices、source offer 和 Sparkle appcast 检查；`v0.1.1` 下载包已覆盖启动 app、从旧版通过默认 stable feed 更新、通过 USB 烧录 ESP32-S3 固件、BLE 重连和读取设备 health 的真实用户路径验证。
+发布流程已经完成 Developer ID 签名、notarization、release checklist、open-source notices、source offer 和 Sparkle appcast 检查；`v0.1.1` 下载包已覆盖启动 app、从旧版通过默认 stable feed 更新、通过 USB 烧录 ESP32-S3 固件、BLE 重连和读取设备 health 的真实用户路径验证。后续 release workflow 会分别生成 `arm64` 和 `x86_64` notarized zip，以匹配 Apple Silicon 和 Intel Mac 的 bundled Python runtime。
 
 ## 硬件
 
@@ -59,7 +59,7 @@ Vibe Light 目前已有 `v0.1.1` macOS release，核心链路已经具备 macOS 
 
 普通测试用户可以直接使用 GitHub release 包，不需要从源码构建固件：
 
-1. 从 [GitHub Releases](https://github.com/miclle/vibe-light/releases) 下载最新 `VibeLightApp-*-notarized.zip` 发布包。
+1. 从 [GitHub Releases](https://github.com/miclle/vibe-light/releases) 下载与你的 Mac 匹配的最新发布包：新双平台 release 中 Apple Silicon 使用 `VibeLightApp-*-arm64-notarized.zip`，Intel 使用 `VibeLightApp-*-x86_64-notarized.zip`；旧 release 若只有 `VibeLightApp-*-notarized.zip`，则使用该单包。
 2. 用 Finder 或 Archive Utility 解压 zip；如果使用命令行，建议用 `ditto -x -k`。
 3. 打开 `VibeLightApp.app`。
 4. 用 USB 数据线连接 ESP32-S3 开发板。

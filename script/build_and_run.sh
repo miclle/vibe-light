@@ -8,6 +8,7 @@ MIN_SYSTEM_VERSION="14.0"
 SIGNING_IDENTITY_VALUE="${SIGNING_IDENTITY:-}"
 APP_VERSION="${VIBE_LIGHT_APP_VERSION:-0.0.0}"
 APP_BUILD_NUMBER="${VIBE_LIGHT_BUILD_NUMBER:-}"
+BUILD_ARCH="${VIBE_LIGHT_BUILD_ARCH:-}"
 SPARKLE_FEED_URL="${VIBE_LIGHT_SPARKLE_FEED_URL:-https://github.com/miclle/vibe-light/releases/latest/download/appcast.xml}"
 SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-}"
 
@@ -27,8 +28,20 @@ APP_ICON_NAME="AppIcon.icns"
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
-swift build --package-path "$PROJECT_DIR"
-BUILD_PRODUCTS_DIR="$(swift build --package-path "$PROJECT_DIR" --show-bin-path)"
+swift_args=(build --package-path "$PROJECT_DIR")
+if [[ -n "$BUILD_ARCH" ]]; then
+  case "$BUILD_ARCH" in
+    arm64|x86_64) ;;
+    *)
+      echo "unsupported VIBE_LIGHT_BUILD_ARCH: $BUILD_ARCH" >&2
+      exit 2
+      ;;
+  esac
+  swift_args+=(--arch "$BUILD_ARCH")
+fi
+
+swift "${swift_args[@]}"
+BUILD_PRODUCTS_DIR="$(swift "${swift_args[@]}" --show-bin-path)"
 BUILD_BINARY="$BUILD_PRODUCTS_DIR/$APP_NAME"
 HOOK_BINARY="$BUILD_PRODUCTS_DIR/vibe-light-hook"
 BUILD_RESOURCE_BUNDLE="$BUILD_PRODUCTS_DIR/$RESOURCE_BUNDLE_NAME"

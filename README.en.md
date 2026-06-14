@@ -39,9 +39,9 @@ The current release package includes:
 - Prebuilt firmware for the Waveshare `ESP32-S3-LCD-3.16`.
 - A firmware flashing helper and bundled Python runtime.
 - `esptool` dependencies, plus open-source notices, a source offer, and a source archive.
-- Sparkle update metadata and an appcast for checking stable GitHub releases.
+- Sparkle update metadata: Apple Silicon builds use the stable GitHub `appcast.xml`, and Intel builds use `appcast-x86_64.xml`.
 
-The release flow now covers Developer ID signing, notarization, the release checklist, open-source notices, source-offer checks, and Sparkle appcast generation. The `v0.1.1` downloaded package has been validated through the real user path: launching the app, updating from an older build through the default stable feed, flashing ESP32-S3 firmware over USB, reconnecting over BLE, and reading device health.
+The release flow now covers Developer ID signing, notarization, the release checklist, open-source notices, source-offer checks, and Sparkle appcast generation. The `v0.1.1` downloaded package has been validated through the real user path: launching the app, updating from an older build through the default stable feed, flashing ESP32-S3 firmware over USB, reconnecting over BLE, and reading device health. Future release workflow runs produce separate `arm64` and `x86_64` notarized zips so each Mac gets a matching bundled Python runtime.
 
 ## Hardware
 
@@ -59,7 +59,7 @@ Hardware facts and official reference links live in [docs/hardware.md](docs/hard
 
 Regular test users can use the GitHub release package directly. They do not need to build firmware from source.
 
-1. Download the latest `VibeLightApp-*-notarized.zip` package from [GitHub Releases](https://github.com/miclle/vibe-light/releases).
+1. Download the latest package for your Mac from [GitHub Releases](https://github.com/miclle/vibe-light/releases): new dual-arch releases use `VibeLightApp-*-arm64-notarized.zip` for Apple Silicon and `VibeLightApp-*-x86_64-notarized.zip` for Intel; older releases with only `VibeLightApp-*-notarized.zip` use that single package.
 2. Extract the zip with Finder or Archive Utility. If using the command line, `ditto -x -k` is recommended.
 3. Open `VibeLightApp.app`.
 4. Connect the ESP32-S3 development board over USB.

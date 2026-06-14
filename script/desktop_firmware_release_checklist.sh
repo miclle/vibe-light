@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="$(git -C "$ROOT_DIR" rev-parse --short HEAD)"
+TARGET_ARCH=""
 MINIMUM_DESKTOP_VERSION="dev"
 PYTHON_RUNTIME=""
 REQUIRE_BUNDLED_PYTHON=0
@@ -30,6 +31,7 @@ desktop app, and optionally runs a non-destructive chip read when --chip-port is
 provided.
 
 Options:
+  --arch arm64|x86_64             Build and verify a specific macOS architecture.
   --version VERSION                 Firmware/archive version. Defaults to current git short SHA.
   --minimum-desktop-version VERSION Minimum compatible desktop version. Defaults to dev.
   --python-runtime PATH             Copy a standalone Python runtime into FirmwareTools/python.
@@ -77,6 +79,10 @@ append_report() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --arch)
+      TARGET_ARCH="${2:?missing value for --arch}"
+      shift 2
+      ;;
     --version)
       VERSION="${2:?missing value for --version}"
       shift 2
@@ -157,11 +163,25 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -n "$TARGET_ARCH" ]]; then
+  case "$TARGET_ARCH" in
+    arm64|x86_64) ;;
+    *)
+      echo "unsupported architecture: $TARGET_ARCH" >&2
+      exit 2
+      ;;
+  esac
+fi
+
 cd "$ROOT_DIR"
 
 RELEASE_DIR="$ROOT_DIR/dist/release"
 LOG_DIR="$RELEASE_DIR/logs"
-REPORT_URL="$RELEASE_DIR/desktop-firmware-release-$VERSION.md"
+REPORT_ARCH_SUFFIX=""
+if [[ -n "$TARGET_ARCH" ]]; then
+  REPORT_ARCH_SUFFIX="-$TARGET_ARCH"
+fi
+REPORT_URL="$RELEASE_DIR/desktop-firmware-release-$VERSION$REPORT_ARCH_SUFFIX.md"
 mkdir -p "$LOG_DIR"
 rm -f "$REPORT_URL"
 
@@ -174,6 +194,7 @@ append_report ""
 append_report "- Started: \`$STARTED_AT\`"
 append_report "- Git commit: \`$GIT_COMMIT\`"
 append_report "- Firmware version: \`$VERSION\`"
+append_report "- Target architecture: \`${TARGET_ARCH:-default host architecture}\`"
 append_report "- Minimum desktop version: \`$MINIMUM_DESKTOP_VERSION\`"
 append_report "- Python runtime: \`${PYTHON_RUNTIME:-not provided}\`"
 append_report "- Require bundled Python: \`$REQUIRE_BUNDLED_PYTHON\`"
@@ -208,7 +229,7 @@ if [[ "$SKIP_PREPARE" -eq 0 ]]; then
     prepare_args+=(--skip-esp32-build)
   fi
 
-  prepare_log="$LOG_DIR/prepare-firmware-$VERSION.log"
+  prepare_log="$LOG_DIR/prepare-firmware-$VERSION$REPORT_ARCH_SUFFIX.log"
   run_logged "Prepare firmware resources" "$prepare_log" "${prepare_args[@]}"
   append_report "## Firmware Resources"
   append_report ""
@@ -224,6 +245,9 @@ fi
 
 if [[ "$SKIP_PACKAGE" -eq 0 ]]; then
   package_args=("$ROOT_DIR/script/package_desktop_release.sh" --version "$VERSION")
+  if [[ -n "$TARGET_ARCH" ]]; then
+    package_args+=(--arch "$TARGET_ARCH")
+  fi
   if [[ -n "$SIGNING_IDENTITY_VALUE" ]]; then
     package_args+=(--identity "$SIGNING_IDENTITY_VALUE")
   fi
@@ -250,12 +274,15 @@ if [[ "$SKIP_PACKAGE" -eq 0 ]]; then
     package_args+=(--notarytool-timeout "$NOTARYTOOL_TIMEOUT_VALUE")
   fi
 
-  package_log="$LOG_DIR/package-desktop-$VERSION.log"
+  package_log="$LOG_DIR/package-desktop-$VERSION$REPORT_ARCH_SUFFIX.log"
   run_logged "Package desktop app" "$package_log" "${package_args[@]}"
   append_report "## Desktop App"
   append_report ""
   append_report "- Status: passed"
   append_report "- Log: \`${package_log#$ROOT_DIR/}\`"
+  if [[ -n "$TARGET_ARCH" ]]; then
+    append_report "- Architecture: \`$TARGET_ARCH\`"
+  fi
   append_report "- App bundle: \`dist/VibeLightApp.app\`"
   append_report "- Bundle icon: verified"
   append_report ""

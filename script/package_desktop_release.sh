@@ -7,6 +7,7 @@ APP_BUNDLE="$ROOT_DIR/dist/$APP_NAME.app"
 RESOURCE_BUNDLE="$APP_BUNDLE/Contents/Resources/VibeLight_VibeLightApp.bundle"
 RELEASE_DIR="$ROOT_DIR/dist/release"
 VERSION="$(git -C "$ROOT_DIR" rev-parse --short HEAD)"
+TARGET_ARCH=""
 SIGNING_IDENTITY_VALUE="${SIGNING_IDENTITY:-}"
 NOTARIZE=0
 SKIP_BUILD=0
@@ -43,6 +44,7 @@ Environment:
   SPARKLE_PUBLIC_ED_KEY Required. Sparkle EdDSA public key for update verification.
 
 Options:
+  --arch arm64|x86_64   Build and verify a specific macOS architecture.
   --identity VALUE      Override SIGNING_IDENTITY.
   --notarytool-profile VALUE
                         Override NOTARYTOOL_PROFILE.
@@ -64,6 +66,10 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --arch)
+      TARGET_ARCH="${2:?missing value for --arch}"
+      shift 2
+      ;;
     --identity)
       SIGNING_IDENTITY_VALUE="${2:?missing value for --identity}"
       shift 2
@@ -126,8 +132,19 @@ require_command() {
 require_command codesign
 require_command ditto
 require_command file
+require_command lipo
 require_command security
 require_command xcrun
+
+if [[ -n "$TARGET_ARCH" ]]; then
+  case "$TARGET_ARCH" in
+    arm64|x86_64) ;;
+    *)
+      echo "unsupported architecture: $TARGET_ARCH" >&2
+      exit 2
+      ;;
+  esac
+fi
 
 api_key_path() {
   if [[ -n "$TEMP_KEY_FILE" ]]; then
@@ -201,6 +218,7 @@ if [[ "$SKIP_BUILD" -eq 0 ]]; then
     release_short_version="$(printf '%s\n' "$VERSION" | sed -E 's/[^0-9]+/./g; s/^\.//; s/\.$//' | awk -F. '{ printf "%d.%d.%d", ($1 == "" ? 0 : $1), ($2 == "" ? 0 : $2), ($3 == "" ? 0 : $3) }')"
   fi
   VIBE_LIGHT_APP_VERSION="$release_short_version" \
+    VIBE_LIGHT_BUILD_ARCH="$TARGET_ARCH" \
     VIBE_LIGHT_REQUIRE_SPARKLE_METADATA=1 \
     SPARKLE_PUBLIC_ED_KEY="$SPARKLE_PUBLIC_ED_KEY_VALUE" \
     "$ROOT_DIR/script/build_and_run.sh" --package
@@ -262,7 +280,11 @@ verify_nested_bundles() {
 
 make_archive() {
   local suffix="$1"
-  local archive_url="$RELEASE_DIR/$APP_NAME-$VERSION$suffix.zip"
+  local archive_arch_suffix=""
+  if [[ -n "$TARGET_ARCH" ]]; then
+    archive_arch_suffix="-$TARGET_ARCH"
+  fi
+  local archive_url="$RELEASE_DIR/$APP_NAME-$VERSION$archive_arch_suffix$suffix.zip"
   mkdir -p "$RELEASE_DIR"
   rm -f "$archive_url"
   ditto -c -k --keepParent --noextattr --norsrc "$APP_BUNDLE" "$archive_url"
@@ -305,6 +327,9 @@ sign_path "$APP_BUNDLE"
 verify_nested_macho
 verify_nested_bundles
 codesign --verify --strict --verbose=4 "$APP_BUNDLE"
+if [[ -n "$TARGET_ARCH" ]]; then
+  "$ROOT_DIR/script/verify_desktop_release_arch.sh" --arch "$TARGET_ARCH" "$APP_BUNDLE"
+fi
 VIBE_LIGHT_REQUIRE_SPARKLE_METADATA=1 "$ROOT_DIR/script/verify_desktop_app_bundle.sh" "$APP_BUNDLE"
 
 ARCHIVE_PATH="$(make_archive "")"

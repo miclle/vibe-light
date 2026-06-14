@@ -39,10 +39,49 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Build, notarize, and publish
-    runs-on: macos-15
+  metadata:
+    name: Resolve release metadata
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: release
+        run: |
+          set -euo pipefail
+          short_sha="$(git rev-parse --short HEAD)"
+          version="${{ inputs.version }}"
+          if [[ -z "$version" ]]; then
+            version="$(date '+%Y.%m.%d')-dev-$short_sha"
+          fi
+          tag="${{ inputs.tag }}"
+          if [[ -z "$tag" ]]; then
+            tag="v$version"
+          fi
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "tag=$tag" >>"$GITHUB_OUTPUT"
+
+  build:
+    name: Build, notarize, and verify (${{ matrix.arch }})
+    needs: metadata
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+            appcast: appcast.xml
+          - arch: x86_64
+            runner: macos-15-intel
+            appcast: appcast-x86_64.xml
 
     env:
       SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
@@ -52,7 +91,6 @@ jobs:
       APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
       APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
       SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
-      SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
       NOTARYTOOL_TIMEOUT: 30m
       ESP_IDF_VERSION: v5.5
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -74,8 +112,7 @@ jobs:
             APPLE_API_KEY \
             APPLE_API_KEY_ID \
             APPLE_API_ISSUER \
-            SPARKLE_PUBLIC_ED_KEY \
-            SPARKLE_PRIVATE_KEY
+            SPARKLE_PUBLIC_ED_KEY
           do
             if [[ -z "${!name:-}" ]]; then
               echo "::error::Missing required secret: $name"
@@ -84,21 +121,15 @@ jobs:
           done
           exit "$missing"
 
-      - name: Resolve version
-        id: release
+      - name: Confirm runner architecture
         run: |
           set -euo pipefail
-          short_sha="$(git rev-parse --short HEAD)"
-          version="${{ inputs.version }}"
-          if [[ -z "$version" ]]; then
-            version="$(date '+%Y.%m.%d')-dev-$short_sha"
+          actual_arch="$(uname -m)"
+          if [[ "$actual_arch" != "${{ matrix.arch }}" ]]; then
+            echo "::error::Expected ${{ matrix.arch }} runner but got $actual_arch"
+            exit 1
           fi
-          tag="${{ inputs.tag }}"
-          if [[ -z "$tag" ]]; then
-            tag="v$version"
-          fi
-          echo "version=$version" >>"$GITHUB_OUTPUT"
-          echo "tag=$tag" >>"$GITHUB_OUTPUT"
+          echo "Using $actual_arch runner for ${{ matrix.arch }} release."
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -188,12 +219,14 @@ jobs:
           print(platform.python_version())
           PY
           )"
+          runtime_arch="$(uname -m)"
           cat >"$runtime_dir/package.json" <<JSON
           {
             "name": "python-runtime",
             "version": "$version-github-actions",
             "license": "PSF-2.0",
-            "homepage": "https://github.com/actions/python-versions"
+            "homepage": "https://github.com/actions/python-versions",
+            "system": "darwin_$runtime_arch"
           }
           JSON
           license_file="$(find "$python_prefix" -maxdepth 4 -iname 'LICENSE*' -type f | head -n 1 || true)"
@@ -228,6 +261,7 @@ jobs:
             codesign --force --sign - "$runtime_dir/bin/python$pyver"
           fi
           otool -L "$runtime_dir/bin/python$pyver" || true
+          script/verify_desktop_release_arch.sh --arch "${{ matrix.arch }}" "$runtime_dir"
           PYTHONHOME="$runtime_dir" "$runtime_dir/bin/python3" - <<'PY'
           import bz2
           import ctypes
@@ -273,7 +307,7 @@ jobs:
 
       - name: Store notarization profile
         env:
-          NOTARYTOOL_PROFILE: vibe-light-ci-${{ github.run_id }}
+          NOTARYTOOL_PROFILE: vibe-light-ci-${{ github.run_id }}-${{ matrix.arch }}
         run: |
           set -euo pipefail
           key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
@@ -287,10 +321,13 @@ jobs:
           echo "NOTARYTOOL_PROFILE=$NOTARYTOOL_PROFILE" >>"$GITHUB_ENV"
 
       - name: Run notarized desktop release checklist
+        env:
+          VIBE_LIGHT_SPARKLE_FEED_URL: https://github.com/${{ github.repository }}/releases/latest/download/${{ matrix.appcast }}
         run: |
           set -euo pipefail
           script/desktop_firmware_release_checklist.sh \
-            --version "${{ steps.release.outputs.version }}" \
+            --arch "${{ matrix.arch }}" \
+            --version "${{ needs.metadata.outputs.version }}" \
             --minimum-desktop-version "${{ inputs.minimum_desktop_version }}" \
             --python-runtime "${{ steps.python-runtime.outputs.path }}" \
             --require-bundled-python \
@@ -300,18 +337,19 @@ jobs:
             --notarytool-timeout "$NOTARYTOOL_TIMEOUT"
 
       - name: Verify release archive
-        id: verify
         run: |
           set -euo pipefail
-          version="${{ steps.release.outputs.version }}"
-          zip_path="dist/release/VibeLightApp-$version-notarized.zip"
-          report_path="dist/release/desktop-firmware-release-$version.md"
+          version="${{ needs.metadata.outputs.version }}"
+          arch="${{ matrix.arch }}"
+          zip_path="dist/release/VibeLightApp-$version-$arch-notarized.zip"
+          report_path="dist/release/desktop-firmware-release-$version-$arch.md"
           test_dir="$RUNNER_TEMP/vibe-light-release-check"
           rm -rf "$test_dir"
           mkdir -p "$test_dir"
           ditto -x -k "$zip_path" "$test_dir"
           app_path="$test_dir/VibeLightApp.app"
           VIBE_LIGHT_REQUIRE_SPARKLE_METADATA=1 script/verify_desktop_app_bundle.sh "$app_path"
+          script/verify_desktop_release_arch.sh --arch "$arch" "$app_path"
           xcrun stapler validate "$app_path"
           syspolicy_check distribution "$app_path"
           codesign --verify --deep --strict --verbose=2 "$app_path"
@@ -319,31 +357,79 @@ jobs:
             VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1 \
             /bin/bash "$app_path/Contents/Resources/VibeLight_VibeLightApp.bundle/FirmwareTools/vibe-light-firmware-flasher" --help >/tmp/vibe-light-flasher-help.txt
           grep -q 'esptool.py' /tmp/vibe-light-flasher-help.txt
-          zip_sha="$(shasum -a 256 "$zip_path" | awk '{print $1}')"
-          report_sha="$(shasum -a 256 "$report_path" | awk '{print $1}')"
-          echo "zip_path=$zip_path" >>"$GITHUB_OUTPUT"
-          echo "report_path=$report_path" >>"$GITHUB_OUTPUT"
-          echo "zip_sha=$zip_sha" >>"$GITHUB_OUTPUT"
-          echo "report_sha=$report_sha" >>"$GITHUB_OUTPUT"
+          test -f "$report_path"
 
       - name: Check release logs for credential arguments
         run: |
           set -euo pipefail
-          version="${{ steps.release.outputs.version }}"
+          version="${{ needs.metadata.outputs.version }}"
+          arch="${{ matrix.arch }}"
           if grep -E -q 'apple-api|AuthKey_|APPLE_API_KEY|APPLE_API_ISSUER|SPARKLE_PRIVATE_KEY|sparkle-private-key' \
-            "dist/release/logs/package-desktop-$version.log" \
-            "dist/release/desktop-firmware-release-$version.md"
+            "dist/release/logs/package-desktop-$version-$arch.log" \
+            "dist/release/desktop-firmware-release-$version-$arch.md"
           then
             echo "::error::Release logs contain credential-like arguments."
             exit 1
           fi
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-release-${{ matrix.arch }}
+          if-no-files-found: error
+          path: |
+            dist/release/VibeLightApp-${{ needs.metadata.outputs.version }}-${{ matrix.arch }}-notarized.zip
+            dist/release/desktop-firmware-release-${{ needs.metadata.outputs.version }}-${{ matrix.arch }}.md
+
+  publish:
+    name: Generate appcasts and publish release
+    needs:
+      - metadata
+      - build
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate publish secrets
+        run: |
+          set -euo pipefail
+          if [[ -z "${SPARKLE_PRIVATE_KEY:-}" ]]; then
+            echo "::error::Missing required secret: SPARKLE_PRIVATE_KEY"
+            exit 1
+          fi
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/release
+          merge-multiple: true
+
+      - name: Build Sparkle tools
+        run: |
+          set -euo pipefail
+          swift build --package-path projects/macos/desktop
 
       - name: Write release notes
         id: notes
         run: |
           set -euo pipefail
           notes="$RUNNER_TEMP/release-notes.md"
-          version="${{ steps.release.outputs.version }}"
+          version="${{ needs.metadata.outputs.version }}"
+          arm_zip="dist/release/VibeLightApp-$version-arm64-notarized.zip"
+          intel_zip="dist/release/VibeLightApp-$version-x86_64-notarized.zip"
+          arm_report="dist/release/desktop-firmware-release-$version-arm64.md"
+          intel_report="dist/release/desktop-firmware-release-$version-x86_64.md"
+          arm_zip_sha="$(shasum -a 256 "$arm_zip" | awk '{print $1}')"
+          intel_zip_sha="$(shasum -a 256 "$intel_zip" | awk '{print $1}')"
+          arm_report_sha="$(shasum -a 256 "$arm_report" | awk '{print $1}')"
+          intel_report_sha="$(shasum -a 256 "$intel_report" | awk '{print $1}')"
           cat >"$notes" <<EOF
           Vibe Light $version release for the macOS firmware flashing flow.
 
@@ -358,53 +444,72 @@ jobs:
           cat >>"$notes" <<EOF
 
           Artifacts:
-          - VibeLightApp-$version-notarized.zip
-            - SHA-256: ${{ steps.verify.outputs.zip_sha }}
-          - desktop-firmware-release-$version.md
-            - SHA-256: ${{ steps.verify.outputs.report_sha }}
+          - VibeLightApp-$version-arm64-notarized.zip
+            - SHA-256: $arm_zip_sha
+          - VibeLightApp-$version-x86_64-notarized.zip
+            - SHA-256: $intel_zip_sha
+          - desktop-firmware-release-$version-arm64.md
+            - SHA-256: $arm_report_sha
+          - desktop-firmware-release-$version-x86_64.md
+            - SHA-256: $intel_report_sha
 
           Validation completed in GitHub Actions:
-          - ESP-IDF firmware build completed with ESP-IDF $ESP_IDF_VERSION.
+          - arm64 build ran on macos-15 and x86_64 build ran on macos-15-intel.
+          - ESP-IDF firmware build completed with ESP-IDF v5.5 for both release artifacts.
           - Developer ID signing completed for app, helper, bundled Python runtime, and nested Mach-O files.
-          - Apple notarization accepted; staple validation passed.
+          - Bundle Mach-O architecture checks passed for arm64 and x86_64 artifacts.
+          - Apple notarization accepted; staple validation passed for both artifacts.
           - syspolicy_check distribution and codesign --verify --deep --strict passed after ditto extraction.
-          - Bundled helper ran in strict mode with a narrowed PATH and reported esptool.py.
+          - Bundled helper ran in strict mode with a narrowed PATH and reported esptool.py for both artifacts.
           - Release logs were checked for Apple API key argument leakage.
 
           Local follow-up still required:
-          - Download this release asset on a Mac.
+          - Download the matching release asset on an Apple Silicon Mac and an Intel Mac when available.
           - Use Finder / Archive Utility or ditto to extract the zip.
           - Run the firmware flashing UI against a real ESP32-S3 and verify BLE health reconnect.
-          - For Sparkle stable updates, publish a normal release so the default latest/download appcast URL resolves.
+          - For Sparkle stable updates, publish a normal release so the default latest/download appcast URLs resolve.
           - For Sparkle beta testing, build the old test app with a tag-specific VIBE_LIGHT_SPARKLE_FEED_URL.
           - Do not use a draft release as a Sparkle feed; draft assets are not anonymously downloadable.
           EOF
           echo "path=$notes" >>"$GITHUB_OUTPUT"
 
-      - name: Generate Sparkle appcast
+      - name: Generate Sparkle appcasts
         id: appcast
         run: |
           set -euo pipefail
-          version="${{ steps.release.outputs.version }}"
-          asset_prefix="https://github.com/${GITHUB_REPOSITORY}/releases/download/${{ steps.release.outputs.tag }}/"
+          version="${{ needs.metadata.outputs.version }}"
+          asset_prefix="https://github.com/${GITHUB_REPOSITORY}/releases/download/${{ needs.metadata.outputs.tag }}/"
           script/generate_desktop_appcast.sh \
             --version "$version" \
-            --archive "${{ steps.verify.outputs.zip_path }}" \
+            --archive "dist/release/VibeLightApp-$version-arm64-notarized.zip" \
             --release-notes "${{ steps.notes.outputs.path }}" \
             --download-url-prefix "$asset_prefix" \
             --output dist/release/appcast.xml
-          appcast_sha="$(shasum -a 256 dist/release/appcast.xml | awk '{print $1}')"
-          echo "path=dist/release/appcast.xml" >>"$GITHUB_OUTPUT"
-          echo "sha=$appcast_sha" >>"$GITHUB_OUTPUT"
+          script/generate_desktop_appcast.sh \
+            --version "$version" \
+            --archive "dist/release/VibeLightApp-$version-x86_64-notarized.zip" \
+            --release-notes "${{ steps.notes.outputs.path }}" \
+            --download-url-prefix "$asset_prefix" \
+            --output dist/release/appcast-x86_64.xml
+          appcast_arm_sha="$(shasum -a 256 dist/release/appcast.xml | awk '{print $1}')"
+          appcast_intel_sha="$(shasum -a 256 dist/release/appcast-x86_64.xml | awk '{print $1}')"
+          echo "arm_path=dist/release/appcast.xml" >>"$GITHUB_OUTPUT"
+          echo "intel_path=dist/release/appcast-x86_64.xml" >>"$GITHUB_OUTPUT"
+          echo "arm_sha=$appcast_arm_sha" >>"$GITHUB_OUTPUT"
+          echo "intel_sha=$appcast_intel_sha" >>"$GITHUB_OUTPUT"
 
       - name: Append appcast digest to release notes
         run: |
           set -euo pipefail
           cat >>"${{ steps.notes.outputs.path }}" <<EOF
 
-          Sparkle appcast:
+          Sparkle appcasts:
           - appcast.xml
-            - SHA-256: ${{ steps.appcast.outputs.sha }}
+            - Architecture: arm64
+            - SHA-256: ${{ steps.appcast.outputs.arm_sha }}
+          - appcast-x86_64.xml
+            - Architecture: x86_64
+            - SHA-256: ${{ steps.appcast.outputs.intel_sha }}
           EOF
 
       - name: Create GitHub release
@@ -412,12 +517,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          version="${{ needs.metadata.outputs.version }}"
           args=(
-            release create "${{ steps.release.outputs.tag }}"
-            "${{ steps.verify.outputs.zip_path }}"
-            "${{ steps.verify.outputs.report_path }}"
-            "${{ steps.appcast.outputs.path }}"
-            --title "${{ steps.release.outputs.tag }}"
+            release create "${{ needs.metadata.outputs.tag }}"
+            "dist/release/VibeLightApp-$version-arm64-notarized.zip"
+            "dist/release/VibeLightApp-$version-x86_64-notarized.zip"
+            "dist/release/desktop-firmware-release-$version-arm64.md"
+            "dist/release/desktop-firmware-release-$version-x86_64.md"
+            "${{ steps.appcast.outputs.arm_path }}"
+            "${{ steps.appcast.outputs.intel_path }}"
+            --title "${{ needs.metadata.outputs.tag }}"
             --notes-file "${{ steps.notes.outputs.path }}"
             --target "$GITHUB_SHA"
           )

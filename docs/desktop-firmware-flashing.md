@@ -12,14 +12,14 @@
 - app 内烧录入口：侧边栏“固件烧录”页面。
 - BLE 设备名：`VibeLight-S3`。
 - 当前公开 latest release：`v0.1.1`，tag 指向 `2dee78b70fcdc43bd82f4eac64fe02b49804e882`。
-- 当前 release assets：`VibeLightApp-0.1.1-notarized.zip`、`desktop-firmware-release-0.1.1.md` 和 `appcast.xml`。
+- 当前 release assets：`VibeLightApp-0.1.1-notarized.zip`、`desktop-firmware-release-0.1.1.md` 和 `appcast.xml`。后续 release workflow 会生成 `VibeLightApp-<version>-arm64-notarized.zip`、`VibeLightApp-<version>-x86_64-notarized.zip`、对应架构的 checklist 报告，以及 `appcast.xml` / `appcast-x86_64.xml`。
 - `v0.1.1` 已验证 GitHub latest appcast 可匿名下载，Sparkle stable feed 可从旧版更新到 `0.1.1`，下载包可启动并完成 USB 固件烧录和 BLE 重连。历史 `v0.1.0` checklist 已通过固件资源、desktop app、bundle icon、third-party notices、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-4.11.0.tar.gz` 检查，但该 checklist 未提供 `--chip-port`，所以只能作为无设备 CI gate 记录。
 
 ## 用户烧录流程
 
 发布包里的用户路径应保持简单：
 
-1. 从 GitHub Releases 下载最新 `VibeLightApp-*-notarized.zip`。
+1. 从 GitHub Releases 下载匹配当前 Mac 架构的最新 zip：新双平台 release 中 Apple Silicon 使用 `VibeLightApp-*-arm64-notarized.zip`，Intel 使用 `VibeLightApp-*-x86_64-notarized.zip`；旧 release 若只有 `VibeLightApp-*-notarized.zip`，则使用该单包。
 2. 用 Finder 或 Archive Utility 解压；命令行解压建议用 `ditto -x -k`，不要优先用 `unzip`。
 3. 打开 `VibeLightApp.app`。
 4. 用 USB 数据线连接 Waveshare `ESP32-S3-LCD-3.16`。
@@ -121,7 +121,8 @@ security find-identity -p codesigning -v
 SIGNING_IDENTITY="Developer ID Application: <name> (<team-id>)" \
 SPARKLE_PUBLIC_ED_KEY=<sparkle-public-ed-key> \
   script/package_desktop_release.sh \
-  --version <release-version>
+  --version <release-version> \
+  --arch arm64
 ```
 
 使用已保存的 notarytool profile 进行 notarization：
@@ -132,6 +133,7 @@ NOTARYTOOL_PROFILE=<notarytool-profile> \
 SPARKLE_PUBLIC_ED_KEY=<sparkle-public-ed-key> \
   script/package_desktop_release.sh \
   --version <release-version> \
+  --arch arm64 \
   --notarize
 ```
 
@@ -145,8 +147,11 @@ APPLE_API_ISSUER=ISSUER_UUID \
 SPARKLE_PUBLIC_ED_KEY=<sparkle-public-ed-key> \
   script/package_desktop_release.sh \
   --version <release-version> \
+  --arch arm64 \
   --notarize
 ```
+
+本地 Intel 产物使用 `--arch x86_64`，并需要从 Intel Mac 或 Intel runner 提供匹配的 bundled Python runtime。不要把 arm64 Python runtime 复制进 x86_64 发布包。
 
 `SPARKLE_PUBLIC_ED_KEY` 是 Sparkle EdDSA 公钥，会写入 app `Info.plist` 的 `SUPublicEDKey`。私钥不要写入仓库；本地生成 appcast 时可通过 `SPARKLE_PRIVATE_KEY` 环境变量传给 `script/generate_desktop_appcast.sh`，CI 则从 GitHub secret 注入。
 
@@ -158,8 +163,9 @@ SPARKLE_PUBLIC_ED_KEY=<sparkle-public-ed-key> \
 - 对 app bundle 内 nested Mach-O 逐个签名。
 - 签 resource bundle 和主 app bundle。
 - 运行 `codesign --verify --deep --strict`。
-- 生成 `dist/release/VibeLightApp-<version>.zip`。
-- 在 `--notarize` 下提交 notarytool、等待结果、staple ticket、验证 Gatekeeper，并生成 `VibeLightApp-<version>-notarized.zip`。
+- 在传入 `--arch` 时运行 `script/verify_desktop_release_arch.sh`，确认 bundle 内所有 Mach-O 都包含目标架构 slice。
+- 生成 `dist/release/VibeLightApp-<version>-<arch>.zip`；未传 `--arch` 时仍生成旧式 `VibeLightApp-<version>.zip`。
+- 在 `--notarize` 下提交 notarytool、等待结果、staple ticket、验证 Gatekeeper，并生成 `VibeLightApp-<version>-<arch>-notarized.zip`。
 
 生成 Sparkle appcast：
 
@@ -167,24 +173,27 @@ SPARKLE_PUBLIC_ED_KEY=<sparkle-public-ed-key> \
 SPARKLE_PRIVATE_KEY=<sparkle-private-ed-key> \
   script/generate_desktop_appcast.sh \
   --version <release-version> \
-  --archive dist/release/VibeLightApp-<release-version>-notarized.zip \
-  --release-notes dist/release/desktop-firmware-release-<release-version>.md \
+  --archive dist/release/VibeLightApp-<release-version>-arm64-notarized.zip \
+  --release-notes dist/release/desktop-firmware-release-<release-version>-arm64.md \
   --download-url-prefix https://github.com/miclle/vibe-light/releases/download/v<release-version>/ \
   --output dist/release/appcast.xml
 ```
 
-默认 app 内 feed URL 是 `https://github.com/miclle/vibe-light/releases/latest/download/appcast.xml`，这是稳定发布渠道：GitHub 的 `latest` 下载链接只会解析到当前 latest release，不会自动发现 pre-release。做 beta 自动更新验证时，构建旧版测试 app 要用 `VIBE_LIGHT_SPARKLE_FEED_URL` 显式写入目标 tag 的 appcast URL，例如 `https://github.com/miclle/vibe-light/releases/download/v<release-version>/appcast.xml`。
+Intel appcast 使用相同命令，但 `--archive` 指向 `VibeLightApp-<release-version>-x86_64-notarized.zip`，`--release-notes` 指向 `desktop-firmware-release-<release-version>-x86_64.md`，并把 `--output` 设为 `dist/release/appcast-x86_64.xml`。
+
+Apple Silicon app 内默认 feed URL 是 `https://github.com/miclle/vibe-light/releases/latest/download/appcast.xml`，Intel app 内默认 feed URL 是 `https://github.com/miclle/vibe-light/releases/latest/download/appcast-x86_64.xml`。这两个 URL 都是稳定发布渠道：GitHub 的 `latest` 下载链接只会解析到当前 latest release，不会自动发现 pre-release。做 beta 自动更新验证时，构建旧版测试 app 要用 `VIBE_LIGHT_SPARKLE_FEED_URL` 显式写入目标 tag 的 appcast URL，例如 Apple Silicon 使用 `https://github.com/miclle/vibe-light/releases/download/v<release-version>/appcast.xml`，Intel 使用 `https://github.com/miclle/vibe-light/releases/download/v<release-version>/appcast-x86_64.xml`。
 
 Sparkle feed 必须能被目标 app 匿名下载。GitHub draft release 的 asset 不适合作为真实 Sparkle feed；如果发布流程先创建 draft，需发布为公开 release / pre-release 后再验证更新链路。若 release 已公开但 `appcast.xml` 短时间 404，优先检查 asset 是否真的上传到对应 tag、release 是否仍是 draft，以及 GitHub asset/CDN 是否需要重新上传或等待缓存刷新。
 
 ## 一键发布 checklist
 
-推荐发布时使用 release checklist 脚本，因为它会把固件资源、desktop 打包、签名/notarization、许可证材料和目标板读取结果写入 `dist/release/desktop-firmware-release-<version>.md`。
+推荐发布时使用 release checklist 脚本，因为它会把固件资源、desktop 打包、签名/notarization、许可证材料和目标板读取结果写入 `dist/release/desktop-firmware-release-<version>-<arch>.md`。未传 `--arch` 时仍使用旧式 `desktop-firmware-release-<version>.md`。
 
 ```bash
 SIGNING_IDENTITY="Developer ID Application: <name> (<team-id>)" \
 NOTARYTOOL_PROFILE=<notarytool-profile> \
   script/desktop_firmware_release_checklist.sh \
+  --arch arm64 \
   --version <release-version> \
   --minimum-desktop-version <desktop-version> \
   --python-runtime /path/to/python-runtime \
@@ -192,6 +201,8 @@ NOTARYTOOL_PROFILE=<notarytool-profile> \
   --notarize \
   --chip-port /dev/cu.usbmodemXXXX
 ```
+
+Intel checklist 使用 `--arch x86_64`，并应在 Intel Mac 或 `macos-15-intel` runner 上执行，以确保 app、hook、bundled Python runtime 和 native Python packages 都是 x86_64。
 
 如果没有接设备，可以省略 `--chip-port`，但报告会把 Target Chip 标记为 skipped。公开发布前不应把 skipped 当作真实 USB 通过。
 
@@ -203,6 +214,7 @@ checklist 会硬性检查：
 - `SOURCE_OFFER.md` 存在且包含 `esptool` / `GPLv2+`。
 - `FirmwareTools/sources/esptool-*.tar.*` 或 `.zip` 存在，并记录 SHA-256。
 - app bundle icon 存在。
+- 传入 `--arch` 时，app bundle 内所有 Mach-O 文件都包含目标架构 slice。
 - `--chip-port` 提供时，打包后的 helper 能在 strict 模式和收窄 PATH 下执行 `chip_id`。
 
 ## `.env` 和 Make 入口
@@ -224,6 +236,7 @@ APPLE_API_KEY_ID="KEYID"
 APPLE_API_ISSUER="ISSUER_UUID"
 PYTHON_RUNTIME="$HOME/.platformio/python3"
 MINIMUM_DESKTOP_VERSION="dev"
+RELEASE_ARCH="arm64"
 RELEASE_VERSION=""
 ESP32_PORT="/dev/cu.usbmodem1101"
 ESP32_BAUD="460800"
@@ -246,18 +259,19 @@ make desktop-release-notarized
 
 ## GitHub Actions 发布
 
-手动发布 workflow 位于 `.github/workflows/release-desktop.yml`。它会在 `macos-15` runner 上：
+手动发布 workflow 位于 `.github/workflows/release-desktop.yml`。它会用矩阵在 `macos-15` 上生成 `arm64` 产物，在 `macos-15-intel` 上生成 `x86_64` 产物：
 
-1. 校验 release secrets。
-2. 解析 version 和 tag。
-3. 准备 bundled Python runtime。
+1. 解析 version 和 tag。
+2. 在两个 macOS runner 上分别校验 release secrets 和 runner 架构。
+3. 为当前 runner 架构准备 bundled Python runtime。
 4. 安装 ESP-IDF。
 5. 导入 Developer ID 证书。
 6. 创建临时 notarytool profile。
-7. 运行 notarized release checklist。
-8. 解压并验证 notarized zip。
-9. 生成 Sparkle `appcast.xml`。
-10. 创建 GitHub draft / pre-release / release assets。
+7. 运行带 `--arch` 的 notarized release checklist。
+8. 解压并验证 notarized zip、Gatekeeper、codesign、strict helper 和 Mach-O 架构。
+9. 上传 `VibeLightApp-<version>-arm64-notarized.zip`、`VibeLightApp-<version>-x86_64-notarized.zip` 和对应 checklist 报告。
+10. 在发布 job 中生成 Sparkle `appcast.xml` 和 `appcast-x86_64.xml`。
+11. 创建 GitHub draft / pre-release / release assets。
 
 仓库需要配置：
 
@@ -272,7 +286,7 @@ make desktop-release-notarized
 
 workflow 当前使用 `actions/checkout@v6`、`actions/setup-python@v6` 和 `espressif/install-esp-idf-action@v1`。`release-desktop.yml` 已设置 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true`；如果 GitHub 仍提示 `espressif/install-esp-idf-action@v1` 声明 Node.js 20，这是上游 action metadata 未更新导致的非阻塞提醒。
 
-CI 可以完成可分发包生成、签名、notarization、staple、Gatekeeper / codesign 验证和 release asset 上传。真实 USB `chip_id`、UI 烧录、BLE 重连和 health packet 仍需要在本地 Mac + ESP32-S3 上验收。
+CI 可以完成 arm64 / x86_64 可分发包生成、签名、notarization、staple、Gatekeeper / codesign / Mach-O 架构验证和 release asset 上传。真实 USB `chip_id`、UI 烧录、BLE 重连和 health packet 仍需要在本地 Mac + ESP32-S3 上验收；有条件时应分别在 Apple Silicon 和 Intel Mac 下载对应 zip 做启动与 helper 验证。
 
 ## 下载包验证
 
@@ -281,7 +295,7 @@ CI 可以完成可分发包生成、签名、notarization、staple、Gatekeeper 
 ```bash
 rm -rf /tmp/vibe-light-release-test
 mkdir -p /tmp/vibe-light-release-test
-ditto -x -k VibeLightApp-<version>-notarized.zip /tmp/vibe-light-release-test
+ditto -x -k VibeLightApp-<version>-arm64-notarized.zip /tmp/vibe-light-release-test
 ```
 
 验证 notarization 和签名：
@@ -290,6 +304,7 @@ ditto -x -k VibeLightApp-<version>-notarized.zip /tmp/vibe-light-release-test
 xcrun stapler validate /tmp/vibe-light-release-test/VibeLightApp.app
 syspolicy_check distribution /tmp/vibe-light-release-test/VibeLightApp.app
 codesign --verify --deep --strict --verbose=2 /tmp/vibe-light-release-test/VibeLightApp.app
+script/verify_desktop_release_arch.sh --arch arm64 /tmp/vibe-light-release-test/VibeLightApp.app
 ```
 
 验证 helper 在下载形态 app 中不依赖系统环境：

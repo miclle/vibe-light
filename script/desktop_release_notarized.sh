@@ -19,6 +19,7 @@ Common .env variables:
   SIGNING_IDENTITY
   NOTARYTOOL_PROFILE, or APPLE_API_KEY_PATH/APPLE_API_KEY + APPLE_API_KEY_ID + APPLE_API_ISSUER
   PYTHON_RUNTIME
+  RELEASE_ARCH
   RELEASE_VERSION
   MINIMUM_DESKTOP_VERSION
   ESP32_PORT
@@ -69,6 +70,10 @@ args=(
   --minimum-desktop-version "${MINIMUM_DESKTOP_VERSION:-dev}"
   --notarize
 )
+
+if [[ -n "${RELEASE_ARCH:-}" ]]; then
+  args+=(--arch "$RELEASE_ARCH")
+fi
 
 if [[ -n "${PYTHON_RUNTIME:-}" ]]; then
   args+=(--python-runtime "$PYTHON_RUNTIME")
