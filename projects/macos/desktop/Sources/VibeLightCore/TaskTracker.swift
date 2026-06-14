@@ -186,18 +186,19 @@ public struct TaskTracker: Sendable {
         }
 
         let activeTasks = tasks.filter { $0.state == .busy || $0.state == .waiting }
-        let visibleTasks = activeTasks
+        let visibleTasks = Array(tasks.prefix(5))
+        let sourceTasks = activeTasks.isEmpty ? visibleTasks : activeTasks
         let state = activeTasks.isEmpty ? .idle : aggregateState(for: tasks)
         let waitingCount = tasks.filter { $0.state == .waiting }.count
         let busyCount = tasks.filter { $0.state == .busy }.count
         let errorCount = tasks.filter { $0.state == .error }.count
 
         return DisplaySnapshot(
-            source: aggregateSource(for: visibleTasks.isEmpty ? [primary] : visibleTasks),
+            source: aggregateSource(for: sourceTasks.isEmpty ? [primary] : sourceTasks),
             state: state,
             detail: activeTasks.isEmpty ? lastResultDetail(for: primary) : detail(for: tasks, state: state, primary: primary),
             timestamp: now,
-            tasks: Array(visibleTasks.prefix(5)),
+            tasks: visibleTasks,
             staleAfter: staleAfter,
             activeCount: busyCount + waitingCount,
             waitingCount: waitingCount,

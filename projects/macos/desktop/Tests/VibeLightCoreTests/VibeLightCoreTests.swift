@@ -88,10 +88,49 @@ import Testing
     #expect(snapshot.state == .busy)
     #expect(snapshot.source == .codex)
     #expect(snapshot.detail == "1 running")
-    #expect(snapshot.tasks.map(\.title) == ["vibe-light"])
+    #expect(snapshot.tasks.map(\.title) == ["vibe-light", "api-specs"])
+    #expect(snapshot.tasks.map(\.state) == [.busy, .success])
     #expect(snapshot.tasks.first?.identityKind == .explicit)
     #expect(snapshot.tasks.first?.inclusionReason == "active busy task from session id")
     #expect(snapshot.statusPacket.state == .busy)
+}
+
+@Test func taskTrackerBackfillsVisibleRowsWithRecentCompletedTasks() {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(taskID: "codex:task-f", source: .codex, kind: .stop, timestamp: base.addingTimeInterval(6), workspace: "extra"),
+        .init(taskID: "codex:task-e", source: .codex, kind: .stop, timestamp: base.addingTimeInterval(5), workspace: "assets"),
+        .init(taskID: "codex:task-d", source: .codex, kind: .stopFailure, timestamp: base.addingTimeInterval(4), workspace: "firmware"),
+        .init(taskID: "codex:task-c", source: .codex, kind: .stop, timestamp: base.addingTimeInterval(3), workspace: "docs"),
+        .init(taskID: "codex:task-b", source: .codex, kind: .preToolUse, timestamp: base.addingTimeInterval(2), workspace: "slideo"),
+        .init(taskID: "codex:task-a", source: .codex, kind: .permissionRequest, timestamp: base.addingTimeInterval(1), workspace: "vibe-light"),
+    ]
+
+    let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(7))
+
+    #expect(snapshot.state == .waiting)
+    #expect(snapshot.detail == "1 running · 1 waiting")
+    #expect(snapshot.tasks.map(\.title) == ["vibe-light", "slideo", "firmware", "extra", "assets"])
+    #expect(snapshot.tasks.map(\.state) == [.waiting, .busy, .error, .success, .success])
+    #expect(snapshot.activeCount == 2)
+    #expect(snapshot.errorCount == 1)
+}
+
+@Test func taskTrackerKeepsAggregateSourceFocusedOnActiveTasksWhenBackfilled() {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(taskID: "claude:task-b", source: .claude, kind: .stop, timestamp: base.addingTimeInterval(2), workspace: "docs"),
+        .init(taskID: "codex:task-a", source: .codex, kind: .preToolUse, timestamp: base.addingTimeInterval(1), workspace: "vibe-light"),
+    ]
+
+    let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(3))
+
+    #expect(snapshot.state == .busy)
+    #expect(snapshot.source == .codex)
+    #expect(snapshot.tasks.map(\.title) == ["vibe-light", "docs"])
+    #expect(snapshot.tasks.map(\.source) == [.codex, .claude])
 }
 
 @Test func taskTrackerPrioritizesWaitingOverBusy() {
@@ -129,11 +168,11 @@ import Testing
     #expect(object["activeCount"] as? Int == 2)
     #expect(object["waitingCount"] as? Int == 1)
     #expect(object["errorCount"] as? Int == 1)
-    #expect(tasks.map { $0["title"] as? String } == ["docs", "vibe-light"])
-    #expect(tasks.map { $0["state"] as? String } == ["waiting", "busy"])
-    #expect(snapshot.tasks.map(\.lastDetail) == ["approve edit", "implement v2"])
-    #expect(tasks.map { $0["detail"] as? String } == ["approve edit", "implement v2"])
-    #expect(tasks.map { $0["updatedAt"] as? Int64 } == [1_780_300_802_000, 1_780_300_801_000])
+    #expect(tasks.map { $0["title"] as? String } == ["docs", "vibe-light", "firmware"])
+    #expect(tasks.map { $0["state"] as? String } == ["waiting", "busy", "error"])
+    #expect(snapshot.tasks.map(\.lastDetail) == ["approve edit", "implement v2", "build failed"])
+    #expect(tasks.map { $0["detail"] as? String } == ["approve edit", "implement v2", "build failed"])
+    #expect(tasks.map { $0["updatedAt"] as? Int64 } == [1_780_300_802_000, 1_780_300_801_000, 1_780_300_803_000])
     #expect(object["ts"] as? Int64 == 1_780_300_804_000)
     #expect(data.count < 768)
 }
@@ -160,8 +199,9 @@ import Testing
 
     #expect(snapshot.state == .idle)
     #expect(snapshot.detail == "LAST ERR build failed")
-    #expect(snapshot.tasks.isEmpty)
-    #expect(tasks.isEmpty)
+    #expect(snapshot.tasks.map(\.title) == ["firmware"])
+    #expect(tasks.map { $0["title"] as? String } == ["firmware"])
+    #expect(tasks.map { $0["state"] as? String } == ["error"])
     #expect(object["detail"] as? String == "LAST ERR build failed")
 }
 
@@ -183,6 +223,7 @@ import Testing
     let expired = tracker.snapshot(from: events, now: base.addingTimeInterval(61))
 
     #expect(recent.detail == "LAST OK make quick passed")
+    #expect(recent.tasks.map(\.title) == ["vibe-light"])
     #expect(expired.state == .idle)
     #expect(expired.detail == "no active tasks")
     #expect(expired.tasks.isEmpty)
@@ -208,7 +249,8 @@ import Testing
 
     #expect(snapshot.state == .idle)
     #expect(snapshot.detail == "LAST OK Bash / TEST make quick")
-    #expect(snapshot.tasks.isEmpty)
+    #expect(snapshot.tasks.map(\.title) == ["vibe-light"])
+    #expect(snapshot.tasks.first?.lastDetail == "Bash / TEST make quick")
 }
 
 @Test func taskTrackerShowsCurrentToolActionInTaskDetail() throws {

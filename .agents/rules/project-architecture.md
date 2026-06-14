@@ -25,8 +25,8 @@ Desktop packet text is intentionally bounded before BLE writes: overall `detail`
 
 - `waiting` outranks `busy`.
 - `busy` outranks recent `error` and `success`.
-- `error` outranks `success` when no task is active.
-- Active rows are capped at 5 before crossing BLE.
+- When no task is active, aggregate state returns to `idle`; recent `error` and `success` rows remain visible until they expire.
+- Visible rows are capped at 5 before crossing BLE; active rows stay first, then recent error and success rows backfill the remaining space.
 - Codex memory-writing helper events are filtered out and should not affect the visible hardware state.
 - Codex usage comes from hook payload data or the latest transcript `token_count` event; desktop sends 5h / 7d remaining percentages, optional reset timestamps and task-level context used percentage, which remains the firmware fallback when a task row cannot show timing.
 
