@@ -341,7 +341,9 @@ jobs:
           notes="$RUNNER_TEMP/release-notes.md"
           version="${{ steps.release.outputs.version }}"
           cat >"$notes" <<EOF
-          Dev pre-release for the macOS firmware flashing flow.
+          Vibe Light $version release for the macOS firmware flashing flow.
+
+          Vibe Light original source code is source-available for non-commercial use under the Vibe Light Non-Commercial Source License. Third-party components remain under their respective upstream licenses.
           EOF
           if [[ -n "${{ inputs.supersedes }}" ]]; then
             cat >>"$notes" <<EOF
