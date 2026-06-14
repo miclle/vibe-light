@@ -17,6 +17,7 @@
 - 健康状态包已经包含运行时长、BLE 连接状态、最近显示状态、heap 余量、启动后 heap 低水位、渲染 tick、背光状态和最近解析错误；macOS 硬件页会展示这些诊断信息。
 - macOS app 已有独立“固件烧录”页，可枚举常见 ESP32 USB 串口、加载并校验内置 `FirmwareBundle`、调用 helper 执行 `write_flash`，成功后启动 BLE 扫描；`projects/esp32/tools/package_firmware_bundle.py` 可从 ESP-IDF build 产物生成带 SHA-256 的 app resource 固件包，`projects/esp32/tools/package_firmware_tools.py` 可把 `esptool` 依赖 vendor 到 `FirmwareTools/python-packages/`，并生成 GPL source offer / 对应源码归档。
 - 当前唯一保留的 GitHub pre-release 是 `v2026.06.14-dev-d5dd54a`；旧的 `v2026.06.13-dev-ffaf09f`、`v2026.06.13-dev-98427be` 和会启动崩溃的 `v2026.06.14-dev-08c645b` 已清理，不再作为可用分发入口。
+- 第一版公开测试发布推荐版本为 `v0.1.0-beta.1`：使用 SemVer 标记产品版本，release notes / manifest / checklist 继续记录构建 commit 和日期；等 2-3 个真实用户路径验证稳定后，再发布 `v0.1.0`。
 - 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试、生成迷宫 / 全屏 PNG 预览并执行 Git whitespace 检查；ESP32 显示闭环已完成一次实机烧录和屏幕确认。
 - 固件版本 `82d2180` 已在目标板完成烧录、串口启动、BLE 连接、健康特征实机读取、肉眼屏幕复核和长时间稳定性观察：LCD 初始化、BLE 广播、Central 连接、连续 `v: 2` 状态写入、token 摘要、页脚、底部余量、任务色块内缩、无边缘蓝线、macOS 硬件页健康读数和稳定性表现均正常；坏状态包后会回传 `lastParseError:"invalid JSON"`。
 - 固件版本 `3215f23` 已完成目标板烧录和实机观察，确认结构拆分后的固件启动、屏幕显示和 BLE 链路正常。
@@ -124,15 +125,19 @@
    - 当前唯一推荐测试包是 `v2026.06.14-dev-d5dd54a`。
    - 重点观察首次打开、蓝牙授权、固件烧录向导、USB 串口识别、RST / BOOT 指引、烧录日志感知和 BLE 重连体验。
 
-2. **守住现有竖屏和发布闭环**
+2. **准备 `v0.1.0-beta.1` draft pre-release**
+   - 用当前 `main` 重新跑 `release-desktop.yml`，版本号 `0.1.0-beta.1`，tag `v0.1.0-beta.1`，保持 draft + prerelease。
+   - 下载 draft asset 后复核 SHA-256、stapler、Gatekeeper、codesign、strict helper、GPL/source offer、`pyserial` license 补齐结果和真实 ESP32-S3 `chip_id`。
+
+3. **守住现有竖屏和发布闭环**
    - 后续协议、任务摘要、硬件页或烧录页改动优先补测试和实机回归。
    - 每次发布前继续重复 GitHub release asset 下载、Gatekeeper / codesign、strict helper 和真机烧录验证。
 
-3. **处理非阻塞发布治理**
+4. **处理非阻塞发布治理**
    - 持续关注 `espressif/install-esp-idf-action` 是否发布原生 Node 24 版本。
    - 正式公开 / 商业发布前完成人工法律 / 合规确认，重点复核 bundled `esptool` GPLv2+ source offer、源码归档和第三方 notices 的最终发布形态。
 
-4. **再评估横屏原型**
+5. **再评估横屏原型**
    - 横屏是产品方向探索，不是当前链路可靠性的前置条件。
    - 建议在竖屏实机闭环稳定后，用 host-side preview 先做布局草图，再决定是否投入固件实现。
 

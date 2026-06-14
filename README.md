@@ -120,3 +120,9 @@ script/        # 仓库级开发脚本
 - [ESP32 固件说明](projects/esp32/README.md)
 - [当前待办](TODO.md)
 - [Agent 工作指南](AGENTS.md)
+
+## License
+
+Vibe Light 自有源码使用 [Apache License 2.0](LICENSE)。
+
+发布版 macOS app 会随包携带用于固件烧录的第三方工具和运行时；这些组件继续遵循各自的上游许可证。特别是，固件烧录 helper 会作为独立进程调用 `esptool`，`esptool` 使用 GPLv2+。发布包必须保留生成的 `THIRD_PARTY_NOTICES.md`、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md`、GPL license 文件和 `sources/esptool-<version>.tar.gz` 对应源码归档。
