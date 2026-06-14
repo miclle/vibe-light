@@ -41,7 +41,7 @@ The current release package includes:
 - `esptool` dependencies, plus open-source notices, a source offer, and a source archive.
 - Sparkle update metadata: Apple Silicon builds use the stable GitHub `appcast.xml`, and Intel builds use `appcast-x86_64.xml`.
 
-The release flow now covers Developer ID signing, notarization, the release checklist, open-source notices, source-offer checks, and Sparkle appcast generation. The `v0.1.1` downloaded package has been validated through the real user path: launching the app, updating from an older build through the default stable feed, flashing ESP32-S3 firmware over USB, reconnecting over BLE, and reading device health. Future release workflow runs produce separate `arm64` and `x86_64` notarized zips so each Mac gets a matching bundled Python runtime.
+The release flow now covers Developer ID signing, notarization, the release checklist, open-source notices, source-offer checks, and Sparkle appcast generation. The `v0.1.1` downloaded package has been validated through the real user path: launching the app, updating from an older build through the default stable feed, flashing ESP32-S3 firmware over USB, reconnecting over BLE, and reading device health. The release workflow now produces separate `arm64` and `x86_64` notarized zips so each Mac gets a matching bundled Python runtime.
 
 ## Hardware
 

@@ -41,7 +41,7 @@ Vibe Light 目前已有 `v0.1.1` macOS release，核心链路已经具备 macOS 
 - `esptool` 依赖，以及对应的 open-source notices、source offer 和 source archive。
 - Sparkle 自动更新入口，Apple Silicon 默认通过 GitHub latest release `appcast.xml` 检查稳定版本，Intel 版本使用 `appcast-x86_64.xml`。
 
-发布流程已经完成 Developer ID 签名、notarization、release checklist、open-source notices、source offer 和 Sparkle appcast 检查；`v0.1.1` 下载包已覆盖启动 app、从旧版通过默认 stable feed 更新、通过 USB 烧录 ESP32-S3 固件、BLE 重连和读取设备 health 的真实用户路径验证。后续 release workflow 会分别生成 `arm64` 和 `x86_64` notarized zip，以匹配 Apple Silicon 和 Intel Mac 的 bundled Python runtime。
+发布流程已经完成 Developer ID 签名、notarization、release checklist、open-source notices、source offer 和 Sparkle appcast 检查；`v0.1.1` 下载包已覆盖启动 app、从旧版通过默认 stable feed 更新、通过 USB 烧录 ESP32-S3 固件、BLE 重连和读取设备 health 的真实用户路径验证。release workflow 现在会分别生成 `arm64` 和 `x86_64` notarized zip，以匹配 Apple Silicon 和 Intel Mac 的 bundled Python runtime。
 
 ## 硬件
 
