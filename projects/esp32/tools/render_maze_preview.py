@@ -44,6 +44,7 @@ PANEL = (0, 50, 60)
 MUTED = (130, 230, 255)
 FOOTER = (190, 190, 190)
 BUSY = (0, 180, 255)
+HEADER_BUSY = (0, 48, 98)
 WAITING = (255, 220, 0)
 ERROR = (255, 60, 60)
 MAZE = (0, 70, 255)
@@ -493,7 +494,7 @@ def draw_maze(image: Image, y_offset: int = 0) -> None:
     draw_reference_maze(image, y_offset)
 
 def draw_full_screen(image: Image) -> None:
-    fill_rect(image, 0, 0, 320, HEADER_HEIGHT, BUSY)
+    fill_rect(image, 0, 0, 320, HEADER_HEIGHT, HEADER_BUSY)
     fill_rect(image, 0, MAZE_STAGE_Y, 320, MAZE_PREVIEW_HEIGHT, BLACK)
     fill_rect(image, TASK_PANEL_X, TASK_PANEL_Y, TASK_PANEL_W, TASK_PANEL_H, PANEL)
 

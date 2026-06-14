@@ -77,6 +77,11 @@ static const char *TAG = "vibe_display";
 #define RGB565_CYAN 0x07ff
 #define RGB565_PINK 0xf81f
 #define RGB565_PANEL 0x18e3
+#define RGB565_HEADER_BUSY 0x018c
+#define RGB565_HEADER_WAITING 0x5200
+#define RGB565_HEADER_SUCCESS 0x0180
+#define RGB565_HEADER_ERROR 0x7000
+#define RGB565_HEADER_OFFLINE 0x7a00
 #define RGB565_MAZE 0x047f
 #define RGB565_DOT 0xffe0
 
@@ -154,6 +159,7 @@ static void render_animation_dots(const vibe_display_animation_frame_t *frames, 
 static void render_codex_actor(const vibe_display_animation_frame_t *frame);
 static void render_center_ghost(int animation_phase);
 static uint16_t color_for_state(vibe_display_state_t state);
+static uint16_t header_color_for_state(vibe_display_state_t state);
 static uint16_t color_for_trailing_severity(vibe_display_trailing_severity_t severity);
 static void animation_timer_callback(void *arg);
 static void update_animation_timer(vibe_display_state_t state);
@@ -342,14 +348,14 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
         vibe_display_format_empty_state(packet, &empty);
     }
 
-    uint16_t accent = has_empty_state && empty.quiet_header ? RGB565_PANEL : color_for_state(packet->state);
+    uint16_t header_color = has_empty_state && empty.quiet_header ? RGB565_PANEL : header_color_for_state(packet->state);
     if (vibe_display_animation_enabled(packet->state)) {
         int actor_count = vibe_display_animation_actor_count(packet->task_count, packet->active_count);
         vibe_display_maze_warm_pellet_cache(actor_count);
     }
 
     vibe_display_draw_fill_screen(RGB565_BLACK);
-    vibe_display_draw_fill_rect(0, 0, LCD_H_RES, 82, accent);
+    vibe_display_draw_fill_rect(0, 0, LCD_H_RES, 82, header_color);
     vibe_display_draw_fill_rect(VIBE_DISPLAY_MAZE_STAGE_X,
                                 VIBE_DISPLAY_MAZE_STAGE_Y,
                                 VIBE_DISPLAY_MAZE_STAGE_W,
@@ -689,6 +695,25 @@ static uint16_t color_for_state(vibe_display_state_t state)
     case VIBE_DISPLAY_IDLE:
     default:
         return RGB565_WHITE;
+    }
+}
+
+static uint16_t header_color_for_state(vibe_display_state_t state)
+{
+    switch (state) {
+    case VIBE_DISPLAY_BUSY:
+        return RGB565_HEADER_BUSY;
+    case VIBE_DISPLAY_WAITING:
+        return RGB565_HEADER_WAITING;
+    case VIBE_DISPLAY_SUCCESS:
+        return RGB565_HEADER_SUCCESS;
+    case VIBE_DISPLAY_ERROR:
+        return RGB565_HEADER_ERROR;
+    case VIBE_DISPLAY_OFFLINE:
+        return RGB565_HEADER_OFFLINE;
+    case VIBE_DISPLAY_IDLE:
+    default:
+        return RGB565_PANEL;
     }
 }
 
