@@ -178,6 +178,7 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - `.github/workflows/release-desktop.yml` 已提供手动触发的 GitHub draft / pre-release 自动化：在 macOS runner 上构建固件和 app，导入 Developer ID 证书，使用 Apple API key 建立临时 `notarytool` profile，执行 notarized checklist，验证 zip 解压形态，并上传 release assets。
    - 当前 dev pre-release `v2026.06.14-dev-d5dd54a` 已发布并完成下载包实机验证；正式公开 / 稳定 release 前需要明确 stable release version、desktop version、runtime 来源和 checklist 归档规则。
    - 当前 workflow 已升级到 `actions/checkout@v6` 和 `actions/setup-python@v6`，两者上游 `action.yml` 已声明 `node24`；`espressif/install-esp-idf-action` 仍只有 `v1` 且上游 `action.yml` 声明 `node20`，所以 workflow 通过 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` 提前使用 Node 24 runtime，后续仍需关注 Espressif 原生 Node 24 版本。
+   - 2026-06-14 已用 draft 验证版 `v2026.06.14-dev-d3cf90c-node24` 跑通 `release-desktop.yml`：workflow run `27484068864` 完成 ESP-IDF 安装、Developer ID 签名、notarization、archive 验证和 release asset 创建；验证 draft 已删除，远端仍只保留当前可用 tag `v2026.06.14-dev-d5dd54a`。GitHub 仍会提示 `espressif/install-esp-idf-action@v1` 声明 Node.js 20 但被强制运行在 Node.js 24，这是上游 metadata 未更新导致的非阻塞提醒。
 
 ## 建议下一步
 
