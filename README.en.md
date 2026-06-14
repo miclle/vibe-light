@@ -31,7 +31,7 @@ The project combines a native macOS app with ESP32-S3 display firmware. Codex / 
 
 ## Current Status
 
-Vibe Light has a `v0.1.1` macOS release. The core loop already includes the macOS app, ESP32-S3 firmware, BLE status sync, in-app firmware flashing, and Sparkle app updates.
+Vibe Light has a `v0.1.2` macOS release. The core loop already includes the macOS app, ESP32-S3 firmware, BLE status sync, in-app firmware flashing, and Sparkle app updates.
 
 The current release package includes:
 
@@ -41,7 +41,7 @@ The current release package includes:
 - `esptool` dependencies, plus open-source notices, a source offer, and a source archive.
 - Sparkle update metadata: Apple Silicon builds use the stable GitHub `appcast.xml`, and Intel builds use `appcast-x86_64.xml`.
 
-The release flow now covers Developer ID signing, notarization, the release checklist, open-source notices, source-offer checks, and Sparkle appcast generation. The `v0.1.1` downloaded package has been validated through the real user path: launching the app, updating from an older build through the default stable feed, flashing ESP32-S3 firmware over USB, reconnecting over BLE, and reading device health. The release workflow now produces separate `arm64` and `x86_64` notarized zips so each Mac gets a matching bundled Python runtime.
+The release flow now covers Developer ID signing, notarization, the release checklist, open-source notices, source-offer checks, Sparkle appcast generation, and dual-architecture artifact checks. The `v0.1.2` release publishes separate `arm64` and `x86_64` notarized zips so each Mac gets a matching bundled Python runtime. The `v0.1.1` downloaded package has been validated through the real user path: launching the app, updating from an older build through the default stable feed, flashing ESP32-S3 firmware over USB, reconnecting over BLE, and reading device health.
 
 ## Hardware
 

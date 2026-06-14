@@ -11,9 +11,9 @@
 - macOS app：`projects/macos/desktop`。
 - app 内烧录入口：侧边栏“固件烧录”页面。
 - BLE 设备名：`VibeLight-S3`。
-- 当前公开 latest release：`v0.1.1`，tag 指向 `2dee78b70fcdc43bd82f4eac64fe02b49804e882`。
-- 当前 release assets：`VibeLightApp-0.1.1-notarized.zip`、`desktop-firmware-release-0.1.1.md` 和 `appcast.xml`。当前 release workflow 会生成 `VibeLightApp-<version>-arm64-notarized.zip`、`VibeLightApp-<version>-x86_64-notarized.zip`、对应架构的 checklist 报告，以及 `appcast.xml` / `appcast-x86_64.xml`。
-- `v0.1.1` 已验证 GitHub latest appcast 可匿名下载，Sparkle stable feed 可从旧版更新到 `0.1.1`，下载包可启动并完成 USB 固件烧录和 BLE 重连。历史 `v0.1.0` checklist 已通过固件资源、desktop app、bundle icon、third-party notices、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-4.11.0.tar.gz` 检查，但该 checklist 未提供 `--chip-port`，所以只能作为无设备 CI gate 记录。
+- 当前公开 latest release：`v0.1.2`，tag 指向 `ffe505e76e0da0f5b7abcd6c8a22cbb48e7852c6`。
+- 当前 release assets：`VibeLightApp-0.1.2-arm64-notarized.zip`、`VibeLightApp-0.1.2-x86_64-notarized.zip`、`desktop-firmware-release-0.1.2-arm64.md`、`desktop-firmware-release-0.1.2-x86_64.md`、`appcast.xml` 和 `appcast-x86_64.xml`。
+- `v0.1.2` 已验证 GitHub latest appcast 可匿名下载，Apple Silicon feed 指向 `VibeLightApp-0.1.2-arm64-notarized.zip`，Intel feed 指向 `VibeLightApp-0.1.2-x86_64-notarized.zip`；两个下载包已完成本地解包、notarization staple、codesign 和 Mach-O 架构扫描。`v0.1.1` 下载包已验证 Sparkle stable feed 可从旧版更新到 `0.1.1`，并完成 USB 固件烧录和 BLE 重连。
 
 ## 用户烧录流程
 
