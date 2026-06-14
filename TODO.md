@@ -114,8 +114,8 @@
    - 实机对比竖屏和横屏后，再决定是否产品化为可配置展示模式。
 
 4. **跟进 GitHub Actions Node.js 20 弃用提醒**
-   - release workflow 当前可用，但 GitHub Actions 提示 `actions/checkout@v4`、`actions/setup-python@v5` 和 `espressif/install-esp-idf-action@v1` 仍运行在 Node.js 20 runtime。
-   - 后续需要关注上游 action 是否发布 Node.js 24 兼容版本，并在升级后跑一次完整 `release-desktop.yml` 验证。
+   - `release-desktop.yml` 已升级到 `actions/checkout@v6` 和 `actions/setup-python@v6`，两者上游 `action.yml` 已声明 `node24`。
+   - `espressif/install-esp-idf-action` 当前默认分支仍是 `v1`，没有可升级 tag，且上游 `action.yml` 仍声明 `node20`；workflow 已设置 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` 提前使用 Node 24 runtime，后续仍需关注 Espressif 是否发布原生 Node 24 版本。
 
 ## 推荐推进顺序
 
@@ -128,7 +128,7 @@
    - 每次发布前继续重复 GitHub release asset 下载、Gatekeeper / codesign、strict helper 和真机烧录验证。
 
 3. **处理非阻塞发布治理**
-   - 跟进 GitHub Actions Node.js 20 弃用提醒。
+   - 持续关注 `espressif/install-esp-idf-action` 是否发布原生 Node 24 版本。
    - 正式公开 / 商业发布前完成人工法律 / 合规确认，重点复核 bundled `esptool` GPLv2+ source offer、源码归档和第三方 notices 的最终发布形态。
 
 4. **再评估横屏原型**

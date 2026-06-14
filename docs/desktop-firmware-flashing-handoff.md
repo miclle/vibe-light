@@ -177,7 +177,7 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - `script/desktop_firmware_release_checklist.sh` 已把固件资源准备、desktop app 打包签名、可选 notarization、third-party notice 检查和目标板 `chip_id` 读取串成 markdown checklist，日志写入 `dist/release/logs/`。
    - `.github/workflows/release-desktop.yml` 已提供手动触发的 GitHub draft / pre-release 自动化：在 macOS runner 上构建固件和 app，导入 Developer ID 证书，使用 Apple API key 建立临时 `notarytool` profile，执行 notarized checklist，验证 zip 解压形态，并上传 release assets。
    - 当前 dev pre-release `v2026.06.14-dev-d5dd54a` 已发布并完成下载包实机验证；正式公开 / 稳定 release 前需要明确 stable release version、desktop version、runtime 来源和 checklist 归档规则。
-   - 当前 workflow 可用，但 GitHub Actions 已提示 `actions/checkout@v4`、`actions/setup-python@v5` 和 `espressif/install-esp-idf-action@v1` 仍使用 Node.js 20 runtime；后续需要关注上游 Node.js 24 兼容版本并重新跑完整 release workflow。
+   - 当前 workflow 已升级到 `actions/checkout@v6` 和 `actions/setup-python@v6`，两者上游 `action.yml` 已声明 `node24`；`espressif/install-esp-idf-action` 仍只有 `v1` 且上游 `action.yml` 声明 `node20`，所以 workflow 通过 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` 提前使用 Node 24 runtime，后续仍需关注 Espressif 原生 Node 24 版本。
 
 ## 建议下一步
 
@@ -198,7 +198,7 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 如果 Developer ID 路线稳定，再评估 App Store sandbox 可行性。
 
 4. 跟进发布自动化维护
-   - 关注 GitHub Actions runtime 弃用提醒；已能在生成脚本侧保持 GPL/license 材料自动补齐，后续 action 升级后需要重新跑完整 release workflow。
+   - 关注 `espressif/install-esp-idf-action` 是否发布原生 Node 24 版本；当前 workflow 已 opt in Node 24 runtime，并保持 GPL/license 材料自动补齐。
    - 保持 `release-desktop.yml` 生成 draft / pre-release 后的下载包本地实机验收流程。
 
 5. 保持失败恢复测试

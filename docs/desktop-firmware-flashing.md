@@ -211,7 +211,7 @@ CI 后续可以复用同一个脚本，但需要额外把 Developer ID Applicati
 
 CI 可以完成可分发包生成、签名、notarization、staple、Gatekeeper / codesign 验证和 release asset 上传；真实 USB `chip_id`、UI 烧录、BLE 重连和 health packet 仍需要从 GitHub release 下载后在本地 Mac + ESP32-S3 上验收。`v2026.06.14-dev-d5dd54a` 已完成这条本地下载包验收路径。
 
-GitHub Actions 目前仍提示部分 action 使用 Node.js 20 runtime，包括 `actions/checkout@v4`、`actions/setup-python@v5` 和 `espressif/install-esp-idf-action@v1`。这不阻塞当前 release，但需要后续关注上游 Node.js 24 兼容版本，并在升级后重新跑完整 `release-desktop.yml`。
+GitHub Actions runtime 维护状态：`release-desktop.yml` 已升级到 `actions/checkout@v6` 和 `actions/setup-python@v6`，两者上游 `action.yml` 已声明 `node24`。`espressif/install-esp-idf-action` 当前默认分支仍是 `v1`，没有可升级 tag，且上游 `action.yml` 仍声明 `node20`；workflow 已设置 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` 提前使用 Node 24 runtime，后续仍需关注 Espressif 是否发布原生 Node 24 版本。
 
 需要重点验证：
 
