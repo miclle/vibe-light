@@ -1,5 +1,7 @@
 # Vibe Light
 
+[English README](README.en.md)
+
 Vibe Light 把本机 AI 编程工具的运行状态同步到一块实体桌面屏幕上。
 
 项目由 macOS 原生桌面应用和 ESP32-S3 显示固件组成。Codex / Claude 通过本地 hooks 写入事件，macOS app 将事件归一化为紧凑的任务状态，再通过 BLE 写入 ESP32-S3。硬件屏幕会展示当前是否运行中、是否等待批准、最近错误、Codex 用量压力，以及运行状态下的 Codex 吃豆人迷宫动画。
