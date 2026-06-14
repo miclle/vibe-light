@@ -16,8 +16,8 @@
 - 固件连接状态已经会主动刷新屏幕：Central 连接时显示 `idle / desktop connected`，断开时显示 `offline / desktop disconnected`。
 - 健康状态包已经包含运行时长、BLE 连接状态、最近显示状态、heap 余量、启动后 heap 低水位、渲染 tick、背光状态和最近解析错误；macOS 硬件页会展示这些诊断信息。
 - macOS app 已有独立“固件烧录”页，可枚举常见 ESP32 USB 串口、加载并校验内置 `FirmwareBundle`、调用 helper 执行 `write_flash`，成功后启动 BLE 扫描；`projects/esp32/tools/package_firmware_bundle.py` 可从 ESP-IDF build 产物生成带 SHA-256 的 app resource 固件包，`projects/esp32/tools/package_firmware_tools.py` 可把 `esptool` 依赖 vendor 到 `FirmwareTools/python-packages/`，并生成 GPL source offer / 对应源码归档。
-- 当前推荐测试包是 GitHub pre-release `v0.1.0-beta.1`；旧 dev pre-release `v2026.06.14-dev-d5dd54a` 仍保留作历史回退，`v2026.06.13-dev-ffaf09f`、`v2026.06.13-dev-98427be` 和会启动崩溃的 `v2026.06.14-dev-08c645b` 已清理，不再作为可用分发入口。
-- 第一版公开测试发布使用 `v0.1.0-beta.1`：采用 SemVer 标记产品版本，release notes / manifest / checklist 继续记录构建 commit 和日期；等 2-3 个真实用户路径验证稳定后，再发布 `v0.1.0`。
+- Vibe Light 自有源码已经切换为 source-available 非商用许可：个人、学习、研究和其他非商业用途可免费使用；商业使用、商业分发或作为商业产品 / 服务的一部分使用，需要原作者单独书面授权；fork、复制、修改和再分发必须保留原作者署名、非商用限制和商业授权要求。
+- 下一次公开测试发布前，release notes / manifest / checklist 继续记录构建 commit、日期、许可边界和第三方许可证材料。
 - 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试、生成迷宫 / 全屏 PNG 预览并执行 Git whitespace 检查；ESP32 显示闭环已完成一次实机烧录和屏幕确认。
 - 固件版本 `82d2180` 已在目标板完成烧录、串口启动、BLE 连接、健康特征实机读取、肉眼屏幕复核和长时间稳定性观察：LCD 初始化、BLE 广播、Central 连接、连续 `v: 2` 状态写入、token 摘要、页脚、底部余量、任务色块内缩、无边缘蓝线、macOS 硬件页健康读数和稳定性表现均正常；坏状态包后会回传 `lastParseError:"invalid JSON"`。
 - 固件版本 `3215f23` 已完成目标板烧录和实机观察，确认结构拆分后的固件启动、屏幕显示和 BLE 链路正常。
@@ -57,11 +57,11 @@
 
 - 时间：2026-06-13。
 - 验证范围：GitHub pre-release 下载产物回归。
-- 结果确认：曾发布 GitHub pre-release `v2026.06.13-dev-ffaf09f`，tag 指向实际构建提交 `ffaf09fec89a13ba26a86f6139255c26d3836d57`；该 release 后续已清理，不再作为可用入口。已从 GitHub release 下载 `VibeLightApp-2026.06.13-dev-ffaf09f-notarized.zip` 和 checklist 报告到 `/tmp/vibe-light-release-test-2026.06.13-dev-ffaf09f`，SHA-256 分别为 `260b0b4e30fc44e408cbfd83ef5286802a949523b1fc36f9955c0f1688577f7d` 和 `41a407d026fdbb7502c940f3e55613307417d00ba8cf7035f4210cec5b573737`，与 release notes 一致。用 `ditto -x -k` 解压出的 app 通过 `xcrun stapler validate`、`spctl -a -vv --type execute` 和 `codesign --verify --deep --strict`，zip 内 GPL 材料和 `esptool` 源码包 hash 复核通过，下载 app 可启动并退出。用命令行 `unzip` 解压同一 zip 时出现 sealed resource 校验失败；release notes 已补充建议使用 Finder / Archive Utility 或 `ditto` 解压。手动让目标板进入 ROM download mode 后，下载 app UI 完成“读取芯片 -> 烧录固件 -> BLE 重连 / health packet”闭环：识别 `ESP32-S3 (QFN56)`，UI 烧录 bootloader / partition table / app 三段均 `Hash of data verified`，随后发现 `VibeLight-S3`、连接并读取健康状态，健康卡显示运行时间约 1 分 20 秒、连接已连接、最近状态运行中、背光开启、可用 heap 约 6.7 MB、render tick 9。
+- 结果确认：曾发布 GitHub pre-release `v2026.06.13-dev-ffaf09f`，tag 指向实际构建提交 `ffaf09fec89a13ba26a86f6139255c26d3836d57`。已从 GitHub release 下载 `VibeLightApp-2026.06.13-dev-ffaf09f-notarized.zip` 和 checklist 报告到 `/tmp/vibe-light-release-test-2026.06.13-dev-ffaf09f`，SHA-256 分别为 `260b0b4e30fc44e408cbfd83ef5286802a949523b1fc36f9955c0f1688577f7d` 和 `41a407d026fdbb7502c940f3e55613307417d00ba8cf7035f4210cec5b573737`，与 release notes 一致。用 `ditto -x -k` 解压出的 app 通过 `xcrun stapler validate`、`spctl -a -vv --type execute` 和 `codesign --verify --deep --strict`，zip 内 GPL 材料和 `esptool` 源码包 hash 复核通过，下载 app 可启动并退出。用命令行 `unzip` 解压同一 zip 时出现 sealed resource 校验失败；release notes 已补充建议使用 Finder / Archive Utility 或 `ditto` 解压。手动让目标板进入 ROM download mode 后，下载 app UI 完成“读取芯片 -> 烧录固件 -> BLE 重连 / health packet”闭环：识别 `ESP32-S3 (QFN56)`，UI 烧录 bootloader / partition table / app 三段均 `Hash of data verified`，随后发现 `VibeLight-S3`、连接并读取健康状态，健康卡显示运行时间约 1 分 20 秒、连接已连接、最近状态运行中、背光开启、可用 heap 约 6.7 MB、render tick 9。
 
 - 时间：2026-06-13。
 - 验证范围：烧录进度修复后的 GitHub pre-release 发布与下载包回归。
-- 结果确认：曾发布 GitHub pre-release `v2026.06.13-dev-98427be`，tag 指向 `98427bee72b1a3249f1b022ee794fefd0cd9cabf`，并在 release notes 标明 supersede `v2026.06.13-dev-ffaf09f`；该 release 后续已清理，不再作为可用入口。完整 `script/desktop_firmware_release_checklist.sh --version 2026.06.13-dev-98427be --minimum-desktop-version dev --python-runtime <python-runtime> --require-bundled-python --identity "Developer ID Application: <name> (<team-id>)" --notarize --notarytool-profile <notarytool-profile> --chip-port /dev/cu.usbmodemXXXX` 通过；Apple Notary submission `0fe51533-2c15-493e-809d-07693eb43a2e` 返回 `Accepted`，staple / validate、`syspolicy_check distribution` 和 `codesign --verify --deep --strict` 通过。GitHub asset 重新下载后的 SHA-256 为 `55c31ef27c5a8957b2393d920bd159c8b42bd0840e13d4949b392ac0cae61bfa`（notarized zip）和 `44a0f3881635d2f769bcee7af4cdf25840c169d9213a4ab990638b418c0a2ea9`（checklist），与 release notes / GitHub digest 一致。下载 zip 用 `ditto -x -k` 解压后通过 stapler、distribution policy 和 codesign，manifest 为 `2026.06.13-dev-98427be / 98427be`，GPL 材料和 `sources/esptool-4.11.0.tar.gz` 均存在，源码包 SHA-256 仍为 `496571e4f6e36f7dc9a730dd485c4a9d522c9e7d6bb90ea2fec0a049275fbfad`。同一下载形态 app 内 strict helper 完成完整 `write_flash`，bootloader、partition table 和 app 三段均 `Hash of data verified`，最后 `Hard resetting via RTS pin`。
+- 结果确认：曾发布 GitHub pre-release `v2026.06.13-dev-98427be`，tag 指向 `98427bee72b1a3249f1b022ee794fefd0cd9cabf`，并在 release notes 标明 supersede `v2026.06.13-dev-ffaf09f`。完整 `script/desktop_firmware_release_checklist.sh --version 2026.06.13-dev-98427be --minimum-desktop-version dev --python-runtime <python-runtime> --require-bundled-python --identity "Developer ID Application: <name> (<team-id>)" --notarize --notarytool-profile <notarytool-profile> --chip-port /dev/cu.usbmodemXXXX` 通过；Apple Notary submission `0fe51533-2c15-493e-809d-07693eb43a2e` 返回 `Accepted`，staple / validate、`syspolicy_check distribution` 和 `codesign --verify --deep --strict` 通过。GitHub asset 重新下载后的 SHA-256 为 `55c31ef27c5a8957b2393d920bd159c8b42bd0840e13d4949b392ac0cae61bfa`（notarized zip）和 `44a0f3881635d2f769bcee7af4cdf25840c169d9213a4ab990638b418c0a2ea9`（checklist），与 release notes / GitHub digest 一致。下载 zip 用 `ditto -x -k` 解压后通过 stapler、distribution policy 和 codesign，manifest 为 `2026.06.13-dev-98427be / 98427be`，GPL 材料和 `sources/esptool-4.11.0.tar.gz` 均存在，源码包 SHA-256 仍为 `496571e4f6e36f7dc9a730dd485c4a9d522c9e7d6bb90ea2fec0a049275fbfad`。同一下载形态 app 内 strict helper 完成完整 `write_flash`，bootloader、partition table 和 app 三段均 `Hash of data verified`，最后 `Hard resetting via RTS pin`。
 
 - 时间：2026-06-13。
 - 验证范围：`v2026.06.13-dev-98427be` 下载 app UI 试用和后续修复。
@@ -70,7 +70,6 @@
 - 时间：2026-06-14。
 - 验证范围：GitHub Actions 生成的 Developer ID notarized pre-release 和真实用户路径。
 - 结果确认：`release-desktop.yml` 已在提交 `d5dd54a` 上完整跑通，发布 `v2026.06.14-dev-d5dd54a` pre-release；GitHub asset `VibeLightApp-2026.06.14-dev-d5dd54a-notarized.zip` 的 SHA-256 为 `023df16bf7710bae338d9ad03e40a4808d402c9416c2803493d11946f851fd83`。下载 zip 用 `ditto -x -k` 解压后通过 `xcrun stapler validate`、`syspolicy_check distribution`、`codesign --verify --deep --strict` 和 strict helper `--help` 验证；下载形态 `.app` 可启动并保持运行，不再复现 `Bundle.module` resource bundle 启动崩溃。包内 helper 完成 `chip_id` 和完整 `write_flash`，识别 `ESP32-S3 (QFN56)`，bootloader、partition table 和 app 三段均 `Hash of data verified`，最后 `Hard resetting via RTS pin`。用户随后确认该 release 实测正常。
-- 发布清理：已删除不可用的旧 pre-release 和 tag `v2026.06.13-dev-ffaf09f`、`v2026.06.13-dev-98427be`；会启动崩溃的 draft `v2026.06.14-dev-08c645b` 已删除且无残留 tag。远端保留当前推荐 beta tag `v0.1.0-beta.1` 和历史回退 tag `v2026.06.14-dev-d5dd54a`。
 
 - 时间：2026-06-14。
 - 验证范围：`v0.1.0-beta.1` pre-release。
@@ -100,13 +99,12 @@
    - `script/desktop_firmware_release_checklist.sh` 已把固件资源准备、desktop app 打包签名、可选 notarization、third-party notice / GPL source gate 检查和目标板 `chip_id` 读取串成 markdown checklist，日志写入 `dist/release/logs/`。
    - UI 已把固件烧录改成独立侧边栏入口和 step-by-step 向导，覆盖连接 USB、读取芯片、按需进入下载模式、确认并烧录、写入固件、RST 正常启动、BLE 连接和完成状态；download mode 失败会分步提示 `BOOT` / `RST` 操作，烧录成功后会提示只点按 `RST` 正常启动。
    - UI 已能针对下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失给出明确恢复提示。
-   - 带 GPL source gate 的完整 release checklist 已通过；正式公开 / 商业发布前仍需人工审阅生成的 esptool/Python 许可证材料，尤其确认 `esptool` GPLv2+ source offer、源码归档和间接依赖 notice。
+   - 带 GPL source gate 的完整 release checklist 已通过；下一次公开发布前仍需人工审阅生成的 esptool/Python 许可证材料，尤其确认 `esptool` GPLv2+ source offer、源码归档和间接依赖 notice。
    - 2026-06-14 已补强生成脚本：`SOURCE_OFFER.md` fallback wording 明确 `any third party`、费用不超过实际源码分发成本和 GitHub 仓库联系入口；`package_firmware_tools.py` 会为 `pyserial 3.5` 补齐独立 `LICENSE.txt`，让生成的 `THIRD_PARTY_NOTICES.md` 能记录该 license 文件，减少长期审计摩擦。
-   - 当前开源、非商用发布没有发现许可证合规阻塞；继续保留 GPL/source 材料即可。如果未来修改 bundled `esptool`，修改后的对应源码也必须按 GPLv2+ 提供，并同步更新 notice、source archive 和 hash。
+   - Vibe Light 自有源码已经切换为 source-available 非商用许可；继续保留 GPL/source 材料即可。如果未来修改 bundled `esptool`，修改后的对应源码也必须按 GPLv2+ 提供，并同步更新 notice、source archive 和 hash。
    - notarized app bundle 内 helper 已能访问目标板 USB 串口并读取 `ESP32-S3 (QFN56)` 芯片信息；notarized app UI 已完成完整串口烧录、BLE 扫描 / 连接和 health packet 展示闭环。
-   - GitHub Actions 生成的 Developer ID notarized pre-release 下载包已通过 hash、notarization/Gatekeeper、codesign、GPL 材料、app 启动、strict helper、真实 USB 烧录和用户试用回归；当前推荐可用包是 `v0.1.0-beta.1`。
-   - `v0.1.0-beta.1` pre-release 已完成下载包验证，覆盖 SHA-256、notarization/Gatekeeper、codesign、strict helper、GPL/source offer、`pyserial` license、真实 USB `chip_id`、完整 `write_flash`、串口启动日志和 app 启动。
-   - 旧的 `v2026.06.13-dev-ffaf09f`、`v2026.06.13-dev-98427be` 和会启动崩溃的 `v2026.06.14-dev-08c645b` 已从 GitHub release/tag 侧清理，避免误用。
+   - GitHub Actions 生成的 Developer ID notarized pre-release 下载包曾通过 hash、notarization/Gatekeeper、codesign、GPL 材料、app 启动、strict helper、真实 USB 烧录和用户试用回归；下一次公开测试入口仍需按当前许可重新完成 release 验证。
+   - `v0.1.0-beta.1` pre-release 曾完成下载包验证，覆盖 SHA-256、notarization/Gatekeeper、codesign、strict helper、GPL/source offer、`pyserial` license、真实 USB `chip_id`、完整 `write_flash`、串口启动日志和 app 启动。
    - dev app UI 已补齐烧录前芯片确认：读取前“烧录固件”禁用，点击“读取芯片”确认 `ESP32-S3 (QFN56)` 和 MAC 后才启用写入入口，避免直接进入写入；写入阶段会解析 esptool 输出显示实时 stage/progress，并保留完整实时日志。
    - 方案细节见 `docs/desktop-firmware-flashing.md`。
 
@@ -123,12 +121,12 @@
 4. **跟进 GitHub Actions Node.js 20 弃用提醒**
    - `release-desktop.yml` 已升级到 `actions/checkout@v6` 和 `actions/setup-python@v6`，两者上游 `action.yml` 已声明 `node24`。
    - `espressif/install-esp-idf-action` 当前默认分支仍是 `v1`，没有可升级 tag，且上游 `action.yml` 仍声明 `node20`；workflow 已设置 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` 提前使用 Node 24 runtime，后续仍需关注 Espressif 是否发布原生 Node 24 版本。
-   - 2026-06-14 已用 draft 验证版 `v2026.06.14-dev-d3cf90c-node24` 跑通 `release-desktop.yml`，workflow run `27484068864` 完成 ESP-IDF 安装、Developer ID 签名、notarization、archive 验证和 release asset 创建；验证 draft 已删除，远端保留当前推荐 beta tag `v0.1.0-beta.1` 和历史回退 tag `v2026.06.14-dev-d5dd54a`。GitHub 仍会提示 `espressif/install-esp-idf-action@v1` 声明 Node.js 20 但被强制运行在 Node.js 24，这是上游 metadata 未更新导致的非阻塞提醒。
+   - 2026-06-14 已用 draft 验证版 `v2026.06.14-dev-d3cf90c-node24` 跑通 `release-desktop.yml`，workflow run `27484068864` 完成 ESP-IDF 安装、Developer ID 签名、notarization、archive 验证和 release asset 创建；验证 draft 已删除。GitHub 仍会提示 `espressif/install-esp-idf-action@v1` 声明 Node.js 20 但被强制运行在 Node.js 24，这是上游 metadata 未更新导致的非阻塞提醒。
 
 ## 推荐推进顺序
 
-1. **观察 `v0.1.0-beta.1` beta 反馈**
-   - `v0.1.0-beta.1` GitHub pre-release 已发布并完成技术验证。
+1. **重新准备下一次公开测试入口**
+   - 基于当前非商用许可准备下一版 pre-release。
    - 继续用真实用户路径重点观察首次打开、蓝牙授权、固件烧录向导、USB 串口识别、RST / BOOT 指引、烧录日志感知和 BLE 重连体验。
 
 2. **守住现有竖屏和发布闭环**
@@ -137,7 +135,7 @@
 
 3. **处理非阻塞发布治理**
    - 持续关注 `espressif/install-esp-idf-action` 是否发布原生 Node 24 版本。
-   - 开源、非商用发布当前没有发现许可证合规阻塞；如果进入商业发布，仍建议做最终法律 / 合规确认，重点复核 bundled `esptool` GPLv2+ source offer、源码归档和第三方 notices 的最终发布形态。
+   - 自有源码非商用许可和第三方 GPL/source 材料需要分开审阅；如果进入商业授权或商业分发，仍建议做最终法律 / 合规确认，重点复核 bundled `esptool` GPLv2+ source offer、源码归档和第三方 notices 的最终发布形态。
 
 4. **再评估横屏原型**
    - 横屏是产品方向探索，不是当前链路可靠性的前置条件。
