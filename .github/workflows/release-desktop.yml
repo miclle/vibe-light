@@ -307,6 +307,7 @@ jobs:
           mkdir -p "$test_dir"
           ditto -x -k "$zip_path" "$test_dir"
           app_path="$test_dir/VibeLightApp.app"
+          script/verify_desktop_app_bundle.sh "$app_path"
           xcrun stapler validate "$app_path"
           syspolicy_check distribution "$app_path"
           codesign --verify --deep --strict --verbose=2 "$app_path"

@@ -257,6 +257,7 @@ if [[ "$SKIP_PACKAGE" -eq 0 ]]; then
   append_report "- Status: passed"
   append_report "- Log: \`${package_log#$ROOT_DIR/}\`"
   append_report "- App bundle: \`dist/VibeLightApp.app\`"
+  append_report "- Bundle icon: verified"
   append_report ""
 else
   append_report "## Desktop App"

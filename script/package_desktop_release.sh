@@ -265,6 +265,7 @@ sign_path "$APP_BUNDLE"
 
 verify_nested_macho
 codesign --verify --strict --verbose=4 "$APP_BUNDLE"
+"$ROOT_DIR/script/verify_desktop_app_bundle.sh" "$APP_BUNDLE"
 
 ARCHIVE_PATH="$(make_archive "")"
 printf 'Wrote signed archive: %s\n' "$ARCHIVE_PATH"
@@ -278,8 +279,14 @@ if [[ "$NOTARIZE" -eq 1 ]]; then
 fi
 
 if command -v syspolicy_check >/dev/null 2>&1; then
-  syspolicy_check distribution "$APP_BUNDLE"
-  printf 'Distribution policy check passed.\n'
+  if syspolicy_check distribution "$APP_BUNDLE"; then
+    printf 'Distribution policy check passed.\n'
+  elif [[ "$NOTARIZE" -eq 1 ]]; then
+    echo "Distribution policy check failed after notarization." >&2
+    exit 1
+  else
+    echo "Distribution policy check did not pass; this is expected for a signed app before notarization." >&2
+  fi
 elif command -v spctl >/dev/null 2>&1 && spctl -a -vv --type execute "$APP_BUNDLE"; then
   printf 'Gatekeeper assessment passed.\n'
 elif [[ "$NOTARIZE" -eq 1 ]]; then

@@ -18,6 +18,7 @@ APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 RESOURCE_BUNDLE_NAME="VibeLight_VibeLightApp.bundle"
 RESOURCE_BUNDLE="$APP_RESOURCES/$RESOURCE_BUNDLE_NAME"
+APP_ICON_NAME="AppIcon.icns"
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
@@ -33,6 +34,7 @@ mkdir -p "$APP_RESOURCES"
 ditto --noextattr --norsrc "$BUILD_BINARY" "$APP_BINARY"
 ditto --noextattr --norsrc "$HOOK_BINARY" "$APP_MACOS/vibe-light-hook"
 ditto --noextattr --norsrc "$BUILD_RESOURCE_BUNDLE" "$RESOURCE_BUNDLE"
+ditto --noextattr --norsrc "$RESOURCE_BUNDLE/$APP_ICON_NAME" "$APP_RESOURCES/$APP_ICON_NAME"
 chmod +x "$APP_BINARY"
 chmod +x "$APP_MACOS/vibe-light-hook"
 
@@ -66,6 +68,8 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundleIdentifier</key>
   <string>$BUNDLE_ID</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundleName</key>
   <string>Vibe Light</string>
   <key>CFBundlePackageType</key>
@@ -83,6 +87,7 @@ cat >"$INFO_PLIST" <<PLIST
 PLIST
 
 sign_app
+"$ROOT_DIR/script/verify_desktop_app_bundle.sh" "$APP_BUNDLE"
 
 open_app() {
   /usr/bin/open -n "$APP_BUNDLE"
