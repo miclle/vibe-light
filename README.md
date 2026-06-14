@@ -1,53 +1,113 @@
-# vibe-light
+# Vibe Light
 
-Vibe Light 是一个 macOS 原生桌面应用和本地 hook 采集入口，用来把 Codex / Claude 等 AI 编程工具的运行状态同步到 ESP32-S3 硬件显示设备。
+Vibe Light 把本机 AI 编程工具的运行状态同步到一块实体桌面屏幕上。
 
-当前产品形态是“桌面状态中枢 + BLE 外设 + 竖屏硬件显示”。macOS 侧负责接收 hook、聚合多任务状态并发送 `StatusPacket`；ESP32-S3 侧负责以 `VibeLight-S3` 广播 BLE 服务、解析状态包、驱动 Waveshare `ESP32-S3-LCD-3.16` 的 320 x 820 LCD，并在 `busy` 状态下运行固件本地的 Codex 吃豆人迷宫动画。
+项目由 macOS 原生桌面应用和 ESP32-S3 显示固件组成。Codex / Claude 通过本地 hooks 写入事件，macOS app 将事件归一化为紧凑的任务状态，再通过 BLE 写入 ESP32-S3。硬件屏幕会展示当前是否运行中、是否等待批准、最近错误、Codex 用量压力，以及运行状态下的 Codex 吃豆人迷宫动画。
 
-## macOS 桌面应用
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/assets/vibe-light-device-demo.gif" alt="Vibe Light running on ESP32-S3 hardware" width="320">
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/assets/vibe-light-device-running.jpg" alt="Vibe Light task list and maze display on ESP32-S3 hardware" width="320">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><sub>真实 ESP32-S3 设备上的动态运行效果。</sub></td>
+    <td align="center"><sub>运行中状态实拍，便于查看任务列表、计时和迷宫细节。</sub></td>
+  </tr>
+</table>
 
-当前实现包含五个核心界面：
+## 能做什么
 
-- **通用**：展示当前硬件显示状态、最近事件桥接状态、手动写入调试状态和基础偏好。
-- **智能体安装**：安装 / 卸载 Codex 和 Claude 的 Vibe Light hooks。
-- **硬件设备**：扫描、连接广播 VibeLight BLE 服务的 ESP32-S3 设备，并发送当前状态包。
-- **固件烧录**：通过 USB 串口读取 ESP32-S3 芯片信息，确认目标芯片后写入随 app 携带的预编译固件，并在成功后引导 BLE 重连。
-- **事件**：读取本机采集到的 hook 事件，按最新优先展示来源、事件类型、状态和诊断信息。
+- 展示本机 AI 编程工具当前是空闲、运行中、等待用户、成功完成还是发生错误。
+- 将多个 Codex / Claude 任务聚合成一个适合硬件显示的状态视图。
+- 在屏幕上显示最多 5 条任务摘要、活跃 / 等待 / 错误计数、任务新鲜度、运行时长和 Codex context 用量摘要。
+- 驱动竖屏 320 x 820 ESP32-S3 LCD 界面，并在 `busy` 状态下播放 Codex 迷宫动画。
+- 提供 macOS app 内固件烧录流程，测试用户无需安装 ESP-IDF 即可初始化目标 ESP32-S3 设备。
 
-桌面端当前发送 `v: 2` 状态包：除了整体 `source`、`state`、`detail`，还包含 `activeCount`、`waitingCount`、`errorCount`、Codex 5h / 7d 剩余用量和最多 5 条任务摘要。每条任务会携带最近更新时间，屏幕可显示 `RUN 03:12`、`WAIT 01:08` 或 `2m ago`；缺少时间时回退为 Codex 上下文已用百分比，带 token 数据时优先显示 `CTX 4.2K/12K` 这类紧凑 token 摘要。硬件设备页的演示包包含 `CTX color` 场景，用于实机复核 80% 黄色和 90% 红色尾标。整体详情截断到 80 个 UTF-8 字节，任务标题截断到 32 个 UTF-8 字节，任务详情截断到 40 个 UTF-8 字节。BLE 写入长度不足时会降级为兼容旧固件的 `v: 1` 单状态包。
+## 当前状态
+
+Vibe Light 目前处于早期公开 beta 阶段。当前推荐测试包是 GitHub pre-release `v0.1.0-beta.1`。
+
+该包已内置：
+
+- notarized macOS app。
+- 面向 Waveshare `ESP32-S3-LCD-3.16` 的预编译固件。
+- 固件烧录 helper 和 bundled Python runtime。
+- `esptool` 依赖，以及对应的 open-source notices、source offer 和 source archive。
+
+这一路径已经完成下载 release zip、启动 app、通过 USB 读取 ESP32-S3 芯片、写入 bootloader / partition table / app firmware、重启、BLE 重连和读取设备 health 的闭环验证。
+
+## 硬件
+
+当前支持的目标设备是：
+
+- Waveshare `ESP32-S3-LCD-3.16`
+- ESP32-S3，带 8 MB PSRAM
+- 320 x 820 ST7701 RGB LCD
+- USB 用于固件烧录
+- BLE 用于状态同步
+
+硬件事实和官方资料入口见 [docs/hardware.md](docs/hardware.md)。
+
+## 安装试用
+
+普通测试用户建议直接使用 GitHub release 包，不需要从源码构建固件：
+
+1. 从 [GitHub Releases](https://github.com/miclle/vibe-light/releases) 下载当前推荐的 pre-release。
+2. 用 Finder 或 Archive Utility 解压 zip；如果使用命令行，建议用 `ditto -x -k`。
+3. 打开 `VibeLightApp.app`。
+4. 用 USB 数据线连接 ESP32-S3 开发板。
+5. 在 app 的固件烧录页面读取芯片，并写入内置固件。
+6. 烧录完成后按需点按 `RST`，再在 app 中连接 `VibeLight-S3`。
+7. 在 app 中安装 Codex / Claude hooks，然后正常使用你的 AI 编程工具。
+
+内置烧录路径不要求用户安装 ESP-IDF、`idf.py`、Homebrew `esptool` 或本地 Python 环境。
+
+## macOS App
+
+桌面端位于 [projects/macos/desktop](projects/macos/desktop)，使用 SwiftPM、SwiftUI 和 CoreBluetooth。
+
+当前包含五个主要界面：
+
+- 通用：查看当前硬件显示状态、最近事件桥接状态、手动调试状态和基础偏好。
+- 智能体安装：安装或卸载 Codex / Claude 的 Vibe Light hooks。
+- 硬件设备：扫描、连接设备、发送状态包、读取 health packet，并发送显示演示包。
+- 固件烧录：引导用户完成 USB 芯片读取、固件写入、重启、BLE 重连和健康状态验证。
+- 事件：查看本机采集到的 hook 事件和诊断信息。
+
+Hook CLI 会保持安静：它从 stdin 读取 JSON，追加写入 `~/Library/Application Support/VibeLight/events.jsonl`；失败时只写 stderr，并以 fail-open 方式退出，避免影响 Codex / Claude 原有工作流。
 
 ## ESP32-S3 固件
 
-固件位于 `projects/esp32`，当前目标硬件为 Waveshare `ESP32-S3-LCD-3.16`。当前实现已经覆盖：
+固件位于 [projects/esp32](projects/esp32)。它负责：
 
-- BLE Peripheral 广播 `VibeLight-S3`，并暴露状态写入 / 健康读取 GATT 特征。
-- `StatusPacket` JSON 解析，兼容 `v: 1` 单状态包和 `v: 2` 多任务列表包。
-- ST7701 RGB LCD 初始化、PSRAM framebuffer、主动低电平背光 PWM 和基础 RGB565 绘制。
-- Central 连接后显示 `idle / desktop connected`，断开后显示 `offline / desktop disconnected`，避免屏幕停在过期任务上。
-- 屏幕顶部用状态色展示聚合状态，中间显示参考迷宫舞台，底部贴边任务面板展示紧凑计数、最多 5 条任务摘要和任务时长 / 新鲜度。
-- `busy` 状态下运行非阻塞 Codex 吃豆人迷宫动画；角色数量来自任务列表或 `activeCount`，本轮豆子会在全部吃完后一次性重置。
-- Host-side 测试覆盖状态解析、未知状态降级、Codex 用量解析、重复包去重、任务行格式、中文文本、迷宫路径、整轮豆子重置、角色朝向和底部面板布局。
+- 以 `VibeLight-S3` 名称广播 BLE Peripheral。
+- 接收 macOS app 写入的紧凑 UTF-8 JSON `StatusPacket`。
+- 返回包含 uptime、连接状态、最近显示状态、heap、render tick、背光状态和最近解析错误的 health packet。
+- 使用轻量 framebuffer renderer 直接驱动 Waveshare LCD。
+- 同时兼容当前 `v: 2` 多任务状态包和旧的 `v: 1` 单状态包。
 
-## 开发运行
+协议、状态模型和跨端职责见 [docs/architecture.md](docs/architecture.md)。固件细节见 [projects/esp32/README.md](projects/esp32/README.md)。
 
-第一次在本机搭建环境时，先运行：
+## 从源码构建
+
+首次搭建开发环境：
 
 ```bash
 make check-env
 make setup
 ```
 
-`make check-env` 只检查环境并提示缺失项；`make setup` 会交互式安装缺失依赖，包括 Homebrew 依赖和默认路径 `~/esp/esp-idf` 下的 ESP-IDF。国内网络下载 ESP-IDF 工具较慢时，可运行：
+`make setup` 可以交互式安装缺失的 Homebrew 依赖，并在默认路径 `~/esp/esp-idf` 下安装 ESP-IDF。国内网络下载 ESP-IDF 较慢时，可以使用：
 
 ```bash
 script/setup_env.sh --install --china-mirror
 ```
 
-仓库里的 Make 命令会在需要时自动加载 ESP-IDF。只有手动运行 `idf.py` 时，才需要进入已激活环境：
-
-```bash
-make idf-shell
-```
+构建、测试并启动 macOS app：
 
 ```bash
 make desktop-build
@@ -55,77 +115,75 @@ make desktop-test
 make desktop-run
 ```
 
-`./script/build_and_run.sh` 会构建 SwiftPM GUI app，生成本地 `dist/VibeLightApp.app`，再以正常 macOS app bundle 方式启动。Codex 桌面端也已配置 Run action 指向这个脚本。
-
-常用 ESP32 入口也已整理成 Make 目标：
+运行固件 host-side 测试和屏幕预览生成：
 
 ```bash
-make esp32-preview
 make esp32-test
+make esp32-preview
+```
+
+本机有 ESP-IDF 时，从源码构建并烧录固件：
+
+```bash
 make esp32-build
 make esp32-flash ESP32_PORT=/dev/cu.usbmodemXXXX
 ```
 
-面向普通测试用户的推荐安装包是 GitHub pre-release `v0.1.0-beta.1`。该包已内置预编译固件、烧录 helper、Python runtime、`esptool` 依赖和 GPL/source offer 材料；用户不需要安装 ESP-IDF 即可在 app 内完成固件烧录。旧 dev pre-release 只作为历史回退或排障参考。
+只有手动运行 `idf.py` 时，才需要进入已激活的 ESP-IDF shell：
+
+```bash
+make idf-shell
+```
 
 ## 验证
 
-提交涉及 macOS app、BLE 协议或 ESP32 固件的变更前，优先运行统一验证入口：
-
-```bash
-make verify
-```
-
-完整验证会依次运行 Swift 测试、ESP32 状态解析 host-side 测试、ESP32 屏幕预览生成、ESP32 固件构建和 Git whitespace 检查。只想快速验证协议解析、desktop 逻辑和预览生成时，可运行：
+快速验证 desktop 逻辑、协议解析、固件 host-side 测试、屏幕预览和 whitespace：
 
 ```bash
 make quick
 ```
 
-快速验证也会生成本地 ESP32 屏幕预览图：
+包含 ESP32 固件构建的完整验证：
 
 ```bash
+make verify
+```
+
+文档-only 改动至少运行：
+
+```bash
+make docs-check
+```
+
+固件屏幕预览会生成到：
+
+```text
 /tmp/vibe-maze-preview.png
 /tmp/vibe-screen-preview.png
 ```
 
-## Hook CLI
-
-`vibe-light-hook` 从 stdin 读取 JSON，把事件写入 `~/Library/Application Support/VibeLight/events.jsonl`。它不会向 stdout 输出内容，避免污染 Codex / Claude 的 hook 流程；解析或写入失败时只向 stderr 写诊断，并以 0 退出保持 fail-open。
-
-```bash
-printf '{"source":"codex","event":"PreToolUse","detail":"running shell"}' | swift run --package-path projects/macos/desktop vibe-light-hook
-```
-
-也可以使用仓库封装的示例入口：
-
-```bash
-make hook-sample
-```
-
-支持的事件、状态映射和 Codex transcript 用量提取规则见 [架构设计](docs/architecture.md)。
-
-## 项目目录
+## 项目结构
 
 ```text
 projects/
   macos/
-    desktop/   # macOS SwiftPM 桌面应用、Hook CLI、核心模型和测试
-  esp32/       # ESP32-S3 固件工程入口
-docs/          # 跨工程架构、协议和硬件记录
-script/        # 仓库级开发脚本
+    desktop/   # macOS SwiftPM app、Hook CLI、BLE client、测试
+  esp32/       # ESP32-S3 固件和 host-side 测试
+docs/          # 架构、硬件、固件烧录和发布记录
+script/        # 环境搭建、验证、打包和发布脚本
 ```
 
 ## 文档
 
 - [架构设计](docs/architecture.md)
 - [硬件记录](docs/hardware.md)
+- [固件烧录流程](docs/desktop-firmware-flashing.md)
 - [ESP32 固件说明](projects/esp32/README.md)
-- [当前待办](TODO.md)
+- [路线图和验证记录](TODO.md)
 - [Agent 工作指南](AGENTS.md)
 
 ## License
 
 Vibe Light 自有源码使用 [Apache License 2.0](LICENSE)。
 
-当前开源、非商用发布没有发现许可证合规阻塞。发布版 macOS app 会随包携带用于固件烧录的第三方工具和运行时；这些组件继续遵循各自的上游许可证。特别是，固件烧录 helper 会作为独立进程调用 `esptool`，`esptool` 使用 GPLv2+。发布包必须保留生成的 `THIRD_PARTY_NOTICES.md`、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md`、GPL license 文件和 `sources/esptool-<version>.tar.gz` 对应源码归档。如果未来修改 `esptool`，修改后的对应源码也必须按 GPLv2+ 一起提供，并同步更新 notice、source archive 和 hash。
+发布包可能会携带用于固件烧录的第三方工具和运行时；这些组件继续遵循各自的上游许可证。特别是，固件烧录 helper 会调用 `esptool`，而 `esptool` 使用 GPLv2+。发布包必须保留生成的 `THIRD_PARTY_NOTICES.md`、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md`、GPL license 文件和匹配的 `sources/esptool-<version>.tar.gz` 源码归档。如果未来修改 bundled `esptool`，也必须按 GPLv2+ 一起提供对应修改源码。
