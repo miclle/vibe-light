@@ -17,7 +17,7 @@
 - 健康状态包已经包含运行时长、BLE 连接状态、最近显示状态、heap 余量、启动后 heap 低水位、渲染 tick、背光状态和最近解析错误；macOS 硬件页会展示这些诊断信息。
 - macOS app 已有独立“固件烧录”页，可枚举常见 ESP32 USB 串口、加载并校验内置 `FirmwareBundle`、调用 helper 执行 `write_flash`，成功后启动 BLE 扫描；`projects/esp32/tools/package_firmware_bundle.py` 可从 ESP-IDF build 产物生成带 SHA-256 的 app resource 固件包，`projects/esp32/tools/package_firmware_tools.py` 可把 `esptool` 依赖 vendor 到 `FirmwareTools/python-packages/`，并生成 GPL source offer / 对应源码归档。
 - Vibe Light 自有源码已经切换为 source-available 非商用许可：个人、学习、研究和其他非商业用途可免费使用；商业使用、商业分发或作为商业产品 / 服务的一部分使用，需要原作者单独书面授权；fork、复制、修改和再分发必须保留原作者署名、非商用限制和商业授权要求。
-- 下一次公开测试发布前，release notes / manifest / checklist 继续记录构建 commit、日期、许可边界和第三方许可证材料。
+- 当前公开 release 为 `v0.1.0`，tag 指向 `7c9781aebdfd02c9be96dc078324599e51a40cd5`；release asset 包含 `VibeLightApp-0.1.0-notarized.zip` 和 `desktop-firmware-release-0.1.0.md`。下一次发布前，release notes / manifest / checklist 继续记录构建 commit、日期、许可边界和第三方许可证材料。
 - 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试、生成迷宫 / 全屏 PNG 预览并执行 Git whitespace 检查；ESP32 显示闭环已完成一次实机烧录和屏幕确认。
 - 固件版本 `82d2180` 已在目标板完成烧录、串口启动、BLE 连接、健康特征实机读取、肉眼屏幕复核和长时间稳定性观察：LCD 初始化、BLE 广播、Central 连接、连续 `v: 2` 状态写入、token 摘要、页脚、底部余量、任务色块内缩、无边缘蓝线、macOS 硬件页健康读数和稳定性表现均正常；坏状态包后会回传 `lastParseError:"invalid JSON"`。
 - 固件版本 `3215f23` 已完成目标板烧录和实机观察，确认结构拆分后的固件启动、屏幕显示和 BLE 链路正常。
@@ -72,8 +72,8 @@
 - 结果确认：`release-desktop.yml` 已在提交 `d5dd54a` 上完整跑通，发布 `v2026.06.14-dev-d5dd54a` pre-release；GitHub asset `VibeLightApp-2026.06.14-dev-d5dd54a-notarized.zip` 的 SHA-256 为 `023df16bf7710bae338d9ad03e40a4808d402c9416c2803493d11946f851fd83`。下载 zip 用 `ditto -x -k` 解压后通过 `xcrun stapler validate`、`syspolicy_check distribution`、`codesign --verify --deep --strict` 和 strict helper `--help` 验证；下载形态 `.app` 可启动并保持运行，不再复现 `Bundle.module` resource bundle 启动崩溃。包内 helper 完成 `chip_id` 和完整 `write_flash`，识别 `ESP32-S3 (QFN56)`，bootloader、partition table 和 app 三段均 `Hash of data verified`，最后 `Hard resetting via RTS pin`。用户随后确认该 release 实测正常。
 
 - 时间：2026-06-14。
-- 验证范围：`v0.1.0-beta.1` pre-release。
-- 结果确认：`release-desktop.yml` run `27484764574` 已在 `main` 上完整通过，GitHub pre-release `v0.1.0-beta.1` 已发布，tag 指向构建提交 `f96c3cf4d83649fd709f3248d83256e9378b0364`。下载 asset `VibeLightApp-0.1.0-beta.1-notarized.zip` 后 SHA-256 为 `062c35035451f0c9efb6ce4331988adef414d2eda605eedcd10ea1160b0e6bb3`，checklist asset `desktop-firmware-release-0.1.0-beta.1.md` 的 SHA-256 为 `12b70e32a36938ae88fa61d466a8427fb3f8721c58844713460ec167c416d3ed`，均与 GitHub asset digest 一致。下载 zip 用 `ditto -x -k` 解压后通过 `xcrun stapler validate`、`syspolicy_check distribution`、`codesign --verify --deep --strict` 和 strict helper `--help`；下载形态 `.app` 可启动。包内 GPL/source gate 复核通过：`THIRD_PARTY_NOTICES.md`、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md`、`pyserial-3.5.dist-info/LICENSE.txt` 和 `sources/esptool-4.11.0.tar.gz` 均存在，`SOURCE_OFFER.md` 包含 `any third party` 和实际分发成本 wording，`esptool` 源码包 SHA-256 为 `496571e4f6e36f7dc9a730dd485c4a9d522c9e7d6bb90ea2fec0a049275fbfad`。同一下载形态 app 内 strict helper 完成 `chip_id` 和完整 `write_flash`，识别 `ESP32-S3 (QFN56)`、BLE 和 8MB PSRAM，bootloader、partition table 和 app 三段均 `Hash of data verified`。串口启动日志确认 `LCD initialized`、`advertising as VibeLight-S3`、desktop connected 和状态包显示。
+- 验证范围：`v0.1.0` release 远端发布状态和 checklist 资产。
+- 结果确认：GitHub 当前公开 release 为 `v0.1.0`，tag 指向 `7c9781aebdfd02c9be96dc078324599e51a40cd5`，发布时间为 `2026-06-14T04:32:31Z`；asset `VibeLightApp-0.1.0-notarized.zip` 的 GitHub digest 为 `sha256:27e570b66fb3e7e33da4474a0436b7f1d21e53711216c3b986a181cf76f974a6`，checklist asset `desktop-firmware-release-0.1.0.md` 的 digest 为 `sha256:0f73df1b82e27ac3cdfb350aef325b83c105a2186148d6b87516eb1a8019dc6e`。下载 checklist 显示 CI release flow 在 commit `7c9781aebdfd02c9be96dc078324599e51a40cd5` 上通过：固件资源、desktop app、bundle icon、third-party notices、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-4.11.0.tar.gz` 均通过检查，`esptool` 源码包 SHA-256 为 `496571e4f6e36f7dc9a730dd485c4a9d522c9e7d6bb90ea2fec0a049275fbfad`；该 checklist 未提供 `--chip-port`，所以目标芯片读取为 skipped，真实 USB 烧录仍以历史下载包回归记录为准。
 
 - 时间：2026-06-11。
 - 端口：目标板 USB 串口。
@@ -103,8 +103,8 @@
    - 2026-06-14 已补强生成脚本：`SOURCE_OFFER.md` fallback wording 明确 `any third party`、费用不超过实际源码分发成本和 GitHub 仓库联系入口；`package_firmware_tools.py` 会为 `pyserial 3.5` 补齐独立 `LICENSE.txt`，让生成的 `THIRD_PARTY_NOTICES.md` 能记录该 license 文件，减少长期审计摩擦。
    - Vibe Light 自有源码已经切换为 source-available 非商用许可；继续保留 GPL/source 材料即可。如果未来修改 bundled `esptool`，修改后的对应源码也必须按 GPLv2+ 提供，并同步更新 notice、source archive 和 hash。
    - notarized app bundle 内 helper 已能访问目标板 USB 串口并读取 `ESP32-S3 (QFN56)` 芯片信息；notarized app UI 已完成完整串口烧录、BLE 扫描 / 连接和 health packet 展示闭环。
-   - GitHub Actions 生成的 Developer ID notarized pre-release 下载包曾通过 hash、notarization/Gatekeeper、codesign、GPL 材料、app 启动、strict helper、真实 USB 烧录和用户试用回归；下一次公开测试入口仍需按当前许可重新完成 release 验证。
-   - `v0.1.0-beta.1` pre-release 曾完成下载包验证，覆盖 SHA-256、notarization/Gatekeeper、codesign、strict helper、GPL/source offer、`pyserial` license、真实 USB `chip_id`、完整 `write_flash`、串口启动日志和 app 启动。
+   - GitHub Actions 生成的 Developer ID notarized release 包已经覆盖 hash、notarization/Gatekeeper、codesign、GPL/source 材料和 checklist gate；真实 USB 烧录、BLE 重连和 health packet 仍需要按下载包形态做人工回归。
+   - `v0.1.0` 当前公开 release 的 checklist 资产已确认固件资源、desktop app、bundle icon、third-party notices、GPL source offer 和 `esptool` 源码包检查通过；该 release checklist 没有提供 `--chip-port`，目标芯片读取为 skipped。
    - dev app UI 已补齐烧录前芯片确认：读取前“烧录固件”禁用，点击“读取芯片”确认 `ESP32-S3 (QFN56)` 和 MAC 后才启用写入入口，避免直接进入写入；写入阶段会解析 esptool 输出显示实时 stage/progress，并保留完整实时日志。
    - 方案细节见 `docs/desktop-firmware-flashing.md`。
 
@@ -125,8 +125,8 @@
 
 ## 推荐推进顺序
 
-1. **重新准备下一次公开测试入口**
-   - 基于当前非商用许可准备下一版 pre-release。
+1. **准备下一版公开发布入口**
+   - 基于当前非商用许可准备下一版 release 或 beta。
    - 继续用真实用户路径重点观察首次打开、蓝牙授权、固件烧录向导、USB 串口识别、RST / BOOT 指引、烧录日志感知和 BLE 重连体验。
 
 2. **守住现有竖屏和发布闭环**

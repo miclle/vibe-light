@@ -31,16 +31,16 @@ The project combines a native macOS app with ESP32-S3 display firmware. Codex / 
 
 ## Current Status
 
-Vibe Light is in pre-release testing. The core loop already includes the macOS app, ESP32-S3 firmware, BLE status sync, and in-app firmware flashing.
+Vibe Light has a `v0.1.0` macOS release. The core loop already includes the macOS app, ESP32-S3 firmware, BLE status sync, and in-app firmware flashing.
 
-Future release packages will include:
+The current release package includes:
 
 - A notarized macOS app.
 - Prebuilt firmware for the Waveshare `ESP32-S3-LCD-3.16`.
 - A firmware flashing helper and bundled Python runtime.
 - `esptool` dependencies, plus open-source notices, a source offer, and a source archive.
 
-This path has been validated end to end: downloading the release zip, launching the app, reading the ESP32-S3 chip over USB, writing the bootloader / partition table / app firmware, rebooting, reconnecting over BLE, and reading device health.
+The release flow now covers Developer ID signing, notarization, the release checklist, open-source notices, and source-offer checks. Historical downloaded-package regressions have also covered launching the app, reading the ESP32-S3 chip over USB, writing the bootloader / partition table / app firmware, rebooting, reconnecting over BLE, and reading device health.
 
 ## Hardware
 
@@ -56,9 +56,9 @@ Hardware facts and official reference links live in [docs/hardware.md](docs/hard
 
 ## Try It
 
-Once release packages are available, regular test users can use the GitHub release package directly. They do not need to build firmware from source.
+Regular test users can use the GitHub release package directly. They do not need to build firmware from source.
 
-1. Download the release package from [GitHub Releases](https://github.com/miclle/vibe-light/releases).
+1. Download the latest `VibeLightApp-*-notarized.zip` package from [GitHub Releases](https://github.com/miclle/vibe-light/releases).
 2. Extract the zip with Finder or Archive Utility. If using the command line, `ditto -x -k` is recommended.
 3. Open `VibeLightApp.app`.
 4. Connect the ESP32-S3 development board over USB.

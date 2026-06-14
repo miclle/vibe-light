@@ -127,4 +127,4 @@
 - 确认 ESP-IDF 版本和项目固件目录结构。当前固件目录已经落在 `projects/esp32`，本机记录的 ESP-IDF 构建版本为 v5.5.1；当前渲染路径未引入 LVGL。
 - 确认 BLE 与 LCD 刷新并行运行时的内存占用和刷新性能。
 - 在后续长时间使用中继续留意 PSRAM framebuffer、主动低电平背光 PWM、Codex 吃豆人动画、低余量 reset 提示和任务尾标轮播是否稳定。
-- 健康状态里的 `backlightOn` 和 `lastParseError` 已通过临时 CoreBluetooth 脚本实机读取确认；下一次实机闭环需要确认它们在 macOS 硬件页正确显示。
+- 继续在后续长时间使用中观察 macOS 硬件页 health packet 展示是否稳定，尤其是 `backlightOn`、`lastParseError`、heap 低水位和 render tick。
