@@ -241,7 +241,7 @@ GitHub Actions 目前仍提示部分 action 使用 Node.js 20 runtime，包括 `
    - `script/prepare_desktop_firmware_release.sh` 已串起固件包生成、`esptool` 依赖 vendoring 和收窄 PATH helper 验证，可作为发布资产准备入口。
    - `projects/esp32/tools/package_firmware_tools.py --python-runtime <path> --require-python-runtime` 可把预备好的独立 Python runtime 复制到 `FirmwareTools/python/`，并验证 `python/bin/python3` 可执行。
    - `VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1` 会让 helper 只使用 bundled Python runtime 和 bundled `esptool`，用于证明发布包不依赖用户系统环境；release-prep 还会用 bundled Python import `esptool`、`pyserial`、`cryptography`、`PyYAML` 和 `cffi`，避免二进制依赖 ABI 问题漏过。
-   - `projects/esp32/tools/package_firmware_tools.py` 会从 vendored Python package metadata 生成 `FirmwareTools/THIRD_PARTY_NOTICES.md`，并为 GPLv2+ 的 `esptool` 生成 `OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-<version>.tar.gz`，让许可证材料跟实际依赖版本保持一致。
+   - `projects/esp32/tools/package_firmware_tools.py` 会从 vendored Python package metadata 生成 `FirmwareTools/THIRD_PARTY_NOTICES.md`，为 GPLv2+ 的 `esptool` 生成 `OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-<version>.tar.gz`，并为缺少独立 license 文件的 `pyserial 3.5` 自动补齐 `LICENSE.txt`，让许可证材料跟实际依赖版本保持一致。
    - 第一版 runtime 来源已选定为 PlatformIO portable Python；正式 release 前按 checklist 完整跑通工具 vendoring，并审阅生成的第三方 notices、GPL source offer 和源码归档。
 
 2. **真实应用闭环验证**
@@ -259,6 +259,7 @@ GitHub Actions 目前仍提示部分 action 使用 Node.js 20 runtime，包括 `
    - dev app UI 已补齐烧录前芯片确认，写入入口会等 `chip_id` 读取并匹配目标芯片后才启用。
    - 已用带 GPL source gate 的完整 checklist 验证 Developer ID notarized 包和 `esptool` 源码材料随包存在。
    - 已完成 zip 内实际文件的工程合规审阅，当前 dev release 的 `esptool` GPL gate 可以放行。
+   - 已补强 `SOURCE_OFFER.md` fallback wording，明确 `any third party`、费用不超过实际源码分发成本和 GitHub 仓库联系入口；`THIRD_PARTY_NOTICES.md` 会记录补齐后的 `pyserial 3.5` license 文件。
    - GitHub Actions 生成的 `v2026.06.14-dev-d5dd54a` 已通过下载包 hash、stapler、distribution policy、codesign、strict helper、app 启动和真实 USB 烧录验证，并已作为当前唯一可用 pre-release 发布。
    - 正式 release 前选定 release version 和 desktop version，并保存 checklist 结果。
 
@@ -271,4 +272,4 @@ GitHub Actions 目前仍提示部分 action 使用 Node.js 20 runtime，包括 `
 
 ## 结论
 
-该功能已经具备 app 内入口、固件包校验、串口发现、helper 调用和成功后 BLE 扫描的最小闭环。发布流程已经把 `esptool` GPLv2+ 源码归档和 source offer 纳入生成与 checklist gate；最大的剩余工程风险不在固件本身，而在 macOS 分发权限、helper 签名、正式发布的法律/合规审阅和真实发布包的失败恢复体验。
+该功能已经具备 app 内入口、固件包校验、串口发现、helper 调用和成功后 BLE 扫描的最小闭环。发布流程已经把 Developer ID 签名、notarization、`esptool` GPLv2+ 源码归档、source offer 和第三方 notices 纳入自动生成与 checklist gate；最大的剩余工程风险不在固件本身，而在稳定版发布节奏、正式发布的法律 / 合规审阅和真实发布包的失败恢复回归。

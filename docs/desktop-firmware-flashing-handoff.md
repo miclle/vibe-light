@@ -162,7 +162,7 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - `script/desktop_firmware_release_checklist.sh` 会检查 `THIRD_PARTY_NOTICES.md` 存在 `esptool` 条目、`OPEN_SOURCE_NOTICES.md` / `SOURCE_OFFER.md` 存在 GPLv2+ 元数据、`sources/esptool-*.tar.*` 存在并把 SHA-256 写入 release 报告；启用 `--require-bundled-python` 时也会检查 `python-portable` 条目。
    - 2026-06-13 完整 checklist 已确认 notarized zip 内包含 `THIRD_PARTY_NOTICES.md`、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-4.11.0.tar.gz`；源码包 SHA-256 为 `496571e4f6e36f7dc9a730dd485c4a9d522c9e7d6bb90ea2fec0a049275fbfad`。
    - 2026-06-13 已完成 zip 内实际文件的工程合规审阅：`esptool` GPL gate 对当前 dev release 可以放行；正式商业发布前仍建议法律 / 合规最终确认。
-   - 后续非阻塞优化：把 `SOURCE_OFFER.md` fallback wording 写得更贴近 GPLv2 3(b)，明确 `any third party`、费用不超过实际源码分发成本和稳定联系渠道；补齐 `pyserial 3.5` 等间接依赖的独立 license 文本归档。
+   - 2026-06-14 已补强生成脚本：`SOURCE_OFFER.md` fallback wording 明确 `any third party`、费用不超过实际源码分发成本和 GitHub 仓库联系入口；`package_firmware_tools.py` 会为 `pyserial 3.5` 补齐独立 `LICENSE.txt`，让生成的 `THIRD_PARTY_NOTICES.md` 能记录该 license 文件。
 
 4. 固件烧录向导和进度展示已落地
    - 侧边栏已经有独立“固件烧录”入口；“硬件设备”页保留 BLE 发现、连接、health 和演示包，不再混入烧录流程。
@@ -198,7 +198,7 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 如果 Developer ID 路线稳定，再评估 App Store sandbox 可行性。
 
 4. 跟进发布自动化维护
-   - 关注 GitHub Actions Node.js 20 runtime 弃用提醒，等待上游 action 支持 Node.js 24 后升级并跑完整 release workflow。
+   - 关注 GitHub Actions runtime 弃用提醒；已能在生成脚本侧保持 GPL/license 材料自动补齐，后续 action 升级后需要重新跑完整 release workflow。
    - 保持 `release-desktop.yml` 生成 draft / pre-release 后的下载包本地实机验收流程。
 
 5. 保持失败恢复测试

@@ -27,6 +27,52 @@ DEFAULT_OUTPUT_DIR = (
     / "FirmwareTools"
 )
 
+KNOWN_LICENSE_FILES = {
+    ("pyserial", "3.5"): (
+        "LICENSE.txt",
+        """Copyright (c) 2001-2020 Chris Liechti <cliechti@gmx.net>
+All Rights Reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+  * Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+
+  * Redistributions in binary form must reproduce the above
+    copyright notice, this list of conditions and the following
+    disclaimer in the documentation and/or other materials provided
+    with the distribution.
+
+  * Neither the name of the copyright holder nor the names of its
+    contributors may be used to endorse or promote products derived
+    from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+---------------------------------------------------------------------------
+Note:
+Individual files contain the following tag instead of the full license text.
+
+    SPDX-License-Identifier:    BSD-3-Clause
+
+This enables machine processing of license information based on the SPDX
+License Identifiers that are here available: http://spdx.org/licenses/
+""",
+    ),
+}
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -89,6 +135,7 @@ def main() -> int:
         validate_python_runtime(runtime_dir)
 
     prune_python_packages(packages_dir)
+    write_known_license_files(packages_dir)
     packages = read_package_metadata(args.output_dir, packages_dir)
     esptool_package = find_package(packages, "esptool")
     esptool_source = None
@@ -214,6 +261,21 @@ def prune_python_packages(packages_dir: Path) -> None:
     for package_url in ("argcomplete", "argcomplete-3.6.3.dist-info", *removable_paths):
         remove_tree(packages_dir / package_url)
         remove_file(packages_dir / package_url)
+
+
+def write_known_license_files(packages_dir: Path) -> None:
+    for metadata_url in sorted(packages_dir.glob("*.dist-info/METADATA")):
+        metadata = Parser().parsestr(metadata_url.read_text(encoding="utf-8", errors="replace"))
+        key = (str(metadata.get("Name", "")).casefold().replace("_", "-"), str(metadata.get("Version", "")))
+        known_license = KNOWN_LICENSE_FILES.get(key)
+        if not known_license:
+            continue
+        license_name, license_text = known_license
+        package_dir = metadata_url.parent
+        existing = [*package_dir.glob("LICENSE*"), *package_dir.glob("licenses/*")]
+        if any(path.is_file() for path in existing):
+            continue
+        (package_dir / license_name).write_text(license_text, encoding="utf-8")
 
 
 def remove_tree(path: Path) -> None:
@@ -535,7 +597,9 @@ def write_source_offer(
     lines.extend(
         [
             "",
-            "The release package includes the corresponding source archive listed above. If the archive is missing or unreadable in a copy of this release, request the same source through the Vibe Light release or support channel where you received the binary distribution.",
+            "The release package accompanies the binary distribution with the corresponding source archive listed above. If the archive is missing or unreadable in a copy of this release, any third party may request a machine-readable copy of the same corresponding source from the Vibe Light GitHub repository at https://github.com/miclle/vibe-light or through the release/support channel where the binary distribution was received.",
+            "",
+            "The charge for fulfilling a fallback source request will not exceed the actual cost of physically performing source distribution.",
             "",
             "This fallback source offer is valid for at least three years after the date of binary distribution.",
             "",

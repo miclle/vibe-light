@@ -96,7 +96,7 @@
    - UI 已把固件烧录改成独立侧边栏入口和 step-by-step 向导，覆盖连接 USB、读取芯片、按需进入下载模式、确认并烧录、写入固件、RST 正常启动、BLE 连接和完成状态；download mode 失败会分步提示 `BOOT` / `RST` 操作，烧录成功后会提示只点按 `RST` 正常启动。
    - UI 已能针对下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失给出明确恢复提示。
    - 带 GPL source gate 的完整 release checklist 已通过；正式公开 / 商业发布前仍需人工审阅生成的 esptool/Python 许可证材料，尤其确认 `esptool` GPLv2+ source offer、源码归档和间接依赖 notice。
-   - 后续非阻塞合规优化：把 `SOURCE_OFFER.md` fallback wording 写得更贴近 GPLv2 3(b)，明确 `any third party`、费用不超过实际源码分发成本，并提供稳定联系渠道；补齐 `pyserial 3.5` 等间接依赖的独立 license 文本归档，减少长期审计摩擦。
+   - 2026-06-14 已补强生成脚本：`SOURCE_OFFER.md` fallback wording 明确 `any third party`、费用不超过实际源码分发成本和 GitHub 仓库联系入口；`package_firmware_tools.py` 会为 `pyserial 3.5` 补齐独立 `LICENSE.txt`，让生成的 `THIRD_PARTY_NOTICES.md` 能记录该 license 文件，减少长期审计摩擦。
    - notarized app bundle 内 helper 已能访问 `/dev/cu.usbmodem1101` 并读取 `ESP32-S3 (QFN56)` 芯片信息；notarized app UI 已完成完整串口烧录、BLE 扫描 / 连接和 health packet 展示闭环。
    - GitHub Actions 生成的 Developer ID notarized pre-release 下载包已通过 hash、notarization/Gatekeeper、codesign、GPL 材料、app 启动、strict helper、真实 USB 烧录和用户试用回归；当前唯一保留的可用包是 `v2026.06.14-dev-d5dd54a`。
    - 旧的 `v2026.06.13-dev-ffaf09f`、`v2026.06.13-dev-98427be` 和会启动崩溃的 `v2026.06.14-dev-08c645b` 已从 GitHub release/tag 侧清理，避免误用。
@@ -129,7 +129,7 @@
 
 3. **处理非阻塞发布治理**
    - 跟进 GitHub Actions Node.js 20 弃用提醒。
-   - 正式公开 / 商业发布前完成人工法律 / 合规确认，尤其是 bundled `esptool` GPLv2+ source offer 和间接依赖 license 文本。
+   - 正式公开 / 商业发布前完成人工法律 / 合规确认，重点复核 bundled `esptool` GPLv2+ source offer、源码归档和第三方 notices 的最终发布形态。
 
 4. **再评估横屏原型**
    - 横屏是产品方向探索，不是当前链路可靠性的前置条件。
