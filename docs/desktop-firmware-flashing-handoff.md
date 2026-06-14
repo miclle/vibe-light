@@ -168,6 +168,7 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 2026-06-13 完整 checklist 已确认 notarized zip 内包含 `THIRD_PARTY_NOTICES.md`、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-4.11.0.tar.gz`；源码包 SHA-256 为 `496571e4f6e36f7dc9a730dd485c4a9d522c9e7d6bb90ea2fec0a049275fbfad`。
    - 2026-06-13 已完成 zip 内实际文件的工程合规审阅：`esptool` GPL gate 对当前 dev release 可以放行；正式商业发布前仍建议法律 / 合规最终确认。
    - 2026-06-14 已补强生成脚本：`SOURCE_OFFER.md` fallback wording 明确 `any third party`、费用不超过实际源码分发成本和 GitHub 仓库联系入口；`package_firmware_tools.py` 会为 `pyserial 3.5` 补齐独立 `LICENSE.txt`，让生成的 `THIRD_PARTY_NOTICES.md` 能记录该 license 文件。
+   - 当前开源、非商用发布没有发现许可证合规阻塞；继续保留 GPL/source 材料即可。如果未来修改 bundled `esptool`，修改后的对应源码也必须按 GPLv2+ 提供，并同步更新 notice、source archive 和 hash。
 
 4. 固件烧录向导和进度展示已落地
    - 侧边栏已经有独立“固件烧录”入口；“硬件设备”页保留 BLE 发现、连接、health 和演示包，不再混入烧录流程。
@@ -194,7 +195,7 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin \
    - 继续重点关注下载解压、首次启动、蓝牙授权、USB 串口识别、BOOT/RST 指引、烧录日志感知和 BLE 重连反馈。
 
 2. 准备后续稳定 release gate
-   - 正式公开 / 商业发布前完成法律 / 合规最终确认。
+   - 开源、非商用发布当前没有发现许可证合规阻塞；如果进入商业发布，仍建议做最终法律 / 合规确认。
    - 稳定版本建议使用 `v0.1.0`，等待 2-3 个真实 beta 用户路径确认后再发布。
    - 复用 checklist 重新生成并归档正式 release 报告。
 

@@ -125,4 +125,4 @@ script/        # 仓库级开发脚本
 
 Vibe Light 自有源码使用 [Apache License 2.0](LICENSE)。
 
-发布版 macOS app 会随包携带用于固件烧录的第三方工具和运行时；这些组件继续遵循各自的上游许可证。特别是，固件烧录 helper 会作为独立进程调用 `esptool`，`esptool` 使用 GPLv2+。发布包必须保留生成的 `THIRD_PARTY_NOTICES.md`、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md`、GPL license 文件和 `sources/esptool-<version>.tar.gz` 对应源码归档。
+当前开源、非商用发布没有发现许可证合规阻塞。发布版 macOS app 会随包携带用于固件烧录的第三方工具和运行时；这些组件继续遵循各自的上游许可证。特别是，固件烧录 helper 会作为独立进程调用 `esptool`，`esptool` 使用 GPLv2+。发布包必须保留生成的 `THIRD_PARTY_NOTICES.md`、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md`、GPL license 文件和 `sources/esptool-<version>.tar.gz` 对应源码归档。如果未来修改 `esptool`，修改后的对应源码也必须按 GPLv2+ 一起提供，并同步更新 notice、source archive 和 hash。
