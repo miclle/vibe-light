@@ -644,6 +644,11 @@ static void test_display_model_score_value_keeps_gap_above_maze_top_line(void)
     assert(VIBE_DISPLAY_MAZE_SCORE_LEFT_X == 16);
 }
 
+static void test_display_model_places_usage_line_slightly_lower(void)
+{
+    assert(VIBE_DISPLAY_USAGE_LINE_Y == 56);
+}
+
 static void test_display_model_animates_busy_center_stage(void)
 {
     vibe_display_animation_frame_t frame0;
@@ -1339,6 +1344,7 @@ int main(void)
     test_display_model_preserves_animation_tick_while_busy();
     test_display_model_top_overlays_do_not_erase_maze_lines();
     test_display_model_score_value_keeps_gap_above_maze_top_line();
+    test_display_model_places_usage_line_slightly_lower();
     test_display_model_animates_busy_center_stage();
     test_display_model_animates_through_maze_turns();
     test_display_model_places_pellets_on_maze_centerline();

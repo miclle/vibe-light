@@ -377,7 +377,7 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
     vibe_display_format_usage_line(&usage, usage_line, sizeof(usage_line));
     vibe_display_format_usage_reset_line(&usage, reset_line, sizeof(reset_line));
     if (usage_line[0] != '\0') {
-        vibe_display_text_draw(16, 52, usage_line, 2, RGB565_WHITE);
+        vibe_display_text_draw(16, VIBE_DISPLAY_USAGE_LINE_Y, usage_line, 2, RGB565_WHITE);
     }
     if (reset_line[0] != '\0') {
         int reset_x = (LCD_H_RES - vibe_display_text_width(reset_line, 1)) / 2;
