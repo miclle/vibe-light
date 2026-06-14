@@ -101,6 +101,7 @@
    - 第一版发布路线已切到内置 Python runtime：`package_firmware_tools.py --python-runtime <path> --require-python-runtime` 可复制 runtime 到 `FirmwareTools/python/`，`VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1` 可验证 helper 不依赖系统 Python、Homebrew `esptool` 或用户 PATH；本地 PlatformIO portable Python 3.11.7 arm64 runtime 已完成 release-prep 和 import smoke，随包 `package.json` 记录 `python-portable 1.31107.0`、`darwin_arm64`、`PSF-2.0` 和 Python/CPython 来源。
    - `script/package_desktop_release.sh` 已提供本地 Developer ID 签名验证入口，可生成 `dist/VibeLightApp.app`、签名 bundle 内 nested Mach-O、签 resource bundle / 主 app、执行 `codesign --verify`、归档 zip，并支持显式 `--notarize` 后先校验凭证再提交、staple 和 Gatekeeper 校验。
    - macOS app 已接入 Sparkle 自动更新：app 菜单提供“检查更新...”，bundle 发布元数据会写入 `SUFeedURL` / `SUPublicEDKey` / 版本字段，`script/generate_desktop_appcast.sh` 可基于 notarized zip 生成 `appcast.xml`，GitHub release workflow 会把 appcast 作为 release asset 上传。
+   - 默认 Sparkle feed 指向 `releases/latest/download/appcast.xml`，作为稳定发布渠道；pre-release / beta 自动更新验证使用显式 tag feed，draft release asset 不能作为匿名 Sparkle feed。
    - `script/desktop_firmware_release_checklist.sh` 已把固件资源准备、desktop app 打包签名、可选 notarization、third-party notice / GPL source gate 检查和目标板 `chip_id` 读取串成 markdown checklist，日志写入 `dist/release/logs/`。
    - UI 已把固件烧录改成独立侧边栏入口和 step-by-step 向导，覆盖连接 USB、读取芯片、按需进入下载模式、确认并烧录、写入固件、RST 正常启动、BLE 连接和完成状态；download mode 失败会分步提示 `BOOT` / `RST` 操作，烧录成功后会提示只点按 `RST` 正常启动。
    - UI 已能针对下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失给出明确恢复提示。

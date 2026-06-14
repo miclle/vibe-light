@@ -173,7 +173,9 @@ SPARKLE_PRIVATE_KEY=<sparkle-private-ed-key> \
   --output dist/release/appcast.xml
 ```
 
-默认 app 内 feed URL 是 `https://github.com/miclle/vibe-light/releases/latest/download/appcast.xml`。如果将来切换为独立 CDN 或 beta feed，可用 `VIBE_LIGHT_SPARKLE_FEED_URL` 覆盖构建时写入的 `SUFeedURL`。
+默认 app 内 feed URL 是 `https://github.com/miclle/vibe-light/releases/latest/download/appcast.xml`，这是稳定发布渠道：GitHub 的 `latest` 下载链接只会解析到当前 latest release，不会自动发现 pre-release。做 beta 自动更新验证时，构建旧版测试 app 要用 `VIBE_LIGHT_SPARKLE_FEED_URL` 显式写入目标 tag 的 appcast URL，例如 `https://github.com/miclle/vibe-light/releases/download/v<release-version>/appcast.xml`。
+
+Sparkle feed 必须能被目标 app 匿名下载。GitHub draft release 的 asset 不适合作为真实 Sparkle feed；如果发布流程先创建 draft，需发布为公开 release / pre-release 后再验证更新链路。若 release 已公开但 `appcast.xml` 短时间 404，优先检查 asset 是否真的上传到对应 tag、release 是否仍是 draft，以及 GitHub asset/CDN 是否需要重新上传或等待缓存刷新。
 
 ## 一键发布 checklist
 

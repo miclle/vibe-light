@@ -26,7 +26,7 @@ on:
         default: true
         type: boolean
       draft:
-        description: "Create the GitHub release as a draft."
+        description: "Create the GitHub release as a draft. Draft assets are not usable as anonymous Sparkle feeds."
         required: true
         default: true
         type: boolean
@@ -375,6 +375,9 @@ jobs:
           - Download this release asset on a Mac.
           - Use Finder / Archive Utility or ditto to extract the zip.
           - Run the firmware flashing UI against a real ESP32-S3 and verify BLE health reconnect.
+          - For Sparkle stable updates, publish a normal release so the default latest/download appcast URL resolves.
+          - For Sparkle beta testing, build the old test app with a tag-specific VIBE_LIGHT_SPARKLE_FEED_URL.
+          - Do not use a draft release as a Sparkle feed; draft assets are not anonymously downloadable.
           EOF
           echo "path=$notes" >>"$GITHUB_OUTPUT"
 
