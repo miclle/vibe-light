@@ -114,6 +114,7 @@ output_dir="$(cd "$(dirname "$OUTPUT_PATH")" && pwd)"
 output_name="$(basename "$OUTPUT_PATH")"
 appcast_args=(
   --download-url-prefix "$DOWNLOAD_URL_PREFIX"
+  --embed-release-notes
   -o "$output_name"
 )
 if [[ -n "$SPARKLE_PRIVATE_KEY" ]]; then
