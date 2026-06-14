@@ -5,6 +5,7 @@
 
 #include "driver/gpio.h"
 #include "driver/ledc.h"
+#include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_check.h"
 #include "esp_heap_caps.h"
@@ -400,6 +401,21 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
                                VIBE_DISPLAY_FOOTER_Y,
                                footer,
                                VIBE_DISPLAY_FOOTER_SCALE,
+                               RGB565_FOOTER);
+    }
+
+    char firmware_version[32];
+    const esp_app_desc_t *app_desc = esp_app_get_description();
+    vibe_display_firmware_version_text(app_desc == NULL ? NULL : app_desc->version,
+                                       firmware_version,
+                                       sizeof(firmware_version));
+    if (firmware_version[0] != '\0') {
+        const int version_x = LCD_H_RES - VIBE_DISPLAY_FIRMWARE_VERSION_RIGHT_MARGIN -
+                              vibe_display_text_width(firmware_version, VIBE_DISPLAY_FIRMWARE_VERSION_SCALE);
+        vibe_display_text_draw(version_x < VIBE_DISPLAY_FOOTER_X ? VIBE_DISPLAY_FOOTER_X : version_x,
+                               VIBE_DISPLAY_FOOTER_Y,
+                               firmware_version,
+                               VIBE_DISPLAY_FIRMWARE_VERSION_SCALE,
                                RGB565_FOOTER);
     }
     vibe_display_draw_fill_rect(0,

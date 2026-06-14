@@ -24,6 +24,7 @@ idf_component_register(
     REQUIRES
         bt
         driver
+        esp_app_format
         esp_lcd
         esp_timer
         json

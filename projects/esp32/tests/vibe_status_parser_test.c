@@ -1234,9 +1234,39 @@ static void test_display_model_formats_status_footer(void)
     assert(strcmp(footer, "OFFLINE") == 0);
 }
 
+static void test_display_model_formats_firmware_version_footer(void)
+{
+    char version[32];
+
+    vibe_display_firmware_version_text("0.1.2", version, sizeof(version));
+
+    assert(strcmp(version, "FW 0.1.2") == 0);
+
+    vibe_display_firmware_version_text("ffe505e", version, sizeof(version));
+
+    assert(strcmp(version, "FW ffe505e") == 0);
+
+    vibe_display_firmware_version_text("2026.06.14-dev-2a02678", version, sizeof(version));
+
+    assert(strcmp(version, "FW 2a02678") == 0);
+
+    vibe_display_firmware_version_text("800a910-dirty", version, sizeof(version));
+
+    assert(strcmp(version, "FW 800a910*") == 0);
+
+    vibe_display_firmware_version_text("v0.1.0-11-g7630b74-dirty", version, sizeof(version));
+
+    assert(strcmp(version, "FW g7630b7*") == 0);
+
+    vibe_display_firmware_version_text("", version, sizeof(version));
+
+    assert(strcmp(version, "") == 0);
+}
+
 static void test_display_model_keeps_task_panel_tight_to_screen_bottom(void)
 {
     const int screen_h = 820;
+    const int screen_w = 320;
     const int last_compact_row_y = VIBE_DISPLAY_TASK_ROW_Y + (VIBE_STATUS_MAX_TASKS - 1) * VIBE_DISPLAY_TASK_ROW_STRIDE;
     const int row_bottom = last_compact_row_y + VIBE_DISPLAY_TASK_ROW_TEXT_H;
     const int swatch_bottom = last_compact_row_y + VIBE_DISPLAY_TASK_SWATCH_Y_OFFSET + VIBE_DISPLAY_TASK_SWATCH_H;
@@ -1267,6 +1297,9 @@ static void test_display_model_keeps_task_panel_tight_to_screen_bottom(void)
     assert(VIBE_DISPLAY_FOOTER_BOTTOM_CLEAR_Y == VIBE_DISPLAY_FOOTER_Y + VIBE_DISPLAY_FOOTER_TEXT_H);
     assert(VIBE_DISPLAY_FOOTER_BOTTOM_CLEAR_Y < screen_h);
     assert(VIBE_DISPLAY_FOOTER_Y + VIBE_DISPLAY_FOOTER_TEXT_H + VIBE_DISPLAY_FOOTER_BOTTOM_MARGIN == screen_h);
+    assert(VIBE_DISPLAY_FIRMWARE_VERSION_RIGHT_MARGIN == VIBE_DISPLAY_TASK_TEXT_X);
+    assert(VIBE_DISPLAY_FIRMWARE_VERSION_SCALE == VIBE_DISPLAY_FOOTER_SCALE);
+    assert(screen_w - VIBE_DISPLAY_FIRMWARE_VERSION_RIGHT_MARGIN > VIBE_DISPLAY_FOOTER_X);
 }
 
 int main(void)
@@ -1324,6 +1357,7 @@ int main(void)
     test_display_model_uses_reference_pacman_actor_style();
     test_display_model_animates_center_ghost_subtly();
     test_display_model_formats_status_footer();
+    test_display_model_formats_firmware_version_footer();
     test_display_model_keeps_task_panel_tight_to_screen_bottom();
 
     puts("vibe_status_parser_test: ok");

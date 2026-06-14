@@ -70,6 +70,8 @@ extern "C" {
 #define VIBE_DISPLAY_FOOTER_BOTTOM_MARGIN 12
 #define VIBE_DISPLAY_FOOTER_Y 792
 #define VIBE_DISPLAY_FOOTER_BOTTOM_CLEAR_Y (VIBE_DISPLAY_FOOTER_Y + VIBE_DISPLAY_FOOTER_TEXT_H)
+#define VIBE_DISPLAY_FIRMWARE_VERSION_RIGHT_MARGIN 16
+#define VIBE_DISPLAY_FIRMWARE_VERSION_SCALE 2
 
 typedef struct {
     uint32_t value;
@@ -178,6 +180,7 @@ void vibe_display_maze_ghost_frame(int tick, vibe_display_maze_ghost_frame_t *fr
 void vibe_display_format_usage_summary(const vibe_status_packet_t *packet, vibe_display_usage_summary_t *summary);
 void vibe_display_format_empty_state(const vibe_status_packet_t *packet, vibe_display_empty_state_t *empty);
 void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, size_t text_size);
+void vibe_display_firmware_version_text(const char *app_version, char *text, size_t text_size);
 bool vibe_display_animation_enabled(vibe_display_state_t state);
 bool vibe_display_phase_refresh_enabled(vibe_display_state_t state);
 bool vibe_display_should_preserve_animation_tick(vibe_display_state_t previous_state,

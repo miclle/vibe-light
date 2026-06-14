@@ -96,6 +96,8 @@ MAZE_GHOST_CENTER_Y = display_model_define("VIBE_DISPLAY_MAZE_GHOST_CENTER_Y")
 MAZE_GHOST_BLINK_TICKS = display_model_define("VIBE_DISPLAY_MAZE_GHOST_BLINK_TICKS")
 FOOTER_Y = display_model_define("VIBE_DISPLAY_FOOTER_Y")
 FOOTER_SCALE = display_model_define("VIBE_DISPLAY_FOOTER_SCALE")
+FIRMWARE_VERSION_RIGHT_MARGIN = display_model_define("VIBE_DISPLAY_FIRMWARE_VERSION_RIGHT_MARGIN")
+FIRMWARE_VERSION_SCALE = display_model_define("VIBE_DISPLAY_FIRMWARE_VERSION_SCALE")
 FOOTER_BOTTOM_CLEAR_Y = FOOTER_Y + 8 * FOOTER_SCALE
 
 
@@ -522,6 +524,9 @@ def draw_full_screen(image: Image) -> None:
             y += TASK_ROW_STRIDE
 
     draw_text(image, FOOTER_X, FOOTER_Y, "CODEX LIVE", FOOTER_SCALE, FOOTER)
+    firmware_version = "FW 2a02678"
+    firmware_version_x = FULL_PREVIEW_WIDTH - FIRMWARE_VERSION_RIGHT_MARGIN - text_width(firmware_version, FIRMWARE_VERSION_SCALE)
+    draw_text(image, firmware_version_x, FOOTER_Y, firmware_version, FIRMWARE_VERSION_SCALE, FOOTER)
     fill_rect(image, 0, FOOTER_BOTTOM_CLEAR_Y, FULL_PREVIEW_WIDTH, FULL_PREVIEW_HEIGHT - FOOTER_BOTTOM_CLEAR_Y, PANEL)
 
 

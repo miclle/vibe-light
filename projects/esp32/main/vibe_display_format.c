@@ -20,6 +20,7 @@ static bool format_reset_hint(char *dest, size_t dest_size, const char *label, i
 static bool format_task_timing(char *dest, size_t dest_size, const vibe_status_task_t *task, int64_t now_ms);
 static bool task_has_context_usage(const vibe_status_task_t *task);
 static bool should_show_context_for_task(const vibe_status_task_t *task, int index, int phase);
+static void compact_app_version(const char *app_version, char *dest, size_t dest_size);
 static int positive_mod(int value, int modulus);
 
 void vibe_display_format_task_row(const vibe_status_task_t *task, int index, vibe_display_task_row_t *row)
@@ -176,6 +177,22 @@ void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, si
     }
 
     snprintf(text, text_size, "%s %s", source_label(packet->source), packet->version <= 1 ? "LEGACY" : "LIVE");
+}
+
+void vibe_display_firmware_version_text(const char *app_version, char *text, size_t text_size)
+{
+    if (text == NULL || text_size == 0) {
+        return;
+    }
+
+    text[0] = '\0';
+    if (app_version == NULL || app_version[0] == '\0') {
+        return;
+    }
+
+    char compact_version[9];
+    compact_app_version(app_version, compact_version, sizeof(compact_version));
+    snprintf(text, text_size, "FW %s", compact_version);
 }
 
 static const char *badge_for_state(vibe_display_state_t state)
@@ -437,6 +454,47 @@ static bool task_has_context_usage(const vibe_status_task_t *task)
 
     return task->context_used_percent >= 0 ||
            (task->context_used_tokens >= 0 && task->context_window_tokens > 0);
+}
+
+static void compact_app_version(const char *app_version, char *dest, size_t dest_size)
+{
+    if (dest == NULL || dest_size == 0) {
+        return;
+    }
+
+    dest[0] = '\0';
+    if (app_version == NULL || app_version[0] == '\0') {
+        return;
+    }
+
+    const size_t max_visible_version_chars = dest_size - 1;
+    bool dirty = false;
+    char version[32];
+    snprintf(version, sizeof(version), "%s", app_version);
+    char *dirty_suffix = strrchr(version, '-');
+    if (dirty_suffix != NULL && strcmp(dirty_suffix, "-dirty") == 0) {
+        dirty = true;
+        dirty_suffix[0] = '\0';
+    }
+
+    const char *compact = version;
+    size_t length = strlen(version);
+    if (length > max_visible_version_chars) {
+        const char *last_dash = strrchr(version, '-');
+        if (last_dash != NULL && last_dash[1] != '\0' && strlen(last_dash + 1) <= max_visible_version_chars) {
+            compact = last_dash + 1;
+        }
+    }
+
+    size_t copy_limit = dirty && max_visible_version_chars > 0 ? max_visible_version_chars - 1 : max_visible_version_chars;
+    snprintf(dest, dest_size, "%.*s", (int)copy_limit, compact);
+    if (dirty && dest[0] != '\0') {
+        size_t dest_length = strlen(dest);
+        if (dest_length + 1 < dest_size) {
+            dest[dest_length] = '*';
+            dest[dest_length + 1] = '\0';
+        }
+    }
 }
 
 static int positive_mod(int value, int modulus)
