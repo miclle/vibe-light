@@ -128,11 +128,6 @@
    - 建议原型信息架构为“左侧状态 / 中间 Codex 动画 / 右侧任务列表 / 顶部或底部统计条”。
    - 实机对比竖屏和横屏后，再决定是否产品化为可配置展示模式。
 
-2. **跟进 GitHub Actions Node.js 20 弃用提醒**
-   - `release-desktop.yml` 已升级到 `actions/checkout@v6` 和 `actions/setup-python@v6`，两者上游 `action.yml` 已声明 `node24`。
-   - `espressif/install-esp-idf-action` 当前默认分支仍是 `v1`，没有可升级 tag，且上游 `action.yml` 仍声明 `node20`；workflow 已设置 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` 提前使用 Node 24 runtime，后续仍需关注 Espressif 是否发布原生 Node 24 版本。
-   - 2026-06-14 已用 draft 验证版 `v2026.06.14-dev-d3cf90c-node24` 跑通 `release-desktop.yml`，workflow run `27484068864` 完成 ESP-IDF 安装、Developer ID 签名、notarization、archive 验证和 release asset 创建；验证 draft 已删除。GitHub 仍会提示 `espressif/install-esp-idf-action@v1` 声明 Node.js 20 但被强制运行在 Node.js 24，这是上游 metadata 未更新导致的非阻塞提醒。
-
 ## 推荐推进顺序
 
 1. **准备下一版公开发布入口**
@@ -144,7 +139,6 @@
    - 每次发布前继续重复 GitHub release asset 下载、Gatekeeper / codesign、strict helper 和真机烧录验证。
 
 3. **处理非阻塞发布治理**
-   - 持续关注 `espressif/install-esp-idf-action` 是否发布原生 Node 24 版本。
    - 自有源码非商用许可和第三方 GPL/source 材料需要分开审阅；如果进入商业授权或商业分发，仍建议做最终法律 / 合规确认，重点复核 bundled `esptool` GPLv2+ source offer、源码归档和第三方 notices 的最终发布形态。
 
 4. **再评估横屏原型**

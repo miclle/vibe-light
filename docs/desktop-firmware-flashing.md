@@ -284,7 +284,7 @@ make desktop-release-notarized
 - `SPARKLE_PUBLIC_ED_KEY`
 - `SPARKLE_PRIVATE_KEY`
 
-workflow 当前使用 `actions/checkout@v6`、`actions/setup-python@v6` 和 `espressif/install-esp-idf-action@v1`。`release-desktop.yml` 已设置 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true`；如果 GitHub 仍提示 `espressif/install-esp-idf-action@v1` 声明 Node.js 20，这是上游 action metadata 未更新导致的非阻塞提醒。
+workflow 当前使用 `actions/checkout@v6`、`actions/setup-python@v6`、`actions/upload-artifact@v6` 和 `actions/download-artifact@v7`。ESP-IDF 不再依赖 `espressif/install-esp-idf-action@v1`，而是在 `release-desktop.yml` 中直接 clone 指定 `ESP_IDF_VERSION` 的 `esp-idf` tag、运行 `install.sh esp32s3`，再通过 `IDF_PATH` 供发布脚本构建固件，避免继续触发第三方 action 的 Node.js 20 runtime 提醒。
 
 CI 可以完成 arm64 / x86_64 可分发包生成、签名、notarization、staple、Gatekeeper / codesign / Mach-O 架构验证和 release asset 上传。真实 USB `chip_id`、UI 烧录、BLE 重连和 health packet 仍需要在本地 Mac + ESP32-S3 上验收；有条件时应分别在 Apple Silicon 和 Intel Mac 下载对应 zip 做启动与 helper 验证。
 
@@ -398,5 +398,4 @@ Vibe Light 自有源码使用 source-available 非商用许可，和第三方 GP
 
 - 每次 release 前继续保存当次 checklist 报告和下载包验证记录。
 - 历史 `v0.1.0` checklist 未做 `--chip-port`；后续 release 应尽量保留真实目标板读取、UI 烧录、BLE 重连和 Sparkle feed 验证记录。
-- 持续关注 `espressif/install-esp-idf-action@v1` 是否发布原生 Node 24 版本。
 - 如果将来考虑 App Store 分发，需要重新评估 sandbox 串口 / USB 权限；当前第一阶段更适合 Developer ID notarized 直分发。
