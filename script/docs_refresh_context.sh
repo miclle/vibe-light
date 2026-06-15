@@ -30,6 +30,7 @@ git log --oneline -5
 section "Documentation surfaces"
 for path in \
   README.md \
+  README.en.md \
   TODO.md \
   docs/architecture.md \
   docs/hardware.md \
@@ -71,9 +72,11 @@ run_or_note "ESP32 protocol parser" "${SEARCH[@]}" "VIBE_STATUS_MAX_TASKS|vibe_s
   projects/esp32/main/vibe_status.c \
   projects/esp32/main/vibe_ble.c
 
-run_or_note "ESP32 display model constants" "${SEARCH[@]}" "VIBE_DISPLAY_MAZE|VIBE_DISPLAY_TASK|ANIMATION_PERIOD|PELLET|CTX|signature|actor_count" \
+run_or_note "ESP32 display model constants and formatting" "${SEARCH[@]}" "VIBE_DISPLAY_MAZE|VIBE_DISPLAY_TASK|ANIMATION_PERIOD|PELLET|CTX|signature|actor_count|usage_summary|footer_text|firmware_version" \
   projects/esp32/main/vibe_display_model.h \
-  projects/esp32/main/vibe_display_model.c
+  projects/esp32/main/vibe_display_model.c \
+  projects/esp32/main/vibe_display_format.c \
+  projects/esp32/main/vibe_display_score.c
 
 run_or_note "ESP32 display hardware path" "${SEARCH[@]}" "LCD_H_RES|LCD_V_RES|ST7701|PCLK|PSRAM|BACKLIGHT|bounce_buffer|esp_timer" \
   projects/esp32/main/vibe_display.c
