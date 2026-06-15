@@ -104,39 +104,29 @@
 - `61a603d`：5 分钟串口采样内 hard error 0、断连 0、状态写入 144 次、显示渲染 147 次；日志在 `/tmp/vibe-light-stability-clean-61a603d.log`。
 - `090391d` / `353426d`：早期实机启动、BLE 写入和基础屏幕显示确认；仅作为历史参考，不代表后续显示修正已重新复核。
 
+## 已完成发布闭环基线
+
+- app 内固件烧录的首个发布闭环已完成：desktop 入口、固件包生成、manifest 校验、串口枚举、helper 参数生成、`vibe-light-firmware-flasher` wrapper、esptool 依赖 vendoring、内置 Python runtime、成功后 BLE 扫描和 health packet 展示都已落地。
+- 发布形态资源已完成实机烟测：dist app resource 中的 helper 和固件包可通过 USB 写入目标板，vendored `python-packages` 路径可在无 Homebrew esptool 的 PATH 下工作，重启后 BLE 广播和 desktop 连接 / 状态写入正常；notarized app UI 已完成“读取芯片 -> 烧录固件 -> BLE 扫描 / 连接 -> health packet 展示”闭环。
+- `script/prepare_desktop_firmware_release.sh`、`script/package_desktop_release.sh` 和 `script/desktop_firmware_release_checklist.sh` 已串起 ESP32 构建、固件包生成、esptool vendoring、helper 收窄 PATH 验证、Developer ID 签名、可选 notarization、Gatekeeper / codesign / Mach-O 架构检查、GPL/source gate 和 checklist 产出。
+- macOS app 已接入 Sparkle 自动更新；默认 stable feed 已按架构拆分，Apple Silicon 指向 `releases/latest/download/appcast.xml`，Intel 指向 `releases/latest/download/appcast-x86_64.xml`。`v0.1.2` 已发布 Apple Silicon / Intel 分架构下载包并确认 latest appcast、下载包签名、notarization 和架构扫描通过；`v0.1.1` 下载包形态已人工确认 Sparkle stable feed、USB 固件烧录和 BLE 重连通过。
+- 固件烧录 UI 已改成独立侧边栏入口和 step-by-step 向导，覆盖连接 USB、读取芯片、按需进入下载模式、确认并烧录、写入固件、RST 正常启动、BLE 连接和完成状态；读取前“烧录固件”禁用，确认 `ESP32-S3 (QFN56)` 和 MAC 后才启用写入入口，写入阶段会解析 esptool 输出显示实时 stage/progress，并保留完整实时日志。
+- 发布合规基线已落地：`package_firmware_tools.py` 会生成 `FirmwareTools/THIRD_PARTY_NOTICES.md`、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-<version>.tar.gz`；Vibe Light 自有源码为 source-available 非商用许可，继续保留 GPL/source 材料即可。如果未来修改 bundled `esptool`，修改后的对应源码也必须按 GPLv2+ 提供，并同步更新 notice、source archive 和 hash。
+- 方案细节和每次发布前的复核清单见 `docs/desktop-firmware-flashing.md`。后续 release 仍需重复下载包验证、真实芯片读取、UI 烧录、BLE 重连、Sparkle feed 检查和 GPL/source 材料人工审阅。
+
 ## 未完成事项
 
-1. **维护 app 内固件烧录的发布闭环**
-   - 当前已完成 desktop 入口、固件包生成、manifest 校验、串口枚举、helper 参数生成、`vibe-light-firmware-flasher` wrapper、esptool 依赖 vendoring 和成功后 BLE 扫描。
-   - 发布形态资源已完成实机烟测：dist app resource 中的 helper 和固件包可通过 USB 写入目标板，vendored `python-packages` 路径可在无 Homebrew esptool 的 PATH 下工作，重启后 BLE 广播和 desktop 连接 / 状态写入正常；macOS UI 点击“烧录固件”也已完成烧录、扫描、连接和 health packet 展示闭环。
-   - `script/prepare_desktop_firmware_release.sh` 已提供发布资产准备入口，串起 ESP32 构建、固件包生成、esptool vendoring 和 helper 收窄 PATH 验证；`package_firmware_tools.py` 会生成 `FirmwareTools/THIRD_PARTY_NOTICES.md`、`OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-<version>.tar.gz` 供发布审阅。
-   - 第一版发布路线已切到内置 Python runtime：`package_firmware_tools.py --python-runtime <path> --require-python-runtime` 可复制 runtime 到 `FirmwareTools/python/`，`VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1` 可验证 helper 不依赖系统 Python、Homebrew `esptool` 或用户 PATH；发布 workflow 现在在 `macos-15` / `macos-15-intel` 上分别准备 `darwin_arm64` / `darwin_x86_64` runtime，避免把 arm64 Python runtime 放进 Intel 包。
-   - `script/package_desktop_release.sh` 已提供本地 Developer ID 签名验证入口，可生成 `dist/VibeLightApp.app`、签名 bundle 内 nested Mach-O、签 resource bundle / 主 app、执行 `codesign --verify`、按 `--arch` 运行 Mach-O 架构检查、归档 zip，并支持显式 `--notarize` 后先校验凭证再提交、staple 和 Gatekeeper 校验。
-   - macOS app 已接入 Sparkle 自动更新：app 菜单提供“检查更新...”，bundle 发布元数据会写入 `SUFeedURL` / `SUPublicEDKey` / 版本字段，`script/generate_desktop_appcast.sh` 可基于 notarized zip 生成 appcast；GitHub release workflow 会上传 Apple Silicon `appcast.xml` 和 Intel `appcast-x86_64.xml`，`v0.1.2` 已发布双架构 latest feed，`v0.1.1` 已完成默认 stable feed 更新、USB 固件烧录和 BLE 重连验证。
-   - 默认 Sparkle feed 分架构：Apple Silicon 指向 `releases/latest/download/appcast.xml`，Intel 指向 `releases/latest/download/appcast-x86_64.xml`，作为稳定发布渠道；pre-release / beta 自动更新验证使用显式 tag feed，draft release asset 不能作为匿名 Sparkle feed。
-   - `script/desktop_firmware_release_checklist.sh` 已把固件资源准备、desktop app 打包签名、可选 notarization、third-party notice / GPL source gate、架构检查和目标板 `chip_id` 读取串成 markdown checklist，日志写入 `dist/release/logs/`。
-   - UI 已把固件烧录改成独立侧边栏入口和 step-by-step 向导，覆盖连接 USB、读取芯片、按需进入下载模式、确认并烧录、写入固件、RST 正常启动、BLE 连接和完成状态；download mode 失败会分步提示 `BOOT` / `RST` 操作，烧录成功后会提示只点按 `RST` 正常启动。
-   - UI 已能针对下载模式、串口占用、写入校验失败、非 ESP32-S3 设备和 helper runtime 缺失给出明确恢复提示。
-   - 带 GPL source gate 的完整 release checklist 已通过；下一次公开发布前仍需人工审阅生成的 esptool/Python 许可证材料，尤其确认 `esptool` GPLv2+ source offer、源码归档和间接依赖 notice。
-   - 2026-06-14 已补强生成脚本：`SOURCE_OFFER.md` fallback wording 明确 `any third party`、费用不超过实际源码分发成本和 GitHub 仓库联系入口；`package_firmware_tools.py` 会为 `pyserial 3.5` 补齐独立 `LICENSE.txt`，让生成的 `THIRD_PARTY_NOTICES.md` 能记录该 license 文件，减少长期审计摩擦。
-   - Vibe Light 自有源码已经切换为 source-available 非商用许可；继续保留 GPL/source 材料即可。如果未来修改 bundled `esptool`，修改后的对应源码也必须按 GPLv2+ 提供，并同步更新 notice、source archive 和 hash。
-   - notarized app bundle 内 helper 已能访问目标板 USB 串口并读取 `ESP32-S3 (QFN56)` 芯片信息；notarized app UI 已完成完整串口烧录、BLE 扫描 / 连接和 health packet 展示闭环。
-   - GitHub Actions 生成的 Developer ID notarized release 包已经覆盖 hash、notarization/Gatekeeper、codesign、GPL/source 材料、checklist gate 和双架构 Mach-O 扫描；`v0.1.2` 已发布 Apple Silicon / Intel 分架构下载包，`v0.1.1` 下载包形态已人工确认 USB 固件烧录和 BLE 重连通过。
-   - `v0.1.2` 当前 latest release 已确认 Apple Silicon / Intel appcast feed、下载包签名、notarization 和架构扫描通过；`v0.1.1` 已确认 Sparkle stable feed、下载包启动、USB 固件烧录和 BLE 重连通过；`v0.1.0` checklist 资产仍作为历史记录，确认固件资源、desktop app、bundle icon、third-party notices、GPL source offer 和 `esptool` 源码包检查通过，但该 checklist 没有提供 `--chip-port`，目标芯片读取为 skipped。
-   - dev app UI 已补齐烧录前芯片确认：读取前“烧录固件”禁用，点击“读取芯片”确认 `ESP32-S3 (QFN56)` 和 MAC 后才启用写入入口，避免直接进入写入；写入阶段会解析 esptool 输出显示实时 stage/progress，并保留完整实时日志。
-   - 方案细节见 `docs/desktop-firmware-flashing.md`。
-
-2. **保持显示模型测试随功能演进收紧**
+1. **保持显示模型测试随功能演进收紧**
    - 已有 host-side C 测试覆盖动画路径、重复包去重、任务行格式、未知状态降级、底部布局、整轮豆子重置、用量显示和中文任务文本。
    - 新增屏幕布局、状态表现、迷宫素材、坐标或缩放规则时，仍需同步更新 `vibe_display_model.*`、`render_maze_preview.py` 和 parser 测试断言。
 
-3. **横屏 layout mode 仍是实验方向**
+2. **横屏 layout mode 仍是实验方向**
    - 暂时保留竖屏作为默认稳定模式，因为当前设备外观和摆放更适合竖向状态灯。
    - 横屏原型不需要改 BLE 协议，先只调整 ESP32 渲染布局。
    - 建议原型信息架构为“左侧状态 / 中间 Codex 动画 / 右侧任务列表 / 顶部或底部统计条”。
    - 实机对比竖屏和横屏后，再决定是否产品化为可配置展示模式。
 
-4. **跟进 GitHub Actions Node.js 20 弃用提醒**
+3. **跟进 GitHub Actions Node.js 20 弃用提醒**
    - `release-desktop.yml` 已升级到 `actions/checkout@v6` 和 `actions/setup-python@v6`，两者上游 `action.yml` 已声明 `node24`。
    - `espressif/install-esp-idf-action` 当前默认分支仍是 `v1`，没有可升级 tag，且上游 `action.yml` 仍声明 `node20`；workflow 已设置 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` 提前使用 Node 24 runtime，后续仍需关注 Espressif 是否发布原生 Node 24 版本。
    - 2026-06-14 已用 draft 验证版 `v2026.06.14-dev-d3cf90c-node24` 跑通 `release-desktop.yml`，workflow run `27484068864` 完成 ESP-IDF 安装、Developer ID 签名、notarization、archive 验证和 release asset 创建；验证 draft 已删除。GitHub 仍会提示 `espressif/install-esp-idf-action@v1` 声明 Node.js 20 但被强制运行在 Node.js 24，这是上游 metadata 未更新导致的非阻塞提醒。
