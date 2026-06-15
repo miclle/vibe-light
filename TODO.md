@@ -18,11 +18,17 @@
 - macOS app 已有独立“固件烧录”页，可枚举常见 ESP32 USB 串口、加载并校验内置 `FirmwareBundle`、调用 helper 执行 `write_flash`，成功后启动 BLE 扫描；`projects/esp32/tools/package_firmware_bundle.py` 可从 ESP-IDF build 产物生成带 SHA-256 的 app resource 固件包，`projects/esp32/tools/package_firmware_tools.py` 可把 `esptool` 依赖 vendor 到 `FirmwareTools/python-packages/`，并生成 GPL source offer / 对应源码归档。
 - Vibe Light 自有源码已经切换为 source-available 非商用许可：个人、学习、研究和其他非商业用途可免费使用；商业使用、商业分发或作为商业产品 / 服务的一部分使用，需要原作者单独书面授权；fork、复制、修改和再分发必须保留原作者署名、非商用限制和商业授权要求。
 - 当前公开 latest release 为 `v0.1.2`，tag 指向 `ffe505e76e0da0f5b7abcd6c8a22cbb48e7852c6`；release asset 包含 `VibeLightApp-0.1.2-arm64-notarized.zip`、`VibeLightApp-0.1.2-x86_64-notarized.zip`、`desktop-firmware-release-0.1.2-arm64.md`、`desktop-firmware-release-0.1.2-x86_64.md`、`appcast.xml` 和 `appcast-x86_64.xml`。`v0.1.2` 已完成双架构 CI notarized release、latest appcast 匿名下载、下载包签名 / notarization / 架构扫描验证；`v0.1.1` 已完成默认 stable feed Sparkle 更新、下载包启动、USB 固件烧录和 BLE 重连验证。
-- 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试、生成迷宫 / 全屏 PNG 预览并执行 Git whitespace 检查；ESP32 显示闭环已完成一次实机烧录和屏幕确认。
+- 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试、校验迷宫预览脚本读取显示模型布局常量、生成迷宫 / 全屏 PNG 预览并执行 Git whitespace 检查；ESP32 显示闭环已完成一次实机烧录和屏幕确认。
 - 固件版本 `82d2180` 已在目标板完成烧录、串口启动、BLE 连接、健康特征实机读取、肉眼屏幕复核和长时间稳定性观察：LCD 初始化、BLE 广播、Central 连接、连续 `v: 2` 状态写入、token 摘要、页脚、底部余量、任务色块内缩、无边缘蓝线、macOS 硬件页健康读数和稳定性表现均正常；坏状态包后会回传 `lastParseError:"invalid JSON"`。
 - 固件版本 `3215f23` 已完成目标板烧录和实机观察，确认结构拆分后的固件启动、屏幕显示和 BLE 链路正常。
 
 ## 最近实机验证
+
+- 时间：2026-06-15 22:48 CST。
+- 端口：`/dev/cu.usbmodem1101`。
+- 固件版本：`v0.1.2-7-g2147743-dirty`（本地工作区基于 `2147743`，含未提交显示模型测试 / 预览脚本变更）。
+- 验证范围：本地 ESP-IDF 直接烧录当前工作区固件。
+- 结果确认：`make esp32-flash-only ESP32_PORT=/dev/cu.usbmodem1101` 识别 `ESP32-S3 (QFN56) (revision v0.2)`、8MB PSRAM 和 MAC `1c:db:d4:7b:3f:cc`；bootloader、app 和 partition table 三段均写入并 `Hash of data verified`，最后 `Hard resetting via RTS pin`。烧录后短读串口确认桌面端已连接并连续写入 `v:2` 状态包，固件日志显示 `status write accepted` 和 `vibe_display` 以 `state=busy`、`tasks=3` 刷新显示。
 
 - 时间：2026-06-12。
 - 端口：目标板 USB 串口。
@@ -116,17 +122,13 @@
 
 ## 未完成事项
 
-1. **保持显示模型测试随功能演进收紧**
-   - 已有 host-side C 测试覆盖动画路径、重复包去重、任务行格式、未知状态降级、底部布局、整轮豆子重置、用量显示和中文任务文本。
-   - 新增屏幕布局、状态表现、迷宫素材、坐标或缩放规则时，仍需同步更新 `vibe_display_model.*`、`render_maze_preview.py` 和 parser 测试断言。
-
-2. **横屏 layout mode 仍是实验方向**
+1. **横屏 layout mode 仍是实验方向**
    - 暂时保留竖屏作为默认稳定模式，因为当前设备外观和摆放更适合竖向状态灯。
    - 横屏原型不需要改 BLE 协议，先只调整 ESP32 渲染布局。
    - 建议原型信息架构为“左侧状态 / 中间 Codex 动画 / 右侧任务列表 / 顶部或底部统计条”。
    - 实机对比竖屏和横屏后，再决定是否产品化为可配置展示模式。
 
-3. **跟进 GitHub Actions Node.js 20 弃用提醒**
+2. **跟进 GitHub Actions Node.js 20 弃用提醒**
    - `release-desktop.yml` 已升级到 `actions/checkout@v6` 和 `actions/setup-python@v6`，两者上游 `action.yml` 已声明 `node24`。
    - `espressif/install-esp-idf-action` 当前默认分支仍是 `v1`，没有可升级 tag，且上游 `action.yml` 仍声明 `node20`；workflow 已设置 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` 提前使用 Node 24 runtime，后续仍需关注 Espressif 是否发布原生 Node 24 版本。
    - 2026-06-14 已用 draft 验证版 `v2026.06.14-dev-d3cf90c-node24` 跑通 `release-desktop.yml`，workflow run `27484068864` 完成 ESP-IDF 安装、Developer ID 签名、notarization、archive 验证和 release asset 创建；验证 draft 已删除。GitHub 仍会提示 `espressif/install-esp-idf-action@v1` 声明 Node.js 20 但被强制运行在 Node.js 24，这是上游 metadata 未更新导致的非阻塞提醒。

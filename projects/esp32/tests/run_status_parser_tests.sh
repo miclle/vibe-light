@@ -54,6 +54,33 @@ clang \
 
 "$BINARY"
 
+python3 "$ROOT_DIR/tools/render_maze_preview.py" --dump-display-constants >/tmp/vibe-display-preview-constants.json
+python3 - /tmp/vibe-display-preview-constants.json "$ROOT_DIR/main/vibe_display_model.h" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+constants = json.loads(Path(sys.argv[1]).read_text())
+header = Path(sys.argv[2]).read_text()
+
+def header_define(name):
+    match = re.search(rf"#define\s+{name}\s+(\d+)", header)
+    assert match is not None, name
+    return int(match.group(1))
+
+for name in (
+    "VIBE_DISPLAY_MAZE_STAGE_Y",
+    "VIBE_DISPLAY_TASK_PANEL_Y",
+    "VIBE_DISPLAY_TASK_ROW_Y",
+    "VIBE_DISPLAY_TASK_DETAIL_ROW_STRIDE",
+    "VIBE_DISPLAY_TASK_TEXT_X",
+    "VIBE_DISPLAY_FOOTER_Y",
+    "VIBE_DISPLAY_FIRMWARE_VERSION_RIGHT_MARGIN",
+):
+    assert constants[name] == header_define(name), name
+PY
+
 FONT_BIN="$BUILD_DIR/vibe_cjk_font.bin"
 CJK_FONT_PYTHON="$(find_cjk_font_python)"
 "$CJK_FONT_PYTHON" "$ROOT_DIR/tools/generate_cjk_font.py" "$FONT_BIN" >/tmp/vibe-cjk-font-test.log

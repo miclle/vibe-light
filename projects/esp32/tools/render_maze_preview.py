@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import struct
 import subprocess
@@ -12,26 +13,40 @@ import zlib
 from pathlib import Path
 
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+REFERENCE_MAZE_HEADER = REPO_ROOT / "projects/esp32/main/vibe_reference_maze.h"
+DISPLAY_MAZE_DATA_SOURCE = REPO_ROOT / "projects/esp32/main/vibe_display_maze_data.c"
+DISPLAY_MODEL_HEADER = REPO_ROOT / "projects/esp32/main/vibe_display_model.h"
+
+
+def display_model_define(name: str) -> int:
+    text = DISPLAY_MODEL_HEADER.read_text()
+    match = re.search(rf"#define\s+{name}\s+(\d+)", text)
+    if match is None:
+        raise ValueError(f"{name} is not defined")
+    return int(match.group(1))
+
+
 SCALE = 2
-MAZE_PREVIEW_WIDTH = 320
-MAZE_PREVIEW_HEIGHT = 320
-FULL_PREVIEW_WIDTH = 320
-FULL_PREVIEW_HEIGHT = 820
+MAZE_PREVIEW_WIDTH = display_model_define("VIBE_DISPLAY_MAZE_STAGE_W")
+MAZE_PREVIEW_HEIGHT = display_model_define("VIBE_DISPLAY_MAZE_STAGE_H")
+FULL_PREVIEW_WIDTH = display_model_define("VIBE_DISPLAY_TASK_PANEL_W")
+FULL_PREVIEW_HEIGHT = display_model_define("VIBE_DISPLAY_TASK_PANEL_Y") + display_model_define("VIBE_DISPLAY_TASK_PANEL_H")
 HEADER_HEIGHT = 82
-MAZE_STAGE_Y = 90
-TASK_PANEL_X = 0
-TASK_PANEL_Y = 410
-TASK_PANEL_W = 320
-TASK_PANEL_H = 410
-TASK_ROW_Y = 426
-TASK_ROW_STRIDE = 44
-TASK_DETAIL_ROW_STRIDE = 64
-TASK_DETAIL_Y_OFFSET = 24
-TASK_SWATCH_X = 6
-TASK_SWATCH_Y_OFFSET = 5
-TASK_TEXT_X = 16
-TASK_SWATCH_W = 6
-TASK_SWATCH_H = 8
+MAZE_STAGE_Y = display_model_define("VIBE_DISPLAY_MAZE_STAGE_Y")
+TASK_PANEL_X = display_model_define("VIBE_DISPLAY_TASK_PANEL_X")
+TASK_PANEL_Y = display_model_define("VIBE_DISPLAY_TASK_PANEL_Y")
+TASK_PANEL_W = display_model_define("VIBE_DISPLAY_TASK_PANEL_W")
+TASK_PANEL_H = display_model_define("VIBE_DISPLAY_TASK_PANEL_H")
+TASK_ROW_Y = display_model_define("VIBE_DISPLAY_TASK_ROW_Y")
+TASK_ROW_STRIDE = display_model_define("VIBE_DISPLAY_TASK_ROW_STRIDE")
+TASK_DETAIL_ROW_STRIDE = display_model_define("VIBE_DISPLAY_TASK_DETAIL_ROW_STRIDE")
+TASK_DETAIL_Y_OFFSET = display_model_define("VIBE_DISPLAY_TASK_DETAIL_Y_OFFSET")
+TASK_SWATCH_X = display_model_define("VIBE_DISPLAY_TASK_SWATCH_X")
+TASK_SWATCH_Y_OFFSET = display_model_define("VIBE_DISPLAY_TASK_SWATCH_Y_OFFSET")
+TASK_TEXT_X = display_model_define("VIBE_DISPLAY_TASK_TEXT_X")
+TASK_SWATCH_W = display_model_define("VIBE_DISPLAY_TASK_SWATCH_W")
+TASK_SWATCH_H = display_model_define("VIBE_DISPLAY_TASK_SWATCH_H")
 FOOTER_X = TASK_TEXT_X
 CJK_FONT_WIDTH = 18
 CJK_FONT_HEIGHT = 18
@@ -54,10 +69,6 @@ GREEN = (0, 220, 0)
 PINK = (255, 0, 255)
 CYAN = (0, 255, 255)
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-REFERENCE_MAZE_HEADER = REPO_ROOT / "projects/esp32/main/vibe_reference_maze.h"
-DISPLAY_MAZE_DATA_SOURCE = REPO_ROOT / "projects/esp32/main/vibe_display_maze_data.c"
-DISPLAY_MODEL_HEADER = REPO_ROOT / "projects/esp32/main/vibe_display_model.h"
 RGB565_TO_RGB = {
     0x047F: BUSY,
     0xF81F: PINK,
@@ -67,14 +78,6 @@ RGB565_TO_RGB = {
     0x07FF: CYAN,
 }
 CJK_FONT_CACHE: dict[int, bytes] | None = None
-
-
-def display_model_define(name: str) -> int:
-    text = DISPLAY_MODEL_HEADER.read_text()
-    match = re.search(rf"#define\s+{name}\s+(\d+)", text)
-    if match is None:
-        raise ValueError(f"{name} is not defined")
-    return int(match.group(1))
 
 
 MAZE_REFERENCE_MIN_X = display_model_define("VIBE_DISPLAY_MAZE_REFERENCE_MIN_X")
@@ -584,11 +587,41 @@ def write_png(path: Path, image: Image) -> None:
     path.write_bytes(png)
 
 
+def display_constant_snapshot() -> dict[str, int]:
+    return {
+        "VIBE_DISPLAY_MAZE_STAGE_W": MAZE_PREVIEW_WIDTH,
+        "VIBE_DISPLAY_MAZE_STAGE_H": MAZE_PREVIEW_HEIGHT,
+        "VIBE_DISPLAY_MAZE_STAGE_Y": MAZE_STAGE_Y,
+        "VIBE_DISPLAY_TASK_PANEL_X": TASK_PANEL_X,
+        "VIBE_DISPLAY_TASK_PANEL_Y": TASK_PANEL_Y,
+        "VIBE_DISPLAY_TASK_PANEL_W": TASK_PANEL_W,
+        "VIBE_DISPLAY_TASK_PANEL_H": TASK_PANEL_H,
+        "VIBE_DISPLAY_TASK_ROW_Y": TASK_ROW_Y,
+        "VIBE_DISPLAY_TASK_ROW_STRIDE": TASK_ROW_STRIDE,
+        "VIBE_DISPLAY_TASK_DETAIL_ROW_STRIDE": TASK_DETAIL_ROW_STRIDE,
+        "VIBE_DISPLAY_TASK_DETAIL_Y_OFFSET": TASK_DETAIL_Y_OFFSET,
+        "VIBE_DISPLAY_TASK_SWATCH_X": TASK_SWATCH_X,
+        "VIBE_DISPLAY_TASK_SWATCH_Y_OFFSET": TASK_SWATCH_Y_OFFSET,
+        "VIBE_DISPLAY_TASK_TEXT_X": TASK_TEXT_X,
+        "VIBE_DISPLAY_TASK_SWATCH_W": TASK_SWATCH_W,
+        "VIBE_DISPLAY_TASK_SWATCH_H": TASK_SWATCH_H,
+        "VIBE_DISPLAY_FOOTER_Y": FOOTER_Y,
+        "VIBE_DISPLAY_FOOTER_SCALE": FOOTER_SCALE,
+        "VIBE_DISPLAY_FIRMWARE_VERSION_RIGHT_MARGIN": FIRMWARE_VERSION_RIGHT_MARGIN,
+        "VIBE_DISPLAY_FIRMWARE_VERSION_SCALE": FIRMWARE_VERSION_SCALE,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Render the ESP32 Pac-Man maze preview")
     parser.add_argument("output", nargs="?", default="/tmp/vibe-maze-preview.png", help="Output PNG path")
     parser.add_argument("--full-screen", action="store_true", help="Render the full 320x820 ESP32 screen preview")
+    parser.add_argument("--dump-display-constants", action="store_true", help="Write preview layout constants as JSON")
     args = parser.parse_args()
+
+    if args.dump_display_constants:
+        print(json.dumps(display_constant_snapshot(), sort_keys=True))
+        return
 
     if args.full_screen:
         image = make_image(FULL_PREVIEW_WIDTH, FULL_PREVIEW_HEIGHT)
