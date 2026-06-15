@@ -16,7 +16,7 @@
 - `@.agents/rules/macos-desktop.md`：Swift 桌面端、hook、BLE 和测试规则。
 - `@.agents/rules/esp32-firmware.md`：ESP32 固件、LCD、动画和 host-side 测试规则。
 - `@.agents/rules/docs-workflow.md`：文档同步和提交范围规则。
-- `@.agents/skills/docs-refresh.md`：当用户要求“根据项目现状更新文档”时的具体流程。
+- 当用户要求“根据项目现状更新文档”时，使用全局 `docs-refresh` skill；本仓库不再维护本地 `.agents/skills/docs-refresh.md` 副本。
 
 ## 工作约束
 

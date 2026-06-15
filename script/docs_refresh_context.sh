@@ -36,8 +36,7 @@ for path in \
   docs/hardware.md \
   projects/esp32/README.md \
   AGENTS.md \
-  .agents/rules \
-  .agents/skills; do
+  .agents/rules; do
   if [[ -e "$path" ]]; then
     printf 'ok  %s\n' "$path"
   else
