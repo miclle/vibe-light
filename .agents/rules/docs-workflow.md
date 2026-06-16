@@ -2,7 +2,7 @@
 
 ## Documentation Surfaces
 
-- `README.md` and `README.en.md`: product overview, current capabilities and quick start.
+- `README.md`: product overview, current capabilities and quick start.
 - `TODO.md`: current status, near-term priorities and validation focus.
 - `docs/architecture.md`: cross-layer architecture, packet contract and design boundaries.
 - `docs/hardware.md`: board facts, hardware resources and real-device bring-up notes.
@@ -14,7 +14,7 @@
 - Ground docs in current source and tests. Do not update docs from memory alone.
 - For recurring current-state refreshes, start with `make docs-context` to gather the repeatable source/doc facts, then inspect the specific files behind any claims you will edit.
 - If code changed packet fields, status rules, animation behavior or hardware assumptions, update docs in the same change.
-- Keep both READMEs concise and product-facing. Move implementation-heavy details to architecture, firmware or rules docs, and keep the Chinese and English current-status sections aligned when product or release facts change.
+- Keep README concise and product-facing. Move implementation-heavy details to architecture, firmware or rules docs.
 - For docs-only work, avoid staging unrelated code changes. Existing user changes may remain dirty.
 - Before reporting completion, run at least `make docs-check`.
 - Run `make quick` when the changed docs mention firmware display, protocol shape, preview tooling, tests or verification behavior.

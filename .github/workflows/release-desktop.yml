@@ -93,6 +93,7 @@ jobs:
       SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
       NOTARYTOOL_TIMEOUT: 30m
       ESP_IDF_VERSION: v5.5
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout
@@ -275,22 +276,9 @@ jobs:
           echo "path=$runtime_dir" >>"$GITHUB_OUTPUT"
 
       - name: Install ESP-IDF
-        run: |
-          set -euo pipefail
-          idf_path="$RUNNER_TEMP/esp-idf"
-          rm -rf "$idf_path"
-          git clone \
-            --branch "$ESP_IDF_VERSION" \
-            --depth 1 \
-            --recursive \
-            --shallow-submodules \
-            https://github.com/espressif/esp-idf.git \
-            "$idf_path"
-          "$idf_path/install.sh" esp32s3
-          {
-            echo "IDF_PATH=$idf_path"
-            echo "IDF_TOOLS_PATH=$HOME/.espressif"
-          } >>"$GITHUB_ENV"
+        uses: espressif/install-esp-idf-action@v1
+        with:
+          version: ${{ env.ESP_IDF_VERSION }}
 
       - name: Import Developer ID certificate
         env:
@@ -385,7 +373,7 @@ jobs:
           fi
 
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: desktop-release-${{ matrix.arch }}
           if-no-files-found: error
@@ -402,6 +390,7 @@ jobs:
     timeout-minutes: 30
     env:
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -417,7 +406,7 @@ jobs:
           fi
 
       - name: Download release artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v4
         with:
           path: dist/release
           merge-multiple: true

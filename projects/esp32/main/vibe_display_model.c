@@ -17,7 +17,6 @@ static void maze_build_pellet_first_eaten_ticks(int actor_count);
 static int maze_pellet_round_ticks(int actor_count);
 static int maze_total_round_score(void);
 static int positive_mod(int value, int modulus);
-static int abs_int(int value);
 
 static int16_t maze_first_eaten_ticks[VIBE_STATUS_MAX_TASKS + 1][VIBE_DISPLAY_MAZE_PELLET_COUNT];
 static bool maze_first_eaten_ticks_ready[VIBE_STATUS_MAX_TASKS + 1];
@@ -83,41 +82,6 @@ bool vibe_display_should_render(vibe_display_signature_t *signature, const vibe_
     signature->value = next;
     signature->has_value = true;
     return true;
-}
-
-void vibe_display_landscape_layout(vibe_display_landscape_layout_t *layout)
-{
-    if (layout == NULL) {
-        return;
-    }
-
-    layout->screen_w = VIBE_DISPLAY_LANDSCAPE_W;
-    layout->screen_h = VIBE_DISPLAY_LANDSCAPE_H;
-    layout->top_bar_y = VIBE_DISPLAY_LANDSCAPE_TOP_BAR_Y;
-    layout->top_bar_h = VIBE_DISPLAY_LANDSCAPE_TOP_BAR_H;
-    layout->maze_x = VIBE_DISPLAY_LANDSCAPE_MAZE_X;
-    layout->maze_y = VIBE_DISPLAY_LANDSCAPE_MAZE_Y;
-    layout->maze_w = VIBE_DISPLAY_LANDSCAPE_MAZE_W;
-    layout->maze_h = VIBE_DISPLAY_LANDSCAPE_MAZE_H;
-    layout->bottom_bar_y = VIBE_DISPLAY_LANDSCAPE_BOTTOM_BAR_Y;
-    layout->bottom_bar_h = VIBE_DISPLAY_LANDSCAPE_BOTTOM_BAR_H;
-}
-
-vibe_display_orientation_t vibe_display_orientation_from_accel_mg(int x_mg,
-                                                                  int y_mg,
-                                                                  vibe_display_orientation_t previous)
-{
-    const int enter_delta_mg = 250;
-    int abs_x = abs_int(x_mg);
-    int abs_y = abs_int(y_mg);
-
-    if (abs_x >= abs_y + enter_delta_mg) {
-        return VIBE_DISPLAY_ORIENTATION_LANDSCAPE;
-    }
-    if (abs_y >= abs_x + enter_delta_mg) {
-        return VIBE_DISPLAY_ORIENTATION_PORTRAIT;
-    }
-    return previous;
 }
 
 int vibe_display_maze_score(int tick, int actor_count, int active_count, int reset_ticks)
@@ -254,29 +218,16 @@ bool vibe_display_animation_enabled(vibe_display_state_t state)
 
 bool vibe_display_phase_refresh_enabled(vibe_display_state_t state)
 {
-    (void)state;
-    return false;
-}
-
-bool vibe_display_status_refresh_advances_animation(vibe_display_state_t state)
-{
-    return vibe_display_animation_enabled(state);
+    return state == VIBE_DISPLAY_BUSY || state == VIBE_DISPLAY_WAITING;
 }
 
 bool vibe_display_should_preserve_animation_tick(vibe_display_state_t previous_state,
                                                  vibe_display_state_t next_state,
                                                  bool animation_running)
 {
-    (void)animation_running;
-    return previous_state == next_state &&
-           vibe_display_animation_enabled(next_state);
-}
-
-bool vibe_display_should_flush_score_on_state_change(vibe_display_state_t previous_state,
-                                                     vibe_display_state_t next_state)
-{
-    return vibe_display_animation_enabled(previous_state) &&
-           !vibe_display_animation_enabled(next_state);
+    return animation_running &&
+           previous_state == next_state &&
+           vibe_display_phase_refresh_enabled(next_state);
 }
 
 int vibe_display_animation_step(int active_count)
@@ -682,11 +633,6 @@ static int positive_mod(int value, int modulus)
         result += modulus;
     }
     return result;
-}
-
-static int abs_int(int value)
-{
-    return value < 0 ? -value : value;
 }
 
 static uint32_t fnv1a_update(uint32_t hash, const void *data, size_t length)

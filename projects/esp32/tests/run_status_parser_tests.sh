@@ -47,7 +47,6 @@ clang \
   "$ROOT_DIR/main/vibe_display_format.c" \
   "$ROOT_DIR/main/vibe_display_model.c" \
   "$ROOT_DIR/main/vibe_display_maze_data.c" \
-  "$ROOT_DIR/main/vibe_landscape_maze_data.c" \
   "$ROOT_DIR/main/vibe_health.c" \
   "$ROOT_DIR/main/vibe_status.c" \
   "$CJSON_DIR/cJSON.c" \

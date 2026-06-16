@@ -16,7 +16,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REFERENCE_MAZE_HEADER = REPO_ROOT / "projects/esp32/main/vibe_reference_maze.h"
 DISPLAY_MAZE_DATA_SOURCE = REPO_ROOT / "projects/esp32/main/vibe_display_maze_data.c"
-LANDSCAPE_MAZE_DATA_SOURCE = REPO_ROOT / "projects/esp32/main/vibe_landscape_maze_data.c"
 DISPLAY_MODEL_HEADER = REPO_ROOT / "projects/esp32/main/vibe_display_model.h"
 
 
@@ -33,18 +32,6 @@ MAZE_PREVIEW_WIDTH = display_model_define("VIBE_DISPLAY_MAZE_STAGE_W")
 MAZE_PREVIEW_HEIGHT = display_model_define("VIBE_DISPLAY_MAZE_STAGE_H")
 FULL_PREVIEW_WIDTH = display_model_define("VIBE_DISPLAY_TASK_PANEL_W")
 FULL_PREVIEW_HEIGHT = display_model_define("VIBE_DISPLAY_TASK_PANEL_Y") + display_model_define("VIBE_DISPLAY_TASK_PANEL_H")
-LANDSCAPE_WIDTH = display_model_define("VIBE_DISPLAY_LANDSCAPE_W")
-LANDSCAPE_HEIGHT = display_model_define("VIBE_DISPLAY_LANDSCAPE_H")
-LANDSCAPE_TOP_BAR_Y = display_model_define("VIBE_DISPLAY_LANDSCAPE_TOP_BAR_Y")
-LANDSCAPE_TOP_BAR_H = display_model_define("VIBE_DISPLAY_LANDSCAPE_TOP_BAR_H")
-LANDSCAPE_MAZE_X = display_model_define("VIBE_DISPLAY_LANDSCAPE_MAZE_X")
-LANDSCAPE_MAZE_Y = display_model_define("VIBE_DISPLAY_LANDSCAPE_MAZE_Y")
-LANDSCAPE_MAZE_W = display_model_define("VIBE_DISPLAY_LANDSCAPE_MAZE_W")
-LANDSCAPE_MAZE_H = display_model_define("VIBE_DISPLAY_LANDSCAPE_MAZE_H")
-LANDSCAPE_BOTTOM_BAR_Y = display_model_define("VIBE_DISPLAY_LANDSCAPE_BOTTOM_BAR_Y")
-LANDSCAPE_BOTTOM_BAR_H = display_model_define("VIBE_DISPLAY_LANDSCAPE_BOTTOM_BAR_H")
-LANDSCAPE_WIDTH_SOURCE = 615
-LANDSCAPE_HEIGHT_SOURCE = 156
 HEADER_HEIGHT = 82
 MAZE_STAGE_Y = display_model_define("VIBE_DISPLAY_MAZE_STAGE_Y")
 TASK_PANEL_X = display_model_define("VIBE_DISPLAY_TASK_PANEL_X")
@@ -276,13 +263,11 @@ LETTER_GLYPHS = {
     "%": ("101", "001", "010", "100", "101"),
     ":": ("000", "010", "000", "010", "000"),
     ".": ("000", "000", "000", "000", "010"),
-    "-": ("000", "000", "111", "000", "000"),
     "A": ("010", "101", "111", "101", "101"),
     "B": ("110", "101", "110", "101", "110"),
     "C": ("111", "100", "100", "100", "111"),
     "D": ("110", "101", "101", "101", "110"),
     "E": ("111", "100", "110", "100", "111"),
-    "F": ("111", "100", "110", "100", "100"),
     "G": ("111", "100", "101", "101", "111"),
     "H": ("101", "101", "111", "101", "101"),
     "I": ("111", "010", "010", "010", "111"),
@@ -467,26 +452,6 @@ def load_reference_pellets() -> list[tuple[int, int]]:
     return [(int(x), int(y)) for x, y in re.findall(r"\{(\d+), (\d+)\}", match.group(1))]
 
 
-def rgb565_to_rgb(color: int) -> tuple[int, int, int]:
-    r = ((color >> 11) & 0x1F) << 3
-    g = ((color >> 5) & 0x3F) << 2
-    b = (color & 0x1F) << 3
-    return r | (r >> 5), g | (g >> 6), b | (b >> 5)
-
-
-def load_landscape_maze_runs() -> list[tuple[int, int, int, tuple[int, int, int]]]:
-    text = LANDSCAPE_MAZE_DATA_SOURCE.read_text()
-    palette_match = re.search(r"VIBE_LANDSCAPE_MAZE_PALETTE\[\]\s*=\s*\{(.*?)\};", text, re.S)
-    if palette_match is None:
-        return []
-    palette = [rgb565_to_rgb(int(color, 16)) for color in re.findall(r"0x([0-9a-fA-F]+)", palette_match.group(1))]
-    return [
-        (int(x), int(y), int(length), palette[int(color_index)])
-        for x, length, y, color_index in re.findall(r"\{(\d+), (\d+), (\d+), (\d+)\}", text)
-        if int(color_index) < len(palette)
-    ]
-
-
 def draw_reference_maze(image: Image, y_offset: int) -> None:
     fill_rect(image, 0, y_offset, MAZE_PREVIEW_WIDTH, MAZE_PREVIEW_HEIGHT, BLACK)
     for x, y, length, color in load_reference_maze_runs():
@@ -570,52 +535,6 @@ def draw_full_screen(image: Image) -> None:
     fill_rect(image, 0, FOOTER_BOTTOM_CLEAR_Y, FULL_PREVIEW_WIDTH, FULL_PREVIEW_HEIGHT - FOOTER_BOTTOM_CLEAR_Y, PANEL)
 
 
-def draw_landscape_screen(image: Image) -> None:
-    fill_rect(image, 0, 0, LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT, BLACK)
-    draw_text(
-        image,
-        18,
-        LANDSCAPE_TOP_BAR_Y + 8,
-        "VIBE LIGHT   CODEX 5H 88%   7D 60%   RESET --",
-        2,
-        WHITE,
-    )
-    draw_landscape_maze(image)
-    draw_text(
-        image,
-        18,
-        LANDSCAPE_BOTTOM_BAR_Y + 9,
-        "SCORE 000530   HIGH SCORE 002300   LEVEL 2   CODEX LIVE   FW 2A02678",
-        2,
-        WHITE,
-    )
-
-
-def draw_landscape_maze(image: Image) -> None:
-    fill_rect(image, LANDSCAPE_MAZE_X, LANDSCAPE_MAZE_Y, LANDSCAPE_MAZE_W, LANDSCAPE_MAZE_H, BLACK)
-    for x, y, length, color in load_landscape_maze_runs():
-        x0 = LANDSCAPE_MAZE_X + (x * LANDSCAPE_MAZE_W) // LANDSCAPE_WIDTH_SOURCE
-        x1 = LANDSCAPE_MAZE_X + ((x + length) * LANDSCAPE_MAZE_W) // LANDSCAPE_WIDTH_SOURCE
-        y0 = LANDSCAPE_MAZE_Y + (y * LANDSCAPE_MAZE_H) // LANDSCAPE_HEIGHT_SOURCE
-        y1 = LANDSCAPE_MAZE_Y + ((y + 1) * LANDSCAPE_MAZE_H) // LANDSCAPE_HEIGHT_SOURCE
-        fill_rect(image, x0, y0, max(1, x1 - x0), max(1, y1 - y0), color)
-
-
-def draw_landscape_miclle(image: Image, x: int, y: int) -> None:
-    colors = (MAZE, RED, DOT, GREEN, MAZE, RED)
-    for index, letter in enumerate("MICLLE"):
-        draw_ascii_char_xy(image, x + index * 82, y, letter, 16, 19, colors[index])
-
-
-def draw_landscape_ghost(image: Image, x: int, y: int, color: tuple[int, int, int]) -> None:
-    fill_circle(image, x - 5, y - 5, 8, color)
-    fill_circle(image, x + 5, y - 5, 8, color)
-    fill_rect(image, x - 13, y - 5, 26, 16, color)
-    fill_rect(image, x - 11, y + 9, 6, 4, color)
-    fill_rect(image, x - 2, y + 9, 6, 4, color)
-    fill_rect(image, x + 7, y + 9, 6, 4, color)
-
-
 def draw_maze_count_boxes(image: Image, y_offset: int) -> None:
     y = y_offset + 294
     clear_y = y_offset + 288
@@ -690,13 +609,6 @@ def display_constant_snapshot() -> dict[str, int]:
         "VIBE_DISPLAY_FOOTER_SCALE": FOOTER_SCALE,
         "VIBE_DISPLAY_FIRMWARE_VERSION_RIGHT_MARGIN": FIRMWARE_VERSION_RIGHT_MARGIN,
         "VIBE_DISPLAY_FIRMWARE_VERSION_SCALE": FIRMWARE_VERSION_SCALE,
-        "VIBE_DISPLAY_LANDSCAPE_W": LANDSCAPE_WIDTH,
-        "VIBE_DISPLAY_LANDSCAPE_H": LANDSCAPE_HEIGHT,
-        "VIBE_DISPLAY_LANDSCAPE_MAZE_X": LANDSCAPE_MAZE_X,
-        "VIBE_DISPLAY_LANDSCAPE_MAZE_Y": LANDSCAPE_MAZE_Y,
-        "VIBE_DISPLAY_LANDSCAPE_MAZE_W": LANDSCAPE_MAZE_W,
-        "VIBE_DISPLAY_LANDSCAPE_MAZE_H": LANDSCAPE_MAZE_H,
-        "VIBE_DISPLAY_LANDSCAPE_BOTTOM_BAR_Y": LANDSCAPE_BOTTOM_BAR_Y,
     }
 
 
@@ -704,7 +616,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Render the ESP32 Pac-Man maze preview")
     parser.add_argument("output", nargs="?", default="/tmp/vibe-maze-preview.png", help="Output PNG path")
     parser.add_argument("--full-screen", action="store_true", help="Render the full 320x820 ESP32 screen preview")
-    parser.add_argument("--landscape-screen", action="store_true", help="Render the full 820x320 landscape preview")
     parser.add_argument("--dump-display-constants", action="store_true", help="Write preview layout constants as JSON")
     args = parser.parse_args()
 
@@ -712,10 +623,7 @@ def main() -> None:
         print(json.dumps(display_constant_snapshot(), sort_keys=True))
         return
 
-    if args.landscape_screen:
-        image = make_image(LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT)
-        draw_landscape_screen(image)
-    elif args.full_screen:
+    if args.full_screen:
         image = make_image(FULL_PREVIEW_WIDTH, FULL_PREVIEW_HEIGHT)
         draw_full_screen(image)
     else:

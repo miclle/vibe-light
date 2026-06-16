@@ -8,9 +8,7 @@ The firmware lives in `projects/esp32` and targets Waveshare `ESP32-S3-LCD-3.16`
 
 - `main/vibe_ble.*`: BLE peripheral, `VibeLight-S3` advertising, status write characteristic and health read characteristic.
 - `main/vibe_status.*`: JSON packet parsing and display state conversion.
-- `main/vibe_display_model.*`: render signatures, reference maze coordinates, eaten-pellet visibility reset, actor count and animation geometry that can be tested on host.
-- `main/vibe_display_format.c`: task row formatting, task timing / freshness trailing labels, Codex usage line and reset hint, compact counts, footer text and firmware-version text.
-- `main/vibe_display_score.*`: NVS-backed high score persistence.
+- `main/vibe_display_model.*`: render signatures, task row formatting, task timing / freshness trailing labels, compact counts, reference maze coordinates, eaten-pellet visibility reset, actor count and animation geometry that can be tested on host.
 - `main/vibe_display.*`: LCD initialization, framebuffer drawing, backlight PWM and non-blocking animation timer.
 - `tests/vibe_status_parser_test.c`: host-side parser and display-model regression tests.
 
@@ -20,7 +18,6 @@ The firmware lives in `projects/esp32` and targets Waveshare `ESP32-S3-LCD-3.16`
 - Keep status writes under the current firmware limit; packets at 1024 bytes or larger are rejected.
 - Unknown top-level or task states should degrade to `idle`; malformed packets should be rejected without mutating the previous packet.
 - Keep display-model logic testable in `vibe_display_model.*` when it does not require hardware handles.
-- Keep display text formatting testable in `vibe_display_format.c` rather than folding it into the hardware drawing layer.
 - Avoid introducing LVGL until the lightweight framebuffer path is insufficient for a concrete feature such as fonts, complex layout or richer animation.
 - `busy` animation should stay firmware-local. The desktop app sends state and counts, not animation frames.
 - Keep task trailing-label behavior testable: task-level `updatedAt` plus top-level `ts` maps to `RUN`, `WAIT` or freshness labels; active tasks rotate between timing and task-level `contextUsedPercent` as the `CTX` label, with 80%+ context usage shown more often in warning color and 90%+ shown in critical color; missing or invalid timing falls back to `CTX`; legacy `contextRemainingPercent` remains accepted as a compatibility input.
