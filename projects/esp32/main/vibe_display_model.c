@@ -260,8 +260,9 @@ bool vibe_display_phase_refresh_enabled(vibe_display_state_t state)
 
 bool vibe_display_mode_phase_refresh_enabled(vibe_display_state_t state, vibe_display_orientation_t orientation)
 {
-    return orientation == VIBE_DISPLAY_ORIENTATION_PORTRAIT &&
-           vibe_display_animation_enabled(state);
+    (void)state;
+    (void)orientation;
+    return false;
 }
 
 bool vibe_display_status_refresh_advances_animation(vibe_display_state_t state)
