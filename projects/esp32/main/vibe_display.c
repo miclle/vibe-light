@@ -138,7 +138,7 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
 static void bind_portrait_framebuffer(void);
 static void animation_refresh_task(void *arg);
 static void animation_timer_callback(void *arg);
-static void update_animation_timer(vibe_display_state_t state);
+static void update_animation_timer(vibe_display_state_t state, vibe_display_orientation_t orientation);
 
 void vibe_display_init(void)
 {
@@ -221,7 +221,9 @@ void vibe_display_show_status(const vibe_status_packet_t *packet)
             if (!preserve_animation_tick) {
                 animation_tick = 0;
             }
-            if (packet_changed && vibe_display_status_refresh_advances_animation(packet->state)) {
+            if (packet_changed &&
+                vibe_display_status_refresh_advances_animation(packet->state) &&
+                !vibe_display_mode_phase_refresh_enabled(packet->state, orientation)) {
                 animation_tick += VIBE_DISPLAY_ANIMATION_SUBSTEPS;
             }
             last_render_orientation = orientation;
@@ -229,7 +231,7 @@ void vibe_display_show_status(const vibe_status_packet_t *packet)
         }
         xSemaphoreGive(display_mutex);
     }
-    update_animation_timer(packet->state);
+    update_animation_timer(packet->state, last_render_orientation);
 }
 
 void vibe_display_show_error(const char *message)
@@ -399,9 +401,13 @@ static void animation_refresh_task(void *arg)
             continue;
         }
 
-        if (vibe_display_phase_refresh_enabled(last_render_packet.state)) {
-            last_render_orientation = vibe_orientation_current();
+        vibe_display_orientation_t orientation = vibe_orientation_current();
+        bool orientation_changed = last_render_orientation != orientation;
+        last_render_orientation = orientation;
+        if (vibe_display_mode_phase_refresh_enabled(last_render_packet.state, last_render_orientation)) {
             animation_tick++;
+            render_status(&last_render_packet, animation_tick);
+        } else if (orientation_changed) {
             render_status(&last_render_packet, animation_tick);
         }
 
@@ -410,10 +416,10 @@ static void animation_refresh_task(void *arg)
     }
 }
 
-static void update_animation_timer(vibe_display_state_t state)
+static void update_animation_timer(vibe_display_state_t state, vibe_display_orientation_t orientation)
 {
     bool should_run = display_ready && animation_timer != NULL && animation_task != NULL &&
-                      vibe_display_phase_refresh_enabled(state);
+                      vibe_display_mode_phase_refresh_enabled(state, orientation);
     if (should_run && !animation_running) {
         animation_tick = 0;
         if (esp_timer_start_periodic(animation_timer, ANIMATION_PERIOD_MS * 1000) == ESP_OK) {
