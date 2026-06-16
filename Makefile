@@ -134,6 +134,7 @@ esp32-test:
 esp32-preview:
 	$(ESP32_DIR)/tools/render_maze_preview.py /tmp/vibe-maze-preview.png
 	$(ESP32_DIR)/tools/render_maze_preview.py --full-screen /tmp/vibe-screen-preview.png
+	$(ESP32_DIR)/tools/render_maze_preview.py --landscape-screen /tmp/vibe-landscape-preview.png
 
 esp32-build: check-idf
 	export PATH="$(IDF_SAFE_PATH)" && source "$(IDF_PATH)/export.sh" >/tmp/vibe-idf-export.log && cd "$(ESP32_DIR)" && idf.py build

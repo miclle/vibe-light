@@ -7,8 +7,8 @@
 - macOS SwiftPM app 已有通用、智能体安装、硬件设备、固件烧录和事件五个主要界面。
 - Hook CLI 会把 Codex / Claude 事件写入本地 `events.jsonl`，桌面端轮询事件并通过 `TaskTracker` 聚合多任务状态。
 - BLE 协议当前以 `v: 2` 多任务状态包为主，保留 `v: 1` 降级路径；Codex 用量摘要会从 transcript 最新 `token_count` 事件提取，并提供 5h / 7d 剩余百分比、低余量 reset 提示和每条 Codex 任务的上下文已用百分比 / token 摘要。
-- ESP32-S3 固件已接入 BLE Peripheral、状态解析、健康读取特征、ST7701 LCD 初始化、RGB565 framebuffer 绘制和 Codex 吃豆人 `busy` 迷宫动画。
-- 显示模型已从“简单任务列表”推进到 320px 参考迷宫舞台、213 个豆子、4 个能量豆、最多 5 个错相主角、底部贴边任务面板、任务时长 / 新鲜度尾标和渲染签名去重。
+- ESP32-S3 固件已接入 BLE Peripheral、状态解析、健康读取特征、ST7701 LCD 初始化、RGB565 framebuffer 绘制、Codex 吃豆人 `busy` 迷宫动画和 QMI8658 横竖屏切换。
+- 显示模型已从“简单任务列表”推进到 320px 竖屏参考迷宫舞台、横屏整屏截图样式吃豆人 RLE 画面、213 个豆子、4 个能量豆、最多 5 个错相主角、底部贴边任务面板、任务时长 / 新鲜度尾标和渲染签名去重。
 - 屏幕任务详情会优先展示当前工具动作，例如 `Bash / TEST make quick`、`Bash / BUILD idf.py`、`Bash / SERIAL read_serial.py`、`Bash / APP quit`、`Bash / SEARCH StatusPacket` 或 `Edit / README.md`，避免只显示泛化任务摘要或完整 shell 命令。
 - `waiting` 任务详情会优先展示审批目标，例如 `APPROVE Bash TEST make verify` 或 `ALLOW Edit README.md`，让屏幕直接提示下一步需要处理什么。
 - 任务行右侧会展示新鲜度、运行时长和上下文用量，例如 `RUN 03:12`、`WAIT 01:08`、`2m ago`、`CTX xx%` 或 `CTX 4.2K/12K`；活跃任务会在运行时长和 `CTX` 之间低频轮播，80% 及以上高上下文占用时提高 `CTX` 出现频率并用黄色显示，90% 及以上用红色显示；硬件设备页有 `CTX color` 演示包用于实机复核。
@@ -18,11 +18,29 @@
 - macOS app 已有独立“固件烧录”页，可枚举常见 ESP32 USB 串口、加载并校验内置 `FirmwareBundle`、调用 helper 执行 `write_flash`，成功后启动 BLE 扫描；`projects/esp32/tools/package_firmware_bundle.py` 可从 ESP-IDF build 产物生成带 SHA-256 的 app resource 固件包，`projects/esp32/tools/package_firmware_tools.py` 可把 `esptool` 依赖 vendor 到 `FirmwareTools/python-packages/`，并生成 GPL source offer / 对应源码归档。
 - Vibe Light 自有源码已经切换为 source-available 非商用许可：个人、学习、研究和其他非商业用途可免费使用；商业使用、商业分发或作为商业产品 / 服务的一部分使用，需要原作者单独书面授权；fork、复制、修改和再分发必须保留原作者署名、非商用限制和商业授权要求。
 - 当前公开 latest release 为 `v0.1.2`，tag 指向 `ffe505e76e0da0f5b7abcd6c8a22cbb48e7852c6`；release asset 包含 `VibeLightApp-0.1.2-arm64-notarized.zip`、`VibeLightApp-0.1.2-x86_64-notarized.zip`、`desktop-firmware-release-0.1.2-arm64.md`、`desktop-firmware-release-0.1.2-x86_64.md`、`appcast.xml` 和 `appcast-x86_64.xml`。`v0.1.2` 已完成双架构 CI notarized release、latest appcast 匿名下载、下载包签名 / notarization / 架构扫描验证；`v0.1.1` 已完成默认 stable feed Sparkle 更新、下载包启动、USB 固件烧录和 BLE 重连验证。
-- 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试、校验迷宫预览脚本读取显示模型布局常量、生成迷宫 / 全屏 PNG 预览并执行 Git whitespace 检查；ESP32 显示闭环已完成一次实机烧录和屏幕确认。
+- 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试、校验迷宫预览脚本读取显示模型布局常量、生成竖屏迷宫 / 竖屏全屏 / 横屏全屏 PNG 预览并执行 Git whitespace 检查；ESP32 显示闭环已完成一次实机烧录和屏幕确认。
 - 固件版本 `82d2180` 已在目标板完成烧录、串口启动、BLE 连接、健康特征实机读取、肉眼屏幕复核和长时间稳定性观察：LCD 初始化、BLE 广播、Central 连接、连续 `v: 2` 状态写入、token 摘要、页脚、底部余量、任务色块内缩、无边缘蓝线、macOS 硬件页健康读数和稳定性表现均正常；坏状态包后会回传 `lastParseError:"invalid JSON"`。
 - 固件版本 `3215f23` 已完成目标板烧录和实机观察，确认结构拆分后的固件启动、屏幕显示和 BLE 链路正常。
 
 ## 最近实机验证
+
+- 时间：2026-06-16 09:37 CST。
+- 端口：`/dev/cu.usbmodem1101`。
+- 固件版本：`v0.1.2-12-g7658f67-dirty`（本地工作区含由 `docs/Pac-Man-landscape.png` 生成的横屏整屏截图样式 Pac-Man RLE 画面、去除横屏顶部 / 底部 HUD 覆盖、竖屏同源计分 / 关卡 / high score 推进逻辑和 512 x 200 横屏源数据压缩）。
+- 验证范围：本地 ESP-IDF 直接烧录当前工作区固件。
+- 结果确认：`make esp32-flash-only ESP32_PORT=/dev/cu.usbmodem1101` 识别 `ESP32-S3 (QFN56) (revision v0.2)`、8MB PSRAM 和 MAC `1c:db:d4:7b:3f:cc`；bootloader、app 和 partition table 三段均写入并 `Hash of data verified`，最后 `Hard resetting via RTS pin`。烧录前 `make quick` 和 `make esp32-build` 通过；固件 app 分区剩余 `0x3f90`，约 2%。当前未做肉眼横放 / 竖立方向切换复核。
+
+- 时间：2026-06-16 08:58 CST。
+- 端口：`/dev/cu.usbmodem1101`。
+- 固件版本：`v0.1.2-11-g50f0666-dirty`（本地工作区含横屏 layout mode、全宽截图样式 Pac-Man RLE 迷宫、竖直角色 sprite、状态包驱动吃豆人移动、QMI8658 方向切换和关闭 240ms 定时整屏刷新改动）。
+- 验证范围：本地 ESP-IDF 直接烧录当前工作区固件。
+- 结果确认：`make esp32-flash-only ESP32_PORT=/dev/cu.usbmodem1101` 识别 `ESP32-S3 (QFN56) (revision v0.2)`、8MB PSRAM 和 MAC `1c:db:d4:7b:3f:cc`；bootloader、app 和 partition table 三段均写入并 `Hash of data verified`，最后 `Hard resetting via RTS pin`。烧录后连续 12 秒读取串口，确认桌面端已连接并连续写入 `v:2` busy 状态包，固件日志显示 `status write accepted` 和 `vibe_display` 刷新显示，未出现 `task_wdt`、panic 或重启循环。当前未做肉眼横放 / 竖立方向切换复核；闪屏修复已从策略上移除 `busy` / `waiting` 状态下的 240ms 定时整屏刷新，busy 状态改为随状态包到达推进吃豆人动画。
+
+- 时间：2026-06-16 07:49 CST。
+- 端口：`/dev/cu.usbmodem1101`。
+- 固件版本：`v0.1.2-11-g50f0666-dirty`（本地工作区含横屏 layout mode、全宽截图样式 Pac-Man RLE 迷宫和 QMI8658 方向切换改动）。
+- 验证范围：本地 ESP-IDF 直接烧录当前工作区固件。
+- 结果确认：`make esp32-flash-only ESP32_PORT=/dev/cu.usbmodem1101` 识别 `ESP32-S3 (QFN56) (revision v0.2)`、8MB PSRAM 和 MAC `1c:db:d4:7b:3f:cc`；bootloader、app 和 partition table 三段均写入并 `Hash of data verified`，最后 `Hard resetting via RTS pin`。烧录后短读串口确认桌面端已连接并写入 `v:2` 状态包，固件日志显示 `status write accepted` 和 `vibe_display` 以 `state=busy`、`tasks=3` 刷新显示。当前未做肉眼横放 / 竖立方向切换复核。
 
 - 时间：2026-06-15 22:48 CST。
 - 端口：`/dev/cu.usbmodem1101`。
@@ -122,16 +140,10 @@
 
 ## 未完成事项
 
-1. **横屏 layout mode 仍是实验方向**
-   - 暂时保留竖屏作为默认稳定模式，因为当前设备外观和摆放更适合竖向状态灯。
-   - 横屏原型不需要改 BLE 协议，先只调整 ESP32 渲染布局。
-   - 建议原型信息架构为“左侧状态 / 中间 Codex 动画 / 右侧任务列表 / 顶部或底部统计条”。
-   - 实机对比竖屏和横屏后，再决定是否产品化为可配置展示模式。
-
-2. **跟进 GitHub Actions Node.js 20 弃用提醒**
-   - `release-desktop.yml` 已升级到 `actions/checkout@v6` 和 `actions/setup-python@v6`，两者上游 `action.yml` 已声明 `node24`。
-   - `espressif/install-esp-idf-action` 当前默认分支仍是 `v1`，没有可升级 tag，且上游 `action.yml` 仍声明 `node20`；workflow 已设置 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` 提前使用 Node 24 runtime，后续仍需关注 Espressif 是否发布原生 Node 24 版本。
-   - 2026-06-14 已用 draft 验证版 `v2026.06.14-dev-d3cf90c-node24` 跑通 `release-desktop.yml`，workflow run `27484068864` 完成 ESP-IDF 安装、Developer ID 签名、notarization、archive 验证和 release asset 创建；验证 draft 已删除。GitHub 仍会提示 `espressif/install-esp-idf-action@v1` 声明 Node.js 20 但被强制运行在 Node.js 24，这是上游 metadata 未更新导致的非阻塞提醒。
+1. **横屏 layout mode 需要实机复核**
+   - 固件已用 QMI8658 加速度方向在竖屏 / 横屏之间切换；IMU 不可用时保持竖屏。
+   - 横屏原型不改 BLE 协议，整屏展示由 `docs/Pac-Man-landscape.png` 生成的截图样式吃豆人画面，不额外叠加顶部或底部状态栏；`busy` 时计分、关卡和 `HIGH SCORE` 推进仍沿用竖屏同一套显示模型规则。
+   - 下一步需要肉眼确认横放方向、旋转方向、整屏截图样式画面清晰度和 QMI8658 读数稳定性。
 
 ## 推荐推进顺序
 
@@ -144,12 +156,11 @@
    - 每次发布前继续重复 GitHub release asset 下载、Gatekeeper / codesign、strict helper 和真机烧录验证。
 
 3. **处理非阻塞发布治理**
-   - 持续关注 `espressif/install-esp-idf-action` 是否发布原生 Node 24 版本。
    - 自有源码非商用许可和第三方 GPL/source 材料需要分开审阅；如果进入商业授权或商业分发，仍建议做最终法律 / 合规确认，重点复核 bundled `esptool` GPLv2+ source offer、源码归档和第三方 notices 的最终发布形态。
 
-4. **再评估横屏原型**
+4. **实机确认横屏原型**
    - 横屏是产品方向探索，不是当前链路可靠性的前置条件。
-   - 建议在竖屏实机闭环稳定后，用 host-side preview 先做布局草图，再决定是否投入固件实现。
+   - 先用 host-side preview 快速确认布局，再通过目标板横放 / 竖立观察决定是否继续产品化为可配置展示模式。
 
 ## 验证命令
 

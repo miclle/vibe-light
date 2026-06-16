@@ -4,6 +4,7 @@
 
 #include "vibe_ble.h"
 #include "vibe_display.h"
+#include "vibe_orientation.h"
 #include "vibe_status.h"
 
 static const char *TAG = "vibe_light";
@@ -18,6 +19,7 @@ void app_main(void)
     ESP_ERROR_CHECK(ret);
 
     ESP_LOGI(TAG, "starting Vibe Light firmware");
+    vibe_orientation_init();
     vibe_display_init();
 
     vibe_status_packet_t initial_status;

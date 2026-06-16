@@ -47,6 +47,7 @@ clang \
   "$ROOT_DIR/main/vibe_display_format.c" \
   "$ROOT_DIR/main/vibe_display_model.c" \
   "$ROOT_DIR/main/vibe_display_maze_data.c" \
+  "$ROOT_DIR/main/vibe_landscape_maze_data.c" \
   "$ROOT_DIR/main/vibe_health.c" \
   "$ROOT_DIR/main/vibe_status.c" \
   "$CJSON_DIR/cJSON.c" \
@@ -54,7 +55,10 @@ clang \
 
 "$BINARY"
 
+CJK_FONT_PYTHON="$(find_cjk_font_python)"
+
 python3 "$ROOT_DIR/tools/render_maze_preview.py" --dump-display-constants >/tmp/vibe-display-preview-constants.json
+python3 "$ROOT_DIR/tools/render_maze_preview.py" --landscape-screen /tmp/vibe-landscape-preview-test.png
 python3 - /tmp/vibe-display-preview-constants.json "$ROOT_DIR/main/vibe_display_model.h" <<'PY'
 import json
 import re
@@ -81,8 +85,21 @@ for name in (
     assert constants[name] == header_define(name), name
 PY
 
+"$CJK_FONT_PYTHON" - /tmp/vibe-landscape-preview-test.png "$ROOT_DIR/../../docs/Pac-Man-landscape.png" <<'PY'
+import sys
+from pathlib import Path
+from PIL import Image, ImageChops, ImageStat
+
+preview = Image.open(Path(sys.argv[1])).convert("RGB")
+reference = Image.open(Path(sys.argv[2]).resolve()).convert("RGB")
+reference = reference.resize(preview.size, Image.Resampling.BILINEAR)
+
+assert preview.size == (1640, 640), preview.size
+mean_diff = sum(ImageStat.Stat(ImageChops.difference(preview, reference)).mean) / 3
+assert mean_diff < 22, mean_diff
+PY
+
 FONT_BIN="$BUILD_DIR/vibe_cjk_font.bin"
-CJK_FONT_PYTHON="$(find_cjk_font_python)"
 "$CJK_FONT_PYTHON" "$ROOT_DIR/tools/generate_cjk_font.py" "$FONT_BIN" >/tmp/vibe-cjk-font-test.log
 "$CJK_FONT_PYTHON" - "$FONT_BIN" <<'PY'
 import struct
