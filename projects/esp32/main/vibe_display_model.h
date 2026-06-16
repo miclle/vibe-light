@@ -73,11 +73,39 @@ extern "C" {
 #define VIBE_DISPLAY_FOOTER_BOTTOM_CLEAR_Y (VIBE_DISPLAY_FOOTER_Y + VIBE_DISPLAY_FOOTER_TEXT_H)
 #define VIBE_DISPLAY_FIRMWARE_VERSION_RIGHT_MARGIN 16
 #define VIBE_DISPLAY_FIRMWARE_VERSION_SCALE 2
+#define VIBE_DISPLAY_LANDSCAPE_W 820
+#define VIBE_DISPLAY_LANDSCAPE_H 320
+#define VIBE_DISPLAY_LANDSCAPE_TOP_BAR_Y 8
+#define VIBE_DISPLAY_LANDSCAPE_TOP_BAR_H 34
+#define VIBE_DISPLAY_LANDSCAPE_MAZE_X 0
+#define VIBE_DISPLAY_LANDSCAPE_MAZE_Y 54
+#define VIBE_DISPLAY_LANDSCAPE_MAZE_W 820
+#define VIBE_DISPLAY_LANDSCAPE_MAZE_H 208
+#define VIBE_DISPLAY_LANDSCAPE_BOTTOM_BAR_Y 278
+#define VIBE_DISPLAY_LANDSCAPE_BOTTOM_BAR_H 34
 
 typedef struct {
     uint32_t value;
     bool has_value;
 } vibe_display_signature_t;
+
+typedef enum {
+    VIBE_DISPLAY_ORIENTATION_PORTRAIT = 0,
+    VIBE_DISPLAY_ORIENTATION_LANDSCAPE,
+} vibe_display_orientation_t;
+
+typedef struct {
+    int screen_w;
+    int screen_h;
+    int top_bar_y;
+    int top_bar_h;
+    int maze_x;
+    int maze_y;
+    int maze_w;
+    int maze_h;
+    int bottom_bar_y;
+    int bottom_bar_h;
+} vibe_display_landscape_layout_t;
 
 typedef enum {
     VIBE_DISPLAY_TRAILING_NEUTRAL = 0,
@@ -158,6 +186,10 @@ typedef struct {
 void vibe_display_signature_reset(vibe_display_signature_t *signature);
 uint32_t vibe_display_packet_signature(const vibe_status_packet_t *packet);
 bool vibe_display_should_render(vibe_display_signature_t *signature, const vibe_status_packet_t *packet);
+void vibe_display_landscape_layout(vibe_display_landscape_layout_t *layout);
+vibe_display_orientation_t vibe_display_orientation_from_accel_mg(int x_mg,
+                                                                  int y_mg,
+                                                                  vibe_display_orientation_t previous);
 void vibe_display_format_task_row(const vibe_status_task_t *task, int index, vibe_display_task_row_t *row);
 void vibe_display_format_task_row_at(const vibe_status_task_t *task,
                                      int64_t now_ms,
@@ -186,9 +218,12 @@ void vibe_display_footer_text(const vibe_status_packet_t *packet, char *text, si
 void vibe_display_firmware_version_text(const char *app_version, char *text, size_t text_size);
 bool vibe_display_animation_enabled(vibe_display_state_t state);
 bool vibe_display_phase_refresh_enabled(vibe_display_state_t state);
+bool vibe_display_status_refresh_advances_animation(vibe_display_state_t state);
 bool vibe_display_should_preserve_animation_tick(vibe_display_state_t previous_state,
                                                  vibe_display_state_t next_state,
                                                  bool animation_running);
+bool vibe_display_should_flush_score_on_state_change(vibe_display_state_t previous_state,
+                                                     vibe_display_state_t next_state);
 int vibe_display_animation_step(int active_count);
 int vibe_display_animation_actor_count(int task_count, int active_count);
 void vibe_display_animation_frame(int tick, int active_count, vibe_display_animation_frame_t *frame);

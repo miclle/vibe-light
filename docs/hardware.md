@@ -76,11 +76,13 @@
    - 屏幕顶部显示 `VIBE LIGHT` 和状态色。
    - 中间区域显示 320px 参考迷宫舞台，`busy` 时显示 Codex 吃豆人角色和豆子。
    - 底部贴边任务面板显示 `A` / `W` / `E` 计数和最多 5 条任务摘要；没有任务时显示空任务状态。
+   - 横放时通过 QMI8658 切换到横屏全宽截图样式吃豆人迷宫；竖立或 IMU 不可用时保持竖屏。
    - Host-side PNG 预览入口：
 
      ```bash
      projects/esp32/tools/render_maze_preview.py /tmp/vibe-maze-preview.png
      projects/esp32/tools/render_maze_preview.py --full-screen /tmp/vibe-screen-preview.png
+     projects/esp32/tools/render_maze_preview.py --landscape-screen /tmp/vibe-landscape-preview.png
      ```
 
 4. **验证健康状态回读**

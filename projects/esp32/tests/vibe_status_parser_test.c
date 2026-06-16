@@ -2,6 +2,7 @@
 #include "vibe_cjk_font.h"
 #include "vibe_display_model.h"
 #include "vibe_health.h"
+#include "vibe_landscape_maze_data.h"
 #include "vibe_reference_maze.h"
 
 #include <assert.h>
@@ -599,13 +600,22 @@ static void test_display_model_formats_live_maze_level(void)
     assert(strcmp(text, "99") == 0);
 }
 
-static void test_display_model_preserves_animation_tick_while_busy(void)
+static void test_display_model_animates_from_status_updates_without_phase_refresh(void)
 {
-    assert(vibe_display_should_preserve_animation_tick(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_BUSY, true));
-    assert(vibe_display_should_preserve_animation_tick(VIBE_DISPLAY_WAITING, VIBE_DISPLAY_WAITING, true));
+    assert(!vibe_display_phase_refresh_enabled(VIBE_DISPLAY_BUSY));
+    assert(!vibe_display_phase_refresh_enabled(VIBE_DISPLAY_WAITING));
+    assert(!vibe_display_phase_refresh_enabled(VIBE_DISPLAY_IDLE));
+    assert(vibe_display_status_refresh_advances_animation(VIBE_DISPLAY_BUSY));
+    assert(!vibe_display_status_refresh_advances_animation(VIBE_DISPLAY_WAITING));
+    assert(!vibe_display_status_refresh_advances_animation(VIBE_DISPLAY_IDLE));
+    assert(vibe_display_should_preserve_animation_tick(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_BUSY, false));
+    assert(!vibe_display_should_preserve_animation_tick(VIBE_DISPLAY_WAITING, VIBE_DISPLAY_WAITING, true));
     assert(!vibe_display_should_preserve_animation_tick(VIBE_DISPLAY_IDLE, VIBE_DISPLAY_BUSY, false));
-    assert(!vibe_display_should_preserve_animation_tick(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_BUSY, false));
     assert(!vibe_display_should_preserve_animation_tick(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_WAITING, true));
+    assert(vibe_display_should_flush_score_on_state_change(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_IDLE));
+    assert(vibe_display_should_flush_score_on_state_change(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_SUCCESS));
+    assert(!vibe_display_should_flush_score_on_state_change(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_BUSY));
+    assert(!vibe_display_should_flush_score_on_state_change(VIBE_DISPLAY_WAITING, VIBE_DISPLAY_IDLE));
 }
 
 static void test_display_model_top_overlays_do_not_erase_maze_lines(void)
@@ -662,8 +672,8 @@ static void test_display_model_animates_busy_center_stage(void)
     assert(vibe_display_animation_enabled(VIBE_DISPLAY_BUSY));
     assert(!vibe_display_animation_enabled(VIBE_DISPLAY_WAITING));
     assert(!vibe_display_animation_enabled(VIBE_DISPLAY_IDLE));
-    assert(vibe_display_phase_refresh_enabled(VIBE_DISPLAY_BUSY));
-    assert(vibe_display_phase_refresh_enabled(VIBE_DISPLAY_WAITING));
+    assert(!vibe_display_phase_refresh_enabled(VIBE_DISPLAY_BUSY));
+    assert(!vibe_display_phase_refresh_enabled(VIBE_DISPLAY_WAITING));
     assert(!vibe_display_phase_refresh_enabled(VIBE_DISPLAY_IDLE));
 
     vibe_display_animation_frame(0, 1, &frame0);
@@ -786,6 +796,135 @@ static void test_display_model_scales_maze_to_screen_edges(void)
     assert(vibe_display_maze_display_x(VIBE_DISPLAY_MAZE_REFERENCE_MIN_X) == 0);
     assert(vibe_display_maze_display_x(VIBE_DISPLAY_MAZE_REFERENCE_MAX_X) == VIBE_DISPLAY_MAZE_STAGE_W - 1);
     assert(vibe_display_maze_display_run_width(VIBE_DISPLAY_MAZE_REFERENCE_MIN_X, 289) == VIBE_DISPLAY_MAZE_STAGE_W);
+}
+
+static void test_display_model_defines_landscape_layout_regions(void)
+{
+    vibe_display_landscape_layout_t layout;
+
+    vibe_display_landscape_layout(&layout);
+
+    assert(layout.screen_w == 820);
+    assert(layout.screen_h == 320);
+    assert(layout.top_bar_y == 8);
+    assert(layout.top_bar_h == 34);
+    assert(layout.maze_x == 0);
+    assert(layout.maze_y >= layout.top_bar_y + layout.top_bar_h);
+    assert(layout.maze_w == layout.screen_w);
+    assert(layout.maze_h == 208);
+    assert(layout.bottom_bar_y >= layout.maze_y + layout.maze_h);
+    assert(layout.bottom_bar_y + layout.bottom_bar_h <= layout.screen_h);
+}
+
+static void test_display_model_has_landscape_screenshot_maze_bitmap(void)
+{
+    assert(VIBE_LANDSCAPE_MAZE_BITMAP_W == 615);
+    assert(VIBE_LANDSCAPE_MAZE_BITMAP_H == 156);
+    assert(VIBE_LANDSCAPE_MAZE_RUN_COUNT > 3200);
+    assert(VIBE_LANDSCAPE_MAZE_RUNS[0].length > 0);
+}
+
+static void test_display_model_has_upright_landscape_actor_sprites(void)
+{
+    static uint8_t pixels[VIBE_LANDSCAPE_MAZE_BITMAP_H][VIBE_LANDSCAPE_MAZE_BITMAP_W];
+    static uint8_t visited[VIBE_LANDSCAPE_MAZE_BITMAP_H][VIBE_LANDSCAPE_MAZE_BITMAP_W];
+    static int queue_x[VIBE_LANDSCAPE_MAZE_BITMAP_W * VIBE_LANDSCAPE_MAZE_BITMAP_H];
+    static int queue_y[VIBE_LANDSCAPE_MAZE_BITMAP_W * VIBE_LANDSCAPE_MAZE_BITMAP_H];
+
+    memset(pixels, 0xff, sizeof(pixels));
+    for (int i = 0; i < VIBE_LANDSCAPE_MAZE_RUN_COUNT; i++) {
+        const vibe_landscape_maze_run_t *run = &VIBE_LANDSCAPE_MAZE_RUNS[i];
+        for (int x = run->x; x < (int)run->x + (int)run->length && x < VIBE_LANDSCAPE_MAZE_BITMAP_W; x++) {
+            pixels[run->y][x] = run->color_index;
+        }
+    }
+
+    const uint8_t actor_colors[] = {2, 3, 4, 5};
+    for (size_t color_index = 0; color_index < sizeof(actor_colors) / sizeof(actor_colors[0]); color_index++) {
+        uint8_t color = actor_colors[color_index];
+        int tallest_actor_width = 0;
+        int tallest_actor = 0;
+
+        memset(visited, 0, sizeof(visited));
+        for (int y = 0; y < VIBE_LANDSCAPE_MAZE_BITMAP_H; y++) {
+            for (int x = 0; x < VIBE_LANDSCAPE_MAZE_BITMAP_W; x++) {
+                if (visited[y][x] || pixels[y][x] != color) {
+                    continue;
+                }
+
+                int head = 0;
+                int tail = 0;
+                int min_x = x;
+                int max_x = x;
+                int min_y = y;
+                int max_y = y;
+
+                visited[y][x] = 1;
+                queue_x[tail] = x;
+                queue_y[tail] = y;
+                tail++;
+
+                while (head < tail) {
+                    int cx = queue_x[head];
+                    int cy = queue_y[head];
+                    head++;
+
+                    if (cx < min_x) {
+                        min_x = cx;
+                    }
+                    if (cx > max_x) {
+                        max_x = cx;
+                    }
+                    if (cy < min_y) {
+                        min_y = cy;
+                    }
+                    if (cy > max_y) {
+                        max_y = cy;
+                    }
+
+                    const int nx[] = {cx + 1, cx - 1, cx, cx};
+                    const int ny[] = {cy, cy, cy + 1, cy - 1};
+                    for (int n = 0; n < 4; n++) {
+                        if (nx[n] < 0 || nx[n] >= VIBE_LANDSCAPE_MAZE_BITMAP_W ||
+                            ny[n] < 0 || ny[n] >= VIBE_LANDSCAPE_MAZE_BITMAP_H) {
+                            continue;
+                        }
+                        if (visited[ny[n]][nx[n]] || pixels[ny[n]][nx[n]] != color) {
+                            continue;
+                        }
+                        visited[ny[n]][nx[n]] = 1;
+                        queue_x[tail] = nx[n];
+                        queue_y[tail] = ny[n];
+                        tail++;
+                    }
+                }
+
+                int width = max_x - min_x + 1;
+                int height = max_y - min_y + 1;
+                if (height > tallest_actor) {
+                    tallest_actor = height;
+                    tallest_actor_width = width;
+                }
+            }
+        }
+
+        assert(tallest_actor >= 14);
+        assert(tallest_actor >= tallest_actor_width);
+    }
+}
+
+static void test_display_model_classifies_orientation_with_hysteresis(void)
+{
+    assert(vibe_display_orientation_from_accel_mg(900, 60, VIBE_DISPLAY_ORIENTATION_PORTRAIT) ==
+           VIBE_DISPLAY_ORIENTATION_LANDSCAPE);
+    assert(vibe_display_orientation_from_accel_mg(-900, 60, VIBE_DISPLAY_ORIENTATION_PORTRAIT) ==
+           VIBE_DISPLAY_ORIENTATION_LANDSCAPE);
+    assert(vibe_display_orientation_from_accel_mg(60, 900, VIBE_DISPLAY_ORIENTATION_LANDSCAPE) ==
+           VIBE_DISPLAY_ORIENTATION_PORTRAIT);
+    assert(vibe_display_orientation_from_accel_mg(520, 480, VIBE_DISPLAY_ORIENTATION_LANDSCAPE) ==
+           VIBE_DISPLAY_ORIENTATION_LANDSCAPE);
+    assert(vibe_display_orientation_from_accel_mg(520, 480, VIBE_DISPLAY_ORIENTATION_PORTRAIT) ==
+           VIBE_DISPLAY_ORIENTATION_PORTRAIT);
 }
 
 static bool frame_matches_reference_pellet(const vibe_display_animation_frame_t *frame)
@@ -1341,7 +1480,7 @@ int main(void)
     test_display_model_formats_live_maze_score();
     test_display_model_tracks_maze_high_score();
     test_display_model_formats_live_maze_level();
-    test_display_model_preserves_animation_tick_while_busy();
+    test_display_model_animates_from_status_updates_without_phase_refresh();
     test_display_model_top_overlays_do_not_erase_maze_lines();
     test_display_model_score_value_keeps_gap_above_maze_top_line();
     test_display_model_places_usage_line_slightly_lower();
@@ -1351,6 +1490,10 @@ int main(void)
     test_display_model_marks_reference_style_power_pellets();
     test_display_model_spaces_pellets_evenly_by_lane();
     test_display_model_scales_maze_to_screen_edges();
+    test_display_model_defines_landscape_layout_regions();
+    test_display_model_has_landscape_screenshot_maze_bitmap();
+    test_display_model_has_upright_landscape_actor_sprites();
+    test_display_model_classifies_orientation_with_hysteresis();
     test_display_model_animates_only_on_reference_pellets();
     test_display_model_smooths_between_pellet_nodes();
     test_display_model_resets_pellets_after_full_path_cycle();

@@ -1,6 +1,7 @@
 #include "vibe_display.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "driver/gpio.h"
@@ -24,6 +25,8 @@
 #include "vibe_display_score.h"
 #include "vibe_display_text.h"
 #include "vibe_display_model.h"
+#include "vibe_landscape_maze_data.h"
+#include "vibe_orientation.h"
 #include "vibe_reference_maze.h"
 
 static const char *TAG = "vibe_display";
@@ -90,14 +93,17 @@ static const char *TAG = "vibe_display";
 
 static esp_lcd_panel_handle_t panel_handle;
 static uint16_t *framebuffer;
+static uint16_t *landscape_framebuffer;
 static SemaphoreHandle_t display_mutex;
 static bool display_ready;
 static vibe_display_signature_t last_render_signature;
 static vibe_status_packet_t last_render_packet;
 static esp_timer_handle_t animation_timer;
+static TaskHandle_t animation_task;
 static int animation_tick;
 static bool animation_running;
 static bool backlight_on;
+static vibe_display_orientation_t last_render_orientation = VIBE_DISPLAY_ORIENTATION_PORTRAIT;
 
 static const st7701_lcd_init_cmd_t lcd_init_cmds[] = {
     {0xFF, (uint8_t[]){0x77, 0x01, 0x00, 0x00, 0x13}, 5, 0},
@@ -151,10 +157,21 @@ static const st7701_lcd_init_cmd_t lcd_init_cmds[] = {
 static esp_err_t init_backlight(void);
 static esp_err_t init_lcd_panel(void);
 static void render_status(const vibe_status_packet_t *packet, int animation_phase);
+static void render_portrait_status(const vibe_status_packet_t *packet, int animation_phase);
+static void render_landscape_status(const vibe_status_packet_t *packet, int animation_phase);
 static void render_task_rows(const vibe_status_packet_t *packet, int animation_phase);
 static void render_codex_animation(const vibe_status_packet_t *packet, int animation_phase);
 static void render_maze(const vibe_status_packet_t *packet, int animation_phase);
 static void render_reference_maze_art(void);
+static void render_landscape_maze(const vibe_status_packet_t *packet, int animation_phase);
+static void draw_landscape_maze_bitmap(const vibe_display_landscape_layout_t *layout);
+static void render_landscape_activity_animation(const vibe_display_landscape_layout_t *layout, int animation_phase);
+static int landscape_maze_source_x(const vibe_display_landscape_layout_t *layout, int source_x);
+static int landscape_maze_source_y(const vibe_display_landscape_layout_t *layout, int source_y);
+static void bind_portrait_framebuffer(void);
+static void bind_landscape_framebuffer(void);
+static void rotate_landscape_to_portrait_framebuffer(void);
+static void animation_refresh_task(void *arg);
 static void render_animation_dots(const vibe_display_animation_frame_t *frames, int actor_count);
 static void render_codex_actor(const vibe_display_animation_frame_t *frame);
 static void render_center_ghost(int animation_phase);
@@ -177,8 +194,12 @@ void vibe_display_init(void)
         ESP_LOGE(TAG, "failed to allocate LCD framebuffer");
         return;
     }
-    vibe_display_draw_bind(framebuffer, LCD_H_RES, LCD_V_RES);
-    vibe_display_text_bind(LCD_H_RES);
+    landscape_framebuffer = heap_caps_malloc(VIBE_DISPLAY_LANDSCAPE_W * VIBE_DISPLAY_LANDSCAPE_H * sizeof(uint16_t),
+                                             MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (landscape_framebuffer == NULL) {
+        ESP_LOGW(TAG, "failed to allocate landscape framebuffer; portrait display remains available");
+    }
+    bind_portrait_framebuffer();
 
     ESP_ERROR_CHECK_WITHOUT_ABORT(init_lcd_panel());
     esp_err_t backlight_result = init_backlight();
@@ -195,6 +216,15 @@ void vibe_display_init(void)
         .name = "vibe_anim",
     };
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_timer_create(&timer_args, &animation_timer));
+    if (xTaskCreate(animation_refresh_task,
+                    "vibe_anim_render",
+                    4096,
+                    NULL,
+                    4,
+                    &animation_task) != pdPASS) {
+        ESP_LOGW(TAG, "failed to create animation refresh task; animated refresh disabled");
+        animation_task = NULL;
+    }
 
     display_ready = panel_handle != NULL;
     ESP_LOGI(TAG, "%s", display_ready ? "LCD initialized" : "LCD initialization failed");
@@ -217,14 +247,25 @@ void vibe_display_show_status(const vibe_status_packet_t *packet)
              (long long)packet->timestamp_ms);
 
     if (display_ready && xSemaphoreTake(display_mutex, pdMS_TO_TICKS(500)) == pdTRUE) {
+        vibe_display_orientation_t orientation = vibe_orientation_current();
+        vibe_display_state_t previous_state = last_render_packet.state;
         bool preserve_animation_tick = vibe_display_should_preserve_animation_tick(last_render_packet.state,
                                                                                   packet->state,
                                                                                   animation_running);
         last_render_packet = *packet;
-        if (vibe_display_should_render(&last_render_signature, packet)) {
+        if (vibe_display_should_flush_score_on_state_change(previous_state, packet->state)) {
+            vibe_display_score_flush();
+        }
+        bool packet_changed = vibe_display_should_render(&last_render_signature, packet);
+        bool orientation_changed = last_render_orientation != orientation;
+        if (packet_changed || orientation_changed) {
             if (!preserve_animation_tick) {
                 animation_tick = 0;
             }
+            if (packet_changed && vibe_display_status_refresh_advances_animation(packet->state)) {
+                animation_tick += VIBE_DISPLAY_ANIMATION_SUBSTEPS;
+            }
+            last_render_orientation = orientation;
             render_status(packet, animation_tick);
         }
         xSemaphoreGive(display_mutex);
@@ -342,6 +383,16 @@ static esp_err_t init_lcd_panel(void)
 
 static void render_status(const vibe_status_packet_t *packet, int animation_phase)
 {
+    if (last_render_orientation == VIBE_DISPLAY_ORIENTATION_LANDSCAPE && landscape_framebuffer != NULL) {
+        render_landscape_status(packet, animation_phase);
+        return;
+    }
+
+    render_portrait_status(packet, animation_phase);
+}
+
+static void render_portrait_status(const vibe_status_packet_t *packet, int animation_phase)
+{
     vibe_display_empty_state_t empty;
     bool has_empty_state = packet->task_count == 0;
     if (has_empty_state) {
@@ -354,6 +405,7 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
         vibe_display_maze_warm_pellet_cache(actor_count);
     }
 
+    bind_portrait_framebuffer();
     vibe_display_draw_fill_screen(RGB565_BLACK);
     vibe_display_draw_fill_rect(0, 0, LCD_H_RES, 82, header_color);
     vibe_display_draw_fill_rect(VIBE_DISPLAY_MAZE_STAGE_X,
@@ -469,6 +521,85 @@ static void render_task_rows(const vibe_status_packet_t *packet, int animation_p
         } else {
             y += VIBE_DISPLAY_TASK_ROW_STRIDE;
         }
+    }
+}
+
+static void render_landscape_status(const vibe_status_packet_t *packet, int animation_phase)
+{
+    bind_landscape_framebuffer();
+    vibe_display_draw_fill_screen(RGB565_BLACK);
+
+    vibe_display_landscape_layout_t layout;
+    vibe_display_landscape_layout(&layout);
+
+    vibe_display_usage_summary_t usage;
+    vibe_display_format_usage_summary(packet, &usage);
+    char reset_line[24];
+    vibe_display_format_usage_reset_line(&usage, reset_line, sizeof(reset_line));
+
+    char top_line[128];
+    const char *five_hour = usage.five_hour[0] == '\0' ? "5H --" : usage.five_hour;
+    const char *weekly = usage.weekly[0] == '\0' ? "7D --" : usage.weekly;
+    const char *reset = reset_line[0] == '\0' ? "RESET --" : reset_line;
+    snprintf(top_line, sizeof(top_line), "VIBE LIGHT   CODEX %s   %s   %s", five_hour, weekly, reset);
+    vibe_display_text_draw(18, layout.top_bar_y + 8, top_line, 2, RGB565_WHITE);
+
+    render_landscape_maze(packet, animation_phase);
+
+    char score_text[VIBE_DISPLAY_MAZE_SCORE_TEXT_MAX];
+    char high_score_text[VIBE_DISPLAY_MAZE_SCORE_TEXT_MAX];
+    char level_text[VIBE_DISPLAY_MAZE_LEVEL_TEXT_MAX];
+    int actor_count = vibe_display_animation_actor_count(packet->task_count, packet->active_count);
+    int score = vibe_display_animation_enabled(packet->state)
+                    ? vibe_display_maze_score(animation_phase,
+                                              actor_count,
+                                              packet->active_count,
+                                              VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS)
+                    : 0;
+    int level = vibe_display_animation_enabled(packet->state)
+                    ? vibe_display_maze_level(animation_phase,
+                                              actor_count,
+                                              VIBE_DISPLAY_MAZE_PELLET_RESET_TICKS)
+                    : 1;
+    if (vibe_display_animation_enabled(packet->state)) {
+        vibe_display_score_update(score);
+    }
+    vibe_display_format_maze_score_text(score, score_text, sizeof(score_text));
+    vibe_display_format_maze_score_text(vibe_display_score_value(), high_score_text, sizeof(high_score_text));
+    vibe_display_format_maze_level_text(level, level_text, sizeof(level_text));
+
+    char footer[48];
+    char firmware_version[32];
+    const esp_app_desc_t *app_desc = esp_app_get_description();
+    vibe_display_footer_text(packet, footer, sizeof(footer));
+    vibe_display_firmware_version_text(app_desc == NULL ? NULL : app_desc->version,
+                                       firmware_version,
+                                       sizeof(firmware_version));
+
+    char bottom_line[192];
+    snprintf(bottom_line,
+             sizeof(bottom_line),
+             "SCORE %s   HIGH SCORE %s   LEVEL %s   %s   %s",
+             score_text,
+             high_score_text,
+             level_text,
+             footer[0] == '\0' ? "CODEX LIVE" : footer,
+             firmware_version[0] == '\0' ? "FW ---" : firmware_version);
+    vibe_display_text_draw(18, layout.bottom_bar_y + 9, bottom_line, 2, RGB565_WHITE);
+
+    rotate_landscape_to_portrait_framebuffer();
+    esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, LCD_H_RES, LCD_V_RES, framebuffer);
+}
+
+static void render_landscape_maze(const vibe_status_packet_t *packet, int animation_phase)
+{
+    vibe_display_landscape_layout_t layout;
+    vibe_display_landscape_layout(&layout);
+
+    vibe_display_draw_fill_rect(layout.maze_x, layout.maze_y, layout.maze_w, layout.maze_h, RGB565_BLACK);
+    draw_landscape_maze_bitmap(&layout);
+    if (packet != NULL && vibe_display_animation_enabled(packet->state)) {
+        render_landscape_activity_animation(&layout, animation_phase);
     }
 }
 
@@ -676,6 +807,146 @@ static void render_center_ghost(int animation_phase)
     vibe_display_draw_fill_circle(ghost.x + 8, ghost.y - 7, 2, RGB565_BLUE);
 }
 
+static void draw_landscape_maze_bitmap(const vibe_display_landscape_layout_t *layout)
+{
+    if (layout == NULL) {
+        return;
+    }
+
+    for (int i = 0; i < VIBE_LANDSCAPE_MAZE_RUN_COUNT; i++) {
+        const vibe_landscape_maze_run_t *run = &VIBE_LANDSCAPE_MAZE_RUNS[i];
+        int x0 = layout->maze_x + ((int)run->x * layout->maze_w) / VIBE_LANDSCAPE_MAZE_BITMAP_W;
+        int x1 = layout->maze_x + (((int)run->x + (int)run->length) * layout->maze_w) / VIBE_LANDSCAPE_MAZE_BITMAP_W;
+        int y0 = layout->maze_y + ((int)run->y * layout->maze_h) / VIBE_LANDSCAPE_MAZE_BITMAP_H;
+        int y1 = layout->maze_y + (((int)run->y + 1) * layout->maze_h) / VIBE_LANDSCAPE_MAZE_BITMAP_H;
+        int w = x1 - x0;
+        int h = y1 - y0;
+        uint16_t color = RGB565_WHITE;
+        if (run->color_index < VIBE_LANDSCAPE_MAZE_PALETTE_COUNT) {
+            color = VIBE_LANDSCAPE_MAZE_PALETTE[run->color_index];
+        }
+        vibe_display_draw_fill_rect(x0, y0, w > 0 ? w : 1, h > 0 ? h : 1, color);
+    }
+}
+
+static void render_landscape_activity_animation(const vibe_display_landscape_layout_t *layout, int animation_phase)
+{
+    if (layout == NULL) {
+        return;
+    }
+
+    static const struct {
+        int x;
+        int y;
+    } path[] = {
+        {32, 31},
+        {74, 31},
+        {118, 31},
+        {160, 31},
+        {202, 45},
+        {246, 65},
+        {292, 65},
+        {338, 65},
+        {384, 65},
+        {430, 65},
+        {476, 65},
+        {520, 65},
+    };
+    const int path_count = (int)(sizeof(path) / sizeof(path[0]));
+    int index = (animation_phase / VIBE_DISPLAY_ANIMATION_SUBSTEPS) % path_count;
+    if (index < 0) {
+        index += path_count;
+    }
+    int previous = index - 1;
+    if (previous < 0) {
+        previous = path_count - 1;
+    }
+
+    for (int i = 0; i < 4; i++) {
+        int trail = index - i;
+        if (trail < 0) {
+            trail += path_count;
+        }
+        int dot_x = landscape_maze_source_x(layout, path[trail].x);
+        int dot_y = landscape_maze_source_y(layout, path[trail].y);
+        vibe_display_draw_fill_rect(dot_x - 3, dot_y - 3, 7, 7, RGB565_BLACK);
+    }
+
+    int actor_x = landscape_maze_source_x(layout, path[index].x);
+    int actor_y = landscape_maze_source_y(layout, path[index].y);
+    int previous_x = landscape_maze_source_x(layout, path[previous].x);
+    int previous_y = landscape_maze_source_y(layout, path[previous].y);
+    int dx = actor_x - previous_x;
+    int dy = actor_y - previous_y;
+    bool mouth_open = (animation_phase % (VIBE_DISPLAY_ANIMATION_SUBSTEPS * 2)) == 0;
+
+    vibe_display_draw_fill_rect(actor_x - 15, actor_y - 15, 31, 31, RGB565_BLACK);
+    vibe_display_draw_fill_circle(actor_x, actor_y, 11, RGB565_DOT);
+    if (mouth_open) {
+        if (abs(dx) >= abs(dy)) {
+            if (dx >= 0) {
+                vibe_display_draw_fill_triangle(actor_x + 12, actor_y,
+                                                actor_x + 2, actor_y - 6,
+                                                actor_x + 2, actor_y + 6,
+                                                RGB565_BLACK);
+            } else {
+                vibe_display_draw_fill_triangle(actor_x - 12, actor_y,
+                                                actor_x - 2, actor_y - 6,
+                                                actor_x - 2, actor_y + 6,
+                                                RGB565_BLACK);
+            }
+        } else if (dy >= 0) {
+            vibe_display_draw_fill_triangle(actor_x, actor_y + 12,
+                                            actor_x - 6, actor_y + 2,
+                                            actor_x + 6, actor_y + 2,
+                                            RGB565_BLACK);
+        } else {
+            vibe_display_draw_fill_triangle(actor_x, actor_y - 12,
+                                            actor_x - 6, actor_y - 2,
+                                            actor_x + 6, actor_y - 2,
+                                            RGB565_BLACK);
+        }
+    }
+}
+
+static int landscape_maze_source_x(const vibe_display_landscape_layout_t *layout, int source_x)
+{
+    return layout->maze_x + (source_x * layout->maze_w) / VIBE_LANDSCAPE_MAZE_BITMAP_W;
+}
+
+static int landscape_maze_source_y(const vibe_display_landscape_layout_t *layout, int source_y)
+{
+    return layout->maze_y + (source_y * layout->maze_h) / VIBE_LANDSCAPE_MAZE_BITMAP_H;
+}
+
+static void bind_portrait_framebuffer(void)
+{
+    vibe_display_draw_bind(framebuffer, LCD_H_RES, LCD_V_RES);
+    vibe_display_text_bind(LCD_H_RES);
+}
+
+static void bind_landscape_framebuffer(void)
+{
+    vibe_display_draw_bind(landscape_framebuffer, VIBE_DISPLAY_LANDSCAPE_W, VIBE_DISPLAY_LANDSCAPE_H);
+    vibe_display_text_bind(VIBE_DISPLAY_LANDSCAPE_W);
+}
+
+static void rotate_landscape_to_portrait_framebuffer(void)
+{
+    if (framebuffer == NULL || landscape_framebuffer == NULL) {
+        return;
+    }
+
+    for (int ly = 0; ly < VIBE_DISPLAY_LANDSCAPE_H; ly++) {
+        for (int lx = 0; lx < VIBE_DISPLAY_LANDSCAPE_W; lx++) {
+            int px = ly;
+            int py = LCD_V_RES - 1 - lx;
+            framebuffer[py * LCD_H_RES + px] = landscape_framebuffer[ly * VIBE_DISPLAY_LANDSCAPE_W + lx];
+        }
+    }
+    bind_portrait_framebuffer();
+}
+
 static uint16_t color_for_state(vibe_display_state_t state)
 {
     switch (state) {
@@ -731,25 +1002,43 @@ static void animation_timer_callback(void *arg)
 {
     (void)arg;
 
-    if (!display_ready || !animation_running || animation_timer == NULL) {
+    if (!display_ready || !animation_running || animation_timer == NULL || animation_task == NULL) {
         return;
     }
 
-    if (xSemaphoreTake(display_mutex, 0) != pdTRUE) {
-        return;
-    }
+    xTaskNotifyGive(animation_task);
+}
 
-    if (vibe_display_phase_refresh_enabled(last_render_packet.state)) {
-        animation_tick++;
-        render_status(&last_render_packet, animation_tick);
-    }
+static void animation_refresh_task(void *arg)
+{
+    (void)arg;
 
-    xSemaphoreGive(display_mutex);
+    while (true) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+        if (!display_ready || !animation_running) {
+            continue;
+        }
+
+        if (xSemaphoreTake(display_mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+            continue;
+        }
+
+        if (vibe_display_phase_refresh_enabled(last_render_packet.state)) {
+            last_render_orientation = vibe_orientation_current();
+            animation_tick++;
+            render_status(&last_render_packet, animation_tick);
+        }
+
+        xSemaphoreGive(display_mutex);
+        taskYIELD();
+    }
 }
 
 static void update_animation_timer(vibe_display_state_t state)
 {
-    bool should_run = display_ready && animation_timer != NULL && vibe_display_phase_refresh_enabled(state);
+    bool should_run = display_ready && animation_timer != NULL && animation_task != NULL &&
+                      vibe_display_phase_refresh_enabled(state);
     if (should_run && !animation_running) {
         animation_tick = 0;
         if (esp_timer_start_periodic(animation_timer, ANIMATION_PERIOD_MS * 1000) == ESP_OK) {

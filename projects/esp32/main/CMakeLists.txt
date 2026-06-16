@@ -16,6 +16,8 @@ idf_component_register(
         "vibe_display_score.c"
         "vibe_display_text.c"
         "vibe_health.c"
+        "vibe_landscape_maze_data.c"
+        "vibe_orientation.c"
         "vibe_status.c"
     INCLUDE_DIRS
         "."
