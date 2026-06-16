@@ -7,6 +7,26 @@ CJSON_DIR="$IDF_PATH/components/json/cJSON"
 BUILD_DIR="$ROOT_DIR/build/host-tests"
 BINARY="$BUILD_DIR/vibe_status_parser_test"
 
+for render_mode_file in \
+  "$ROOT_DIR/main/vibe_display_portrait.c" \
+  "$ROOT_DIR/main/vibe_display_portrait.h" \
+  "$ROOT_DIR/main/vibe_display_landscape.c" \
+  "$ROOT_DIR/main/vibe_display_landscape.h"; do
+  if [[ ! -f "$render_mode_file" ]]; then
+    echo "render mode file missing: $render_mode_file" >&2
+    exit 1
+  fi
+done
+
+python3 - "$ROOT_DIR/main/CMakeLists.txt" <<'PY'
+import sys
+from pathlib import Path
+
+cmake = Path(sys.argv[1]).read_text()
+for source in ("vibe_display_portrait.c", "vibe_display_landscape.c"):
+    assert f'"{source}"' in cmake, source
+PY
+
 find_cjk_font_python() {
   local candidates=(
     "${VIBE_CJK_FONT_PYTHON:-}"

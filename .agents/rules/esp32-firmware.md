@@ -11,7 +11,9 @@ The firmware lives in `projects/esp32` and targets Waveshare `ESP32-S3-LCD-3.16`
 - `main/vibe_display_model.*`: render signatures, reference maze coordinates, eaten-pellet visibility reset, actor count and animation geometry that can be tested on host.
 - `main/vibe_display_format.c`: task row formatting, task timing / freshness trailing labels, Codex usage line and reset hint, compact counts, footer text and firmware-version text.
 - `main/vibe_display_score.*`: NVS-backed high score persistence.
-- `main/vibe_display.*`: LCD initialization, framebuffer drawing, backlight PWM and non-blocking animation timer.
+- `main/vibe_display.*`: LCD initialization, framebuffer ownership, backlight PWM, orientation dispatch, final panel flush and non-blocking animation timer.
+- `main/vibe_display_portrait.*`: portrait layout, task rows, score/header/footer rendering and portrait Pac-Man animation.
+- `main/vibe_display_landscape.*`: landscape RLE maze rendering and landscape-to-physical framebuffer rotation.
 - `tests/vibe_status_parser_test.c`: host-side parser and display-model regression tests.
 
 ## Rules
