@@ -219,6 +219,7 @@ void vibe_display_firmware_version_text(const char *app_version, char *text, siz
 bool vibe_display_animation_enabled(vibe_display_state_t state);
 bool vibe_display_phase_refresh_enabled(vibe_display_state_t state);
 bool vibe_display_mode_phase_refresh_enabled(vibe_display_state_t state, vibe_display_orientation_t orientation);
+bool vibe_display_mode_phase_refresh_uses_full_frame(vibe_display_state_t state, vibe_display_orientation_t orientation);
 bool vibe_display_status_refresh_advances_animation(vibe_display_state_t state);
 bool vibe_display_should_preserve_animation_tick(vibe_display_state_t previous_state,
                                                  vibe_display_state_t next_state,

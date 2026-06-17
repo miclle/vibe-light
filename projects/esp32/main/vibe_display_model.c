@@ -264,6 +264,11 @@ bool vibe_display_mode_phase_refresh_enabled(vibe_display_state_t state, vibe_di
            vibe_display_animation_enabled(state);
 }
 
+bool vibe_display_mode_phase_refresh_uses_full_frame(vibe_display_state_t state, vibe_display_orientation_t orientation)
+{
+    return vibe_display_mode_phase_refresh_enabled(state, orientation);
+}
+
 bool vibe_display_status_refresh_advances_animation(vibe_display_state_t state)
 {
     return vibe_display_animation_enabled(state);

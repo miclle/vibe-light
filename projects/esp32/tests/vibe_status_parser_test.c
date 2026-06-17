@@ -621,6 +621,13 @@ static void test_display_model_enables_local_refresh_only_for_portrait_busy(void
     assert(!vibe_display_should_flush_score_on_state_change(VIBE_DISPLAY_WAITING, VIBE_DISPLAY_IDLE));
 }
 
+static void test_display_model_uses_full_frame_for_portrait_phase_refresh(void)
+{
+    assert(vibe_display_mode_phase_refresh_uses_full_frame(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_ORIENTATION_PORTRAIT));
+    assert(!vibe_display_mode_phase_refresh_uses_full_frame(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_ORIENTATION_LANDSCAPE));
+    assert(!vibe_display_mode_phase_refresh_uses_full_frame(VIBE_DISPLAY_WAITING, VIBE_DISPLAY_ORIENTATION_PORTRAIT));
+}
+
 static void test_display_model_top_overlays_do_not_erase_maze_lines(void)
 {
     const int score_y = VIBE_DISPLAY_MAZE_SCORE_CLEAR_Y;
@@ -1484,6 +1491,7 @@ int main(void)
     test_display_model_tracks_maze_high_score();
     test_display_model_formats_live_maze_level();
     test_display_model_enables_local_refresh_only_for_portrait_busy();
+    test_display_model_uses_full_frame_for_portrait_phase_refresh();
     test_display_model_top_overlays_do_not_erase_maze_lines();
     test_display_model_score_value_keeps_gap_above_maze_top_line();
     test_display_model_places_usage_line_slightly_lower();

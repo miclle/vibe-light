@@ -71,6 +71,7 @@ static const char *TAG = "vibe_display";
 
 static esp_lcd_panel_handle_t panel_handle;
 static uint16_t *framebuffer;
+static uint16_t *display_framebuffers[2];
 static uint16_t *landscape_framebuffer;
 static SemaphoreHandle_t display_mutex;
 static bool display_ready;
@@ -82,6 +83,7 @@ static int animation_tick;
 static bool animation_running;
 static bool backlight_on;
 static vibe_display_orientation_t last_render_orientation = VIBE_DISPLAY_ORIENTATION_PORTRAIT;
+static int display_framebuffer_index = -1;
 
 static const st7701_lcd_init_cmd_t lcd_init_cmds[] = {
     {0xFF, (uint8_t[]){0x77, 0x01, 0x00, 0x00, 0x13}, 5, 0},
@@ -134,8 +136,9 @@ static const st7701_lcd_init_cmd_t lcd_init_cmds[] = {
 
 static esp_err_t init_backlight(void);
 static esp_err_t init_lcd_panel(void);
+static bool init_panel_framebuffers(void);
+static uint16_t *next_render_framebuffer(void);
 static void render_status(const vibe_status_packet_t *packet, int animation_phase);
-static void render_portrait_animation_phase(const vibe_status_packet_t *packet, int animation_phase);
 static void bind_portrait_framebuffer(void);
 static void animation_refresh_task(void *arg);
 static void animation_timer_callback(void *arg);
@@ -149,19 +152,16 @@ void vibe_display_init(void)
         return;
     }
 
-    framebuffer = heap_caps_malloc(LCD_H_RES * LCD_V_RES * sizeof(uint16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (framebuffer == NULL) {
-        ESP_LOGE(TAG, "failed to allocate LCD framebuffer");
-        return;
-    }
     landscape_framebuffer = heap_caps_malloc(VIBE_DISPLAY_LANDSCAPE_W * VIBE_DISPLAY_LANDSCAPE_H * sizeof(uint16_t),
                                              MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (landscape_framebuffer == NULL) {
         ESP_LOGW(TAG, "failed to allocate landscape framebuffer; portrait display remains available");
     }
-    bind_portrait_framebuffer();
 
     ESP_ERROR_CHECK_WITHOUT_ABORT(init_lcd_panel());
+    if (panel_handle != NULL && init_panel_framebuffers()) {
+        bind_portrait_framebuffer();
+    }
     esp_err_t backlight_result = init_backlight();
     if (backlight_result == ESP_OK) {
         backlight_on = true;
@@ -186,7 +186,7 @@ void vibe_display_init(void)
         animation_task = NULL;
     }
 
-    display_ready = panel_handle != NULL;
+    display_ready = panel_handle != NULL && framebuffer != NULL;
     ESP_LOGI(TAG, "%s", display_ready ? "LCD initialized" : "LCD initialization failed");
 }
 
@@ -343,8 +343,40 @@ static esp_err_t init_lcd_panel(void)
     return ESP_OK;
 }
 
+static bool init_panel_framebuffers(void)
+{
+    void *fb0 = NULL;
+    void *fb1 = NULL;
+    esp_err_t result = esp_lcd_rgb_panel_get_frame_buffer(panel_handle, 2, &fb0, &fb1);
+    if (result != ESP_OK || fb0 == NULL || fb1 == NULL) {
+        ESP_LOGE(TAG, "failed to get RGB panel framebuffers: %s", esp_err_to_name(result));
+        return false;
+    }
+
+    display_framebuffers[0] = (uint16_t *)fb0;
+    display_framebuffers[1] = (uint16_t *)fb1;
+    framebuffer = next_render_framebuffer();
+    return framebuffer != NULL;
+}
+
+static uint16_t *next_render_framebuffer(void)
+{
+    if (display_framebuffers[0] == NULL || display_framebuffers[1] == NULL) {
+        return framebuffer;
+    }
+
+    display_framebuffer_index = (display_framebuffer_index + 1) % 2;
+    framebuffer = display_framebuffers[display_framebuffer_index];
+    return framebuffer;
+}
+
 static void render_status(const vibe_status_packet_t *packet, int animation_phase)
 {
+    uint16_t *target = next_render_framebuffer();
+    if (target == NULL) {
+        return;
+    }
+
     char firmware_version[32];
     const esp_app_desc_t *app_desc = esp_app_get_description();
     vibe_display_firmware_version_text(app_desc == NULL ? NULL : app_desc->version,
@@ -354,41 +386,27 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
     if (last_render_orientation == VIBE_DISPLAY_ORIENTATION_LANDSCAPE && landscape_framebuffer != NULL) {
         vibe_display_landscape_render(packet,
                                       animation_phase,
-                                      framebuffer,
+                                      target,
                                       LCD_H_RES,
                                       LCD_V_RES,
                                       landscape_framebuffer);
     } else {
         vibe_display_portrait_render(packet,
                                      animation_phase,
-                                     framebuffer,
+                                     target,
                                      LCD_H_RES,
                                      LCD_V_RES,
                                      firmware_version);
     }
 
-    esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, LCD_H_RES, LCD_V_RES, framebuffer);
-}
-
-static void render_portrait_animation_phase(const vibe_status_packet_t *packet, int animation_phase)
-{
-    vibe_display_portrait_render_animation_phase(packet,
-                                                 animation_phase,
-                                                 framebuffer,
-                                                 LCD_H_RES,
-                                                 LCD_V_RES);
-    const int y0 = VIBE_DISPLAY_MAZE_STAGE_Y;
-    const int y1 = VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_FRAME_H;
-    esp_lcd_panel_draw_bitmap(panel_handle,
-                              0,
-                              y0,
-                              LCD_H_RES,
-                              y1,
-                              framebuffer + y0 * LCD_H_RES);
+    esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, LCD_H_RES, LCD_V_RES, target);
 }
 
 static void bind_portrait_framebuffer(void)
 {
+    if (framebuffer == NULL) {
+        return;
+    }
     vibe_display_draw_bind(framebuffer, LCD_H_RES, LCD_V_RES);
     vibe_display_text_bind(LCD_H_RES);
 }
@@ -424,7 +442,7 @@ static void animation_refresh_task(void *arg)
         last_render_orientation = orientation;
         if (vibe_display_mode_phase_refresh_enabled(last_render_packet.state, last_render_orientation)) {
             animation_tick++;
-            render_portrait_animation_phase(&last_render_packet, animation_tick);
+            render_status(&last_render_packet, animation_tick);
         } else if (orientation_changed) {
             render_status(&last_render_packet, animation_tick);
         }
