@@ -135,6 +135,7 @@ static const st7701_lcd_init_cmd_t lcd_init_cmds[] = {
 static esp_err_t init_backlight(void);
 static esp_err_t init_lcd_panel(void);
 static void render_status(const vibe_status_packet_t *packet, int animation_phase);
+static void render_portrait_animation_phase(const vibe_status_packet_t *packet, int animation_phase);
 static void bind_portrait_framebuffer(void);
 static void animation_refresh_task(void *arg);
 static void animation_timer_callback(void *arg);
@@ -369,6 +370,23 @@ static void render_status(const vibe_status_packet_t *packet, int animation_phas
     esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, LCD_H_RES, LCD_V_RES, framebuffer);
 }
 
+static void render_portrait_animation_phase(const vibe_status_packet_t *packet, int animation_phase)
+{
+    vibe_display_portrait_render_animation_phase(packet,
+                                                 animation_phase,
+                                                 framebuffer,
+                                                 LCD_H_RES,
+                                                 LCD_V_RES);
+    const int y0 = VIBE_DISPLAY_MAZE_STAGE_Y;
+    const int y1 = VIBE_DISPLAY_MAZE_STAGE_Y + VIBE_DISPLAY_MAZE_FRAME_H;
+    esp_lcd_panel_draw_bitmap(panel_handle,
+                              0,
+                              y0,
+                              LCD_H_RES,
+                              y1,
+                              framebuffer + y0 * LCD_H_RES);
+}
+
 static void bind_portrait_framebuffer(void)
 {
     vibe_display_draw_bind(framebuffer, LCD_H_RES, LCD_V_RES);
@@ -406,7 +424,7 @@ static void animation_refresh_task(void *arg)
         last_render_orientation = orientation;
         if (vibe_display_mode_phase_refresh_enabled(last_render_packet.state, last_render_orientation)) {
             animation_tick++;
-            render_status(&last_render_packet, animation_tick);
+            render_portrait_animation_phase(&last_render_packet, animation_tick);
         } else if (orientation_changed) {
             render_status(&last_render_packet, animation_tick);
         }

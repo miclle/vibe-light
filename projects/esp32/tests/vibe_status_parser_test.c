@@ -600,9 +600,9 @@ static void test_display_model_formats_live_maze_level(void)
     assert(strcmp(text, "99") == 0);
 }
 
-static void test_display_model_avoids_local_phase_refresh_for_screen_modes(void)
+static void test_display_model_enables_local_refresh_only_for_portrait_busy(void)
 {
-    assert(!vibe_display_mode_phase_refresh_enabled(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_ORIENTATION_PORTRAIT));
+    assert(vibe_display_mode_phase_refresh_enabled(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_ORIENTATION_PORTRAIT));
     assert(!vibe_display_mode_phase_refresh_enabled(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_ORIENTATION_LANDSCAPE));
     assert(!vibe_display_mode_phase_refresh_enabled(VIBE_DISPLAY_WAITING, VIBE_DISPLAY_ORIENTATION_PORTRAIT));
     assert(!vibe_display_mode_phase_refresh_enabled(VIBE_DISPLAY_IDLE, VIBE_DISPLAY_ORIENTATION_PORTRAIT));
@@ -675,7 +675,7 @@ static void test_display_model_animates_busy_center_stage(void)
     assert(vibe_display_animation_enabled(VIBE_DISPLAY_BUSY));
     assert(!vibe_display_animation_enabled(VIBE_DISPLAY_WAITING));
     assert(!vibe_display_animation_enabled(VIBE_DISPLAY_IDLE));
-    assert(!vibe_display_mode_phase_refresh_enabled(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_ORIENTATION_PORTRAIT));
+    assert(vibe_display_mode_phase_refresh_enabled(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_ORIENTATION_PORTRAIT));
     assert(!vibe_display_mode_phase_refresh_enabled(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_ORIENTATION_LANDSCAPE));
     assert(!vibe_display_phase_refresh_enabled(VIBE_DISPLAY_WAITING));
     assert(!vibe_display_phase_refresh_enabled(VIBE_DISPLAY_IDLE));
@@ -1483,7 +1483,7 @@ int main(void)
     test_display_model_formats_live_maze_score();
     test_display_model_tracks_maze_high_score();
     test_display_model_formats_live_maze_level();
-    test_display_model_avoids_local_phase_refresh_for_screen_modes();
+    test_display_model_enables_local_refresh_only_for_portrait_busy();
     test_display_model_top_overlays_do_not_erase_maze_lines();
     test_display_model_score_value_keeps_gap_above_maze_top_line();
     test_display_model_places_usage_line_slightly_lower();
