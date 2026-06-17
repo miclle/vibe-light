@@ -90,6 +90,18 @@ typedef struct {
 } vibe_display_signature_t;
 
 typedef enum {
+    VIBE_DISPLAY_RENDER_NONE = 0,
+    VIBE_DISPLAY_RENDER_MAZE,
+    VIBE_DISPLAY_RENDER_FULL,
+} vibe_display_render_change_t;
+
+typedef struct {
+    uint32_t layout_value;
+    uint32_t maze_value;
+    bool has_value;
+} vibe_display_render_signature_t;
+
+typedef enum {
     VIBE_DISPLAY_ORIENTATION_PORTRAIT = 0,
     VIBE_DISPLAY_ORIENTATION_LANDSCAPE,
 } vibe_display_orientation_t;
@@ -186,6 +198,9 @@ typedef struct {
 void vibe_display_signature_reset(vibe_display_signature_t *signature);
 uint32_t vibe_display_packet_signature(const vibe_status_packet_t *packet);
 bool vibe_display_should_render(vibe_display_signature_t *signature, const vibe_status_packet_t *packet);
+void vibe_display_render_signature_reset(vibe_display_render_signature_t *signature);
+vibe_display_render_change_t vibe_display_render_change(vibe_display_render_signature_t *signature,
+                                                        const vibe_status_packet_t *packet);
 void vibe_display_landscape_layout(vibe_display_landscape_layout_t *layout);
 vibe_display_orientation_t vibe_display_orientation_from_accel_mg(int x_mg,
                                                                   int y_mg,

@@ -6,7 +6,6 @@
 
 #define SCORE_STORAGE_NAMESPACE "vibe"
 #define SCORE_STORAGE_KEY "maze_hi"
-#define SCORE_PERSIST_STEP 1000
 
 static const char *TAG = "vibe_display_score";
 
@@ -33,7 +32,6 @@ bool vibe_display_score_update(int score)
         return false;
     }
 
-    save_maze_high_score_if_dirty(false);
     return true;
 }
 
@@ -75,10 +73,7 @@ static void save_maze_high_score_if_dirty(bool force)
     nvs_handle_t handle;
     esp_err_t err;
 
-    if (!maze_high_score.dirty) {
-        return;
-    }
-    if (!force && maze_high_score.value < last_persisted_maze_high_score + SCORE_PERSIST_STEP) {
+    if (!maze_high_score.dirty || !force) {
         return;
     }
 

@@ -322,6 +322,41 @@ static void test_display_model_detects_duplicate_packets(void)
     assert(vibe_display_should_render(&signature, &packet));
 }
 
+static void test_display_model_classifies_count_only_refresh(void)
+{
+    const char *json =
+        "{"
+        "\"activeCount\":3,"
+        "\"detail\":\"3 running\","
+        "\"source\":\"codex\","
+        "\"state\":\"busy\","
+        "\"tasks\":["
+        "{\"detail\":\"sync BLE\",\"source\":\"codex\",\"state\":\"busy\",\"title\":\"desktop\",\"updatedAt\":1780300790000}"
+        "],"
+        "\"ts\":1780300800000,"
+        "\"v\":2,"
+        "\"waitingCount\":0"
+        "}";
+
+    vibe_status_packet_t packet;
+    vibe_status_default(&packet);
+    assert(parse(json, &packet));
+
+    vibe_display_render_signature_t signature;
+    vibe_display_render_signature_reset(&signature);
+    assert(vibe_display_render_change(&signature, &packet) == VIBE_DISPLAY_RENDER_FULL);
+    assert(vibe_display_render_change(&signature, &packet) == VIBE_DISPLAY_RENDER_NONE);
+
+    packet.active_count = 4;
+    assert(vibe_display_render_change(&signature, &packet) == VIBE_DISPLAY_RENDER_MAZE);
+
+    packet.timestamp_ms += 60000;
+    assert(vibe_display_render_change(&signature, &packet) == VIBE_DISPLAY_RENDER_NONE);
+
+    packet.tasks[0].updated_at_ms += 60000;
+    assert(vibe_display_render_change(&signature, &packet) == VIBE_DISPLAY_RENDER_FULL);
+}
+
 static void test_display_model_formats_task_rows(void)
 {
     vibe_status_task_t task = {
@@ -609,6 +644,7 @@ static void test_display_model_enables_local_refresh_only_for_portrait_busy(void
     assert(!vibe_display_mode_phase_refresh_enabled(VIBE_DISPLAY_BUSY, VIBE_DISPLAY_ORIENTATION_LANDSCAPE));
     assert(!vibe_display_mode_phase_refresh_enabled(VIBE_DISPLAY_WAITING, VIBE_DISPLAY_ORIENTATION_PORTRAIT));
     assert(!vibe_display_mode_phase_refresh_enabled(VIBE_DISPLAY_IDLE, VIBE_DISPLAY_ORIENTATION_PORTRAIT));
+    assert(VIBE_DISPLAY_ANIMATION_PERIOD_MS == 240);
     assert(!vibe_display_phase_refresh_enabled(VIBE_DISPLAY_WAITING));
     assert(!vibe_display_phase_refresh_enabled(VIBE_DISPLAY_IDLE));
     assert(vibe_display_status_refresh_advances_animation(VIBE_DISPLAY_BUSY));
@@ -1479,6 +1515,7 @@ int main(void)
     test_utf8_decoder_handles_truncated_sequences();
     test_invalid_packets_are_rejected_without_mutation();
     test_display_model_detects_duplicate_packets();
+    test_display_model_classifies_count_only_refresh();
     test_display_model_formats_task_rows();
     test_display_model_formats_empty_state_with_last_result();
     test_display_model_formats_running_task_duration();

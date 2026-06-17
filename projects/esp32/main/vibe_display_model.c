@@ -6,6 +6,8 @@
 
 static uint32_t fnv1a_update(uint32_t hash, const void *data, size_t length);
 static uint32_t fnv1a_update_text(uint32_t hash, const char *text);
+static uint32_t packet_layout_signature(const vibe_status_packet_t *packet);
+static uint32_t packet_maze_signature(const vibe_status_packet_t *packet);
 static void maze_pellet_at_index(int index, vibe_display_animation_frame_t *frame);
 static void maze_frame_at_tick(int tick, int phase_offset, bool mouth_open, vibe_display_animation_frame_t *frame);
 static bool maze_pellet_eaten_on_segment(int pellet_index, int from_path_position, int substep);
@@ -82,6 +84,47 @@ bool vibe_display_should_render(vibe_display_signature_t *signature, const vibe_
     signature->value = next;
     signature->has_value = true;
     return true;
+}
+
+void vibe_display_render_signature_reset(vibe_display_render_signature_t *signature)
+{
+    if (signature == NULL) {
+        return;
+    }
+
+    signature->layout_value = 0;
+    signature->maze_value = 0;
+    signature->has_value = false;
+}
+
+vibe_display_render_change_t vibe_display_render_change(vibe_display_render_signature_t *signature,
+                                                        const vibe_status_packet_t *packet)
+{
+    if (signature == NULL || packet == NULL) {
+        return VIBE_DISPLAY_RENDER_NONE;
+    }
+
+    uint32_t next_layout = packet_layout_signature(packet);
+    uint32_t next_maze = packet_maze_signature(packet);
+    if (!signature->has_value) {
+        signature->layout_value = next_layout;
+        signature->maze_value = next_maze;
+        signature->has_value = true;
+        return VIBE_DISPLAY_RENDER_FULL;
+    }
+
+    if (signature->layout_value != next_layout) {
+        signature->layout_value = next_layout;
+        signature->maze_value = next_maze;
+        return VIBE_DISPLAY_RENDER_FULL;
+    }
+
+    if (signature->maze_value != next_maze) {
+        signature->maze_value = next_maze;
+        return VIBE_DISPLAY_RENDER_MAZE;
+    }
+
+    return VIBE_DISPLAY_RENDER_NONE;
 }
 
 void vibe_display_landscape_layout(vibe_display_landscape_layout_t *layout)
@@ -253,14 +296,13 @@ bool vibe_display_animation_enabled(vibe_display_state_t state)
 
 bool vibe_display_phase_refresh_enabled(vibe_display_state_t state)
 {
-    (void)state;
-    return false;
+    return vibe_display_animation_enabled(state);
 }
 
 bool vibe_display_mode_phase_refresh_enabled(vibe_display_state_t state, vibe_display_orientation_t orientation)
 {
     return orientation == VIBE_DISPLAY_ORIENTATION_PORTRAIT &&
-           vibe_display_animation_enabled(state);
+           vibe_display_phase_refresh_enabled(state);
 }
 
 bool vibe_display_mode_phase_refresh_uses_full_frame(vibe_display_state_t state, vibe_display_orientation_t orientation)
@@ -697,6 +739,52 @@ static int positive_mod(int value, int modulus)
 static int abs_int(int value)
 {
     return value < 0 ? -value : value;
+}
+
+static uint32_t packet_layout_signature(const vibe_status_packet_t *packet)
+{
+    if (packet == NULL) {
+        return 0;
+    }
+
+    uint32_t hash = 2166136261u;
+    hash = fnv1a_update(hash, &packet->version, sizeof(packet->version));
+    hash = fnv1a_update_text(hash, packet->source);
+    hash = fnv1a_update(hash, &packet->state, sizeof(packet->state));
+    hash = fnv1a_update_text(hash, packet->detail);
+    hash = fnv1a_update(hash, &packet->codex_5h_remaining_percent, sizeof(packet->codex_5h_remaining_percent));
+    hash = fnv1a_update(hash, &packet->codex_7d_remaining_percent, sizeof(packet->codex_7d_remaining_percent));
+    hash = fnv1a_update(hash, &packet->codex_5h_reset_at_ms, sizeof(packet->codex_5h_reset_at_ms));
+    hash = fnv1a_update(hash, &packet->codex_7d_reset_at_ms, sizeof(packet->codex_7d_reset_at_ms));
+    hash = fnv1a_update(hash, &packet->task_count, sizeof(packet->task_count));
+
+    int rows = packet->task_count > VIBE_STATUS_MAX_TASKS ? VIBE_STATUS_MAX_TASKS : packet->task_count;
+    for (int i = 0; i < rows; i++) {
+        const vibe_status_task_t *task = &packet->tasks[i];
+        hash = fnv1a_update_text(hash, task->title);
+        hash = fnv1a_update_text(hash, task->source);
+        hash = fnv1a_update(hash, &task->state, sizeof(task->state));
+        hash = fnv1a_update_text(hash, task->detail);
+        hash = fnv1a_update(hash, &task->context_used_percent, sizeof(task->context_used_percent));
+        hash = fnv1a_update(hash, &task->context_used_tokens, sizeof(task->context_used_tokens));
+        hash = fnv1a_update(hash, &task->context_window_tokens, sizeof(task->context_window_tokens));
+        hash = fnv1a_update(hash, &task->updated_at_ms, sizeof(task->updated_at_ms));
+    }
+
+    return hash;
+}
+
+static uint32_t packet_maze_signature(const vibe_status_packet_t *packet)
+{
+    if (packet == NULL) {
+        return 0;
+    }
+
+    uint32_t hash = 2166136261u;
+    hash = fnv1a_update(hash, &packet->active_count, sizeof(packet->active_count));
+    hash = fnv1a_update(hash, &packet->waiting_count, sizeof(packet->waiting_count));
+    hash = fnv1a_update(hash, &packet->error_count, sizeof(packet->error_count));
+    return hash;
 }
 
 static uint32_t fnv1a_update(uint32_t hash, const void *data, size_t length)

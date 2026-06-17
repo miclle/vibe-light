@@ -7,15 +7,15 @@
 - macOS SwiftPM app 已有通用、智能体安装、硬件设备、固件烧录和事件五个主要界面。
 - Hook CLI 会把 Codex / Claude 事件写入本地 `events.jsonl`，桌面端轮询事件并通过 `TaskTracker` 聚合多任务状态。
 - BLE 协议当前以 `v: 2` 多任务状态包为主，保留 `v: 1` 降级路径；Codex 用量摘要会从 transcript 最新 `token_count` 事件提取，并提供 5h / 7d 剩余百分比、低余量 reset 提示和每条 Codex 任务的上下文已用百分比 / token 摘要。
-- ESP32-S3 固件已接入 BLE Peripheral、状态解析、健康读取特征、ST7701 LCD 初始化、RGB565 framebuffer 绘制、Codex 吃豆人 `busy` 迷宫动画和 QMI8658 横竖屏切换。
-- 显示模型已从“简单任务列表”推进到 320px 竖屏参考迷宫舞台、横屏整屏截图样式吃豆人 RLE 画面、213 个豆子、4 个能量豆、最多 5 个错相主角、底部贴边任务面板、任务时长 / 新鲜度尾标和渲染签名去重。
+- ESP32-S3 固件已接入 BLE Peripheral、状态解析、健康读取特征、ST7701 LCD 初始化、RGB565 framebuffer 绘制和 Codex 吃豆人 `busy` 迷宫动画；实机运行时当前锁定竖屏，优先保证显示稳定。
+- 显示模型已从“简单任务列表”推进到 320px 竖屏参考迷宫舞台、横屏整屏截图样式吃豆人 RLE host-side 预览、213 个豆子、4 个能量豆、最多 5 个错相主角、底部贴边任务面板、任务时长 / 新鲜度尾标和渲染签名去重。
 - 屏幕任务详情会优先展示当前工具动作，例如 `Bash / TEST make quick`、`Bash / BUILD idf.py`、`Bash / SERIAL read_serial.py`、`Bash / APP quit`、`Bash / SEARCH StatusPacket` 或 `Edit / README.md`，避免只显示泛化任务摘要或完整 shell 命令。
 - `waiting` 任务详情会优先展示审批目标，例如 `APPROVE Bash TEST make verify` 或 `ALLOW Edit README.md`，让屏幕直接提示下一步需要处理什么。
 - 任务行右侧会展示新鲜度、运行时长和上下文用量，例如 `RUN 03:12`、`WAIT 01:08`、`2m ago`、`CTX xx%` 或 `CTX 4.2K/12K`；活跃任务会在运行时长和 `CTX` 之间低频轮播，80% 及以上高上下文占用时提高 `CTX` 出现频率并用黄色显示，90% 及以上用红色显示；硬件设备页有 `CTX color` 演示包用于实机复核。
 - 屏幕页脚会在左下方显示短状态，例如 `CODEX LIVE`；旧协议包显示为 `CODEX LEGACY`，不直接暴露 `v1` / `v2` 这类内部协议版本。活跃/等待/错误计数只保留在迷宫里的 `ACTIVE` / `WAIT` / `ERR` 计数区，避免重复。页脚使用中性灰并与底边保留 12px 余量，避免贴到屏幕最底部；任务状态色块内缩显示，避免在屏幕边缘形成蓝色竖线。
 - 固件连接状态已经会主动刷新屏幕：Central 连接时显示 `idle / desktop connected`，断开时显示 `offline / desktop disconnected`。
 - 健康状态包已经包含运行时长、BLE 连接状态、最近显示状态、heap 余量、启动后 heap 低水位、渲染 tick、背光状态和最近解析错误；macOS 硬件页会展示这些诊断信息。
-- 最新 ESP32 显示路径已拆分竖屏 / 横屏渲染模块，并把竖屏 `busy` 动画提交路径改为 RGB driver 三 framebuffer 轮转；`CODEX: 5H / 7D` 用量信息由 macOS 端优先保留在 compact BLE 包中。当前实机仍观察到轻微屏幕闪烁，而且在没有吃豆人动画时也会出现，下一步应从 ST7701 RGB LCD 时序、PCLK / porch / bounce buffer、PSRAM 带宽、VSYNC 同步、背光 PWM 或硬件供电方向排查，而不是只盯竖屏动画绘制逻辑。
+- 最新 ESP32 显示路径已拆分竖屏 / 横屏渲染模块；实机运行路径已回退到 `7d4442c8` 同类稳定架构：应用侧 PSRAM framebuffer 绘制完整竖屏画面，再交给 RGB driver 双 framebuffer 提交，不再直接轮转 driver 内部 framebuffer。用户已确认这版不再闪屏，吃豆动画也较流畅。横屏自动切换暂不启用，后续恢复前必须先解决 VSYNC / frame-done 协调问题。
 - macOS app 已有独立“固件烧录”页，可枚举常见 ESP32 USB 串口、加载并校验内置 `FirmwareBundle`、调用 helper 执行 `write_flash`，成功后启动 BLE 扫描；`projects/esp32/tools/package_firmware_bundle.py` 可从 ESP-IDF build 产物生成带 SHA-256 的 app resource 固件包，`projects/esp32/tools/package_firmware_tools.py` 可把 `esptool` 依赖 vendor 到 `FirmwareTools/python-packages/`，并生成 GPL source offer / 对应源码归档。
 - Vibe Light 自有源码已经切换为 source-available 非商用许可：个人、学习、研究和其他非商业用途可免费使用；商业使用、商业分发或作为商业产品 / 服务的一部分使用，需要原作者单独书面授权；fork、复制、修改和再分发必须保留原作者署名、非商用限制和商业授权要求。
 - 当前公开 latest release 为 `v0.1.2`，tag 指向 `ffe505e76e0da0f5b7abcd6c8a22cbb48e7852c6`；release asset 包含 `VibeLightApp-0.1.2-arm64-notarized.zip`、`VibeLightApp-0.1.2-x86_64-notarized.zip`、`desktop-firmware-release-0.1.2-arm64.md`、`desktop-firmware-release-0.1.2-x86_64.md`、`appcast.xml` 和 `appcast-x86_64.xml`。`v0.1.2` 已完成双架构 CI notarized release、latest appcast 匿名下载、下载包签名 / notarization / 架构扫描验证；`v0.1.1` 已完成默认 stable feed Sparkle 更新、下载包启动、USB 固件烧录和 BLE 重连验证。
@@ -24,6 +24,13 @@
 - 固件版本 `3215f23` 已完成目标板烧录和实机观察，确认结构拆分后的固件启动、屏幕显示和 BLE 链路正常。
 
 ## 最近实机验证
+
+- 时间：2026-06-17 CST。
+- 端口：`/dev/cu.usbmodem2101`。
+- 固件版本：本地稳定竖屏基线 dirty build。
+- 验证范围：回退到应用侧 PSRAM framebuffer + RGB driver 双 framebuffer 提交、竖屏 240ms 吃豆动画、禁用实机启动路径中的 QMI8658 自动横竖屏切换、运行中不周期性写入 NVS、渲染签名去重和 ESP32 构建 / 烧录。
+- 结果确认：`make verify` 通过，覆盖 Swift 测试、desktop update release tests、ESP32 parser tests、竖屏 / 横屏预览、ESP32 固件 build 和 Git whitespace check；`ESP32_PORT=/dev/cu.usbmodem2101 make esp32-flash-only` 烧录成功，识别 `ESP32-S3 (QFN56) (revision v0.2)`、8MB PSRAM 和 MAC `1c:db:d4:7b:3f:cc`，bootloader、app 和 partition table 三段均 `Hash of data verified`，最后 `Hard resetting via RTS pin`。用户实机观察确认不再闪屏，吃豆动画也较流畅。
+- 取舍记录：直接使用 `esp_lcd_rgb_panel_get_frame_buffer()` 取得 RGB driver 内部 framebuffer 并轮转提交，会在本板上导致轻微闪烁；当前先锁定竖屏稳定路径，横屏恢复另列后续任务。
 
 - 时间：2026-06-17 CST。
 - 端口：`/dev/cu.usbmodem1101`。
@@ -148,15 +155,10 @@
 
 ## 未完成事项
 
-1. **ESP32 屏幕轻微闪烁需要底层排查**
-   - 当前已知现象：即使没有竖屏吃豆人动画，屏幕也会有轻微闪烁。
-   - 已尝试方向：停用 / 恢复竖屏动画 timer、局部迷宫刷新、双 framebuffer、减少动画重绘带宽、RGB VSYNC restart、三 framebuffer 轮转，以及 macOS 端 compact 包保留 `usage`。
-   - 下一步建议优先复核 ST7701 初始化参数、RGB PCLK / hsync / vsync porch、bounce buffer、PSRAM 带宽、LCD driver VSYNC / DMA 生命周期、背光 PWM 频率和硬件供电稳定性；不要把问题只归因于 Pac-Man 动画。
-
-2. **横屏 layout mode 需要实机复核**
-   - 固件已用 QMI8658 加速度方向在竖屏 / 横屏之间切换；IMU 不可用时保持竖屏。
-   - 横屏原型不改 BLE 协议，整屏展示由 `docs/Pac-Man-landscape.png` 生成的截图样式吃豆人画面，不额外叠加顶部或底部状态栏；`busy` 时计分、关卡和 `HIGH SCORE` 推进仍沿用竖屏同一套显示模型规则。
-   - 下一步需要肉眼确认横放方向、旋转方向、整屏截图样式画面清晰度和 QMI8658 读数稳定性。
+1. **横屏 runtime 恢复需要单独设计和实机验证**
+   - 当前取舍：实机运行时锁定竖屏，横屏 RLE 数据、布局模型和 host-side preview 保留，但 QMI8658 自动横竖屏切换不在启动路径启用。
+   - 背景：直接轮转 RGB driver 内部 framebuffer 会在目标板上造成轻微闪烁；竖屏稳定路径已经回退到应用侧 PSRAM framebuffer + RGB driver 双 framebuffer 提交。
+   - 下一步建议先设计 VSYNC / frame-done 协调方案，再逐步恢复横屏 runtime；恢复过程中必须保持竖屏路径不变，并用目标板确认横放方向、旋转方向、整屏截图样式画面清晰度和长时间无闪屏。
 
 ## 推荐推进顺序
 
@@ -171,9 +173,9 @@
 3. **处理非阻塞发布治理**
    - 自有源码非商用许可和第三方 GPL/source 材料需要分开审阅；如果进入商业授权或商业分发，仍建议做最终法律 / 合规确认，重点复核 bundled `esptool` GPLv2+ source offer、源码归档和第三方 notices 的最终发布形态。
 
-4. **实机确认横屏原型**
+4. **恢复横屏 runtime**
    - 横屏是产品方向探索，不是当前链路可靠性的前置条件。
-   - 先用 host-side preview 快速确认布局，再通过目标板横放 / 竖立观察决定是否继续产品化为可配置展示模式。
+   - 先从 VSYNC / frame-done 协调和独立实验分支开始，确认不会影响竖屏稳定路径后，再通过目标板横放 / 竖立观察决定是否继续产品化为可配置展示模式。
 
 ## 验证命令
 
