@@ -43,7 +43,6 @@ uint32_t vibe_display_packet_signature(const vibe_status_packet_t *packet)
     hash = fnv1a_update_text(hash, packet->source);
     hash = fnv1a_update(hash, &packet->state, sizeof(packet->state));
     hash = fnv1a_update_text(hash, packet->detail);
-    hash = fnv1a_update(hash, &packet->timestamp_ms, sizeof(packet->timestamp_ms));
     hash = fnv1a_update(hash, &packet->active_count, sizeof(packet->active_count));
     hash = fnv1a_update(hash, &packet->waiting_count, sizeof(packet->waiting_count));
     hash = fnv1a_update(hash, &packet->error_count, sizeof(packet->error_count));

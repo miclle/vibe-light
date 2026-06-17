@@ -121,6 +121,24 @@ void vibe_display_portrait_render(const vibe_status_packet_t *packet,
     }
 }
 
+void vibe_display_portrait_render_animation_phase(const vibe_status_packet_t *packet,
+                                                  int animation_phase,
+                                                  uint16_t *framebuffer,
+                                                  int screen_w,
+                                                  int screen_h)
+{
+    if (packet == NULL || framebuffer == NULL || screen_w <= 0 || screen_h <= 0) {
+        return;
+    }
+
+    vibe_display_draw_bind(framebuffer, screen_w, screen_h);
+    vibe_display_text_bind(screen_w);
+    render_maze(packet, animation_phase, screen_w);
+    if (vibe_display_animation_enabled(packet->state)) {
+        render_codex_animation(packet, animation_phase);
+    }
+}
+
 static void render_task_rows(const vibe_status_packet_t *packet, int animation_phase, int screen_w)
 {
     int rows = packet->task_count > VIBE_STATUS_MAX_TASKS ? VIBE_STATUS_MAX_TASKS : packet->task_count;

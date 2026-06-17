@@ -316,6 +316,9 @@ static void test_display_model_detects_duplicate_packets(void)
     assert(vibe_display_should_render(&signature, &packet));
 
     packet.timestamp_ms += 60000;
+    assert(!vibe_display_should_render(&signature, &packet));
+
+    packet.tasks[0].updated_at_ms += 60000;
     assert(vibe_display_should_render(&signature, &packet));
 }
 
