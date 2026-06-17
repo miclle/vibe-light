@@ -105,11 +105,11 @@ struct StatusPacketCompactor: Sendable {
         return [
             withoutUnusedResetHints,
             withoutContext,
-            withoutUsageButWithDetail,
             withoutTaskDetail,
             withoutTaskDetailOrContext,
             withoutCounts,
             withoutDetail,
+            withoutUsageButWithDetail,
             withoutUsageOrDetail,
         ]
     }

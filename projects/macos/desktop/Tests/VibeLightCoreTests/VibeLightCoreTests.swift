@@ -800,7 +800,7 @@ import Testing
     #expect(object["tasks"] != nil)
 }
 
-@Test func statusPacketPreservesTaskDetailsWhenCompactingV2ToBleLength() throws {
+@Test func statusPacketPreservesUsageBeforeTaskDetailsWhenCompactingV2ToBleLength() throws {
     let packet = StatusPacket(
         v: 2,
         source: .codex,
@@ -848,12 +848,15 @@ import Testing
     let constrainedData = try packet.encodedJSON(maximumWriteLength: 512)
     let object = try #require(JSONSerialization.jsonObject(with: constrainedData) as? [String: Any])
     let tasks = try #require(object["tasks"] as? [[String: Any]])
+    let usage = try #require(object["usage"] as? [String: Any])
 
     #expect(fullData.count > 512)
     #expect(constrainedData.count <= 512)
     #expect(object["v"] as? Int == 2)
+    #expect(usage["codex5hRemainingPercent"] as? Int == 99)
+    #expect(usage["codex7dRemainingPercent"] as? Int == 68)
     #expect(tasks.count == 3)
-    #expect(tasks.compactMap { $0["detail"] as? String }.count == 3)
+    #expect(tasks.compactMap { $0["detail"] as? String }.isEmpty)
 }
 
 @Test func hardwareDemoPacketsProvideBoundedV2TaskScenarios() throws {
