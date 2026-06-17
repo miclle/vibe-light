@@ -33,6 +33,7 @@ static const char *TAG = "vibe_display";
 #define LCD_H_RES 320
 #define LCD_V_RES 820
 #define LCD_BITS_PER_PIXEL 16
+#define LCD_RGB_FRAMEBUFFER_COUNT 3
 
 #define LCD_SPI_CS_GPIO 0
 #define LCD_SPI_SCK_GPIO 2
@@ -71,8 +72,8 @@ static const char *TAG = "vibe_display";
 
 static esp_lcd_panel_handle_t panel_handle;
 static uint16_t *framebuffer;
-static uint16_t *display_framebuffers[2];
-static bool display_framebuffer_valid[2];
+static uint16_t *display_framebuffers[LCD_RGB_FRAMEBUFFER_COUNT];
+static bool display_framebuffer_valid[LCD_RGB_FRAMEBUFFER_COUNT];
 static uint16_t *landscape_framebuffer;
 static SemaphoreHandle_t display_mutex;
 static bool display_ready;
@@ -298,7 +299,7 @@ static esp_err_t init_lcd_panel(void)
         .clk_src = LCD_CLK_SRC_DEFAULT,
         .data_width = 16,
         .bits_per_pixel = 16,
-        .num_fbs = 2,
+        .num_fbs = LCD_RGB_FRAMEBUFFER_COUNT,
         .bounce_buffer_size_px = 10 * LCD_H_RES,
         .sram_trans_align = 4,
         .psram_trans_align = 64,
@@ -353,32 +354,34 @@ static bool init_panel_framebuffers(void)
 {
     void *fb0 = NULL;
     void *fb1 = NULL;
-    esp_err_t result = esp_lcd_rgb_panel_get_frame_buffer(panel_handle, 2, &fb0, &fb1);
-    if (result != ESP_OK || fb0 == NULL || fb1 == NULL) {
+    void *fb2 = NULL;
+    esp_err_t result = esp_lcd_rgb_panel_get_frame_buffer(panel_handle, LCD_RGB_FRAMEBUFFER_COUNT, &fb0, &fb1, &fb2);
+    if (result != ESP_OK || fb0 == NULL || fb1 == NULL || fb2 == NULL) {
         ESP_LOGE(TAG, "failed to get RGB panel framebuffers: %s", esp_err_to_name(result));
         return false;
     }
 
     display_framebuffers[0] = (uint16_t *)fb0;
     display_framebuffers[1] = (uint16_t *)fb1;
+    display_framebuffers[2] = (uint16_t *)fb2;
     framebuffer = next_render_framebuffer();
     return framebuffer != NULL;
 }
 
 static uint16_t *next_render_framebuffer(void)
 {
-    if (display_framebuffers[0] == NULL || display_framebuffers[1] == NULL) {
+    if (display_framebuffers[0] == NULL || display_framebuffers[1] == NULL || display_framebuffers[2] == NULL) {
         return framebuffer;
     }
 
-    display_framebuffer_index = (display_framebuffer_index + 1) % 2;
+    display_framebuffer_index = (display_framebuffer_index + 1) % LCD_RGB_FRAMEBUFFER_COUNT;
     framebuffer = display_framebuffers[display_framebuffer_index];
     return framebuffer;
 }
 
 static int render_framebuffer_slot(const uint16_t *target)
 {
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < LCD_RGB_FRAMEBUFFER_COUNT; i++) {
         if (display_framebuffers[i] == target) {
             return i;
         }
@@ -388,8 +391,9 @@ static int render_framebuffer_slot(const uint16_t *target)
 
 static void invalidate_render_framebuffers(void)
 {
-    display_framebuffer_valid[0] = false;
-    display_framebuffer_valid[1] = false;
+    for (int i = 0; i < LCD_RGB_FRAMEBUFFER_COUNT; i++) {
+        display_framebuffer_valid[i] = false;
+    }
 }
 
 static void render_status(const vibe_status_packet_t *packet, int animation_phase)
