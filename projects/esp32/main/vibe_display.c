@@ -33,6 +33,8 @@ static const char *TAG = "vibe_display";
 #define LCD_H_RES 320
 #define LCD_V_RES 820
 #define LCD_BITS_PER_PIXEL 16
+#define LCD_PCLK_HZ (16 * 1000 * 1000)
+#define LCD_BOUNCE_BUFFER_LINES 40
 
 #define LCD_SPI_CS_GPIO 0
 #define LCD_SPI_SCK_GPIO 2
@@ -299,7 +301,7 @@ static esp_err_t init_lcd_panel(void)
         .data_width = 16,
         .bits_per_pixel = 16,
         .num_fbs = 2,
-        .bounce_buffer_size_px = 10 * LCD_H_RES,
+        .bounce_buffer_size_px = LCD_BOUNCE_BUFFER_LINES * LCD_H_RES,
         .sram_trans_align = 4,
         .psram_trans_align = 64,
         .hsync_gpio_num = LCD_RGB_HSYNC_GPIO,
@@ -313,7 +315,7 @@ static esp_err_t init_lcd_panel(void)
             LCD_RGB_R0_GPIO, LCD_RGB_R1_GPIO, LCD_RGB_R2_GPIO, LCD_RGB_R3_GPIO, LCD_RGB_R4_GPIO,
         },
         .timings = {
-            .pclk_hz = 18 * 1000 * 1000,
+            .pclk_hz = LCD_PCLK_HZ,
             .h_res = LCD_H_RES,
             .v_res = LCD_V_RES,
             .hsync_pulse_width = 6,

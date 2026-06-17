@@ -25,7 +25,7 @@
 - 健康包会回传运行时长、连接状态、最近状态、heap 余量和渲染 tick。
 - 状态包格式：UTF-8 JSON `StatusPacket`
 
-屏幕驱动当前已接入 Waveshare `ESP32-S3-LCD-3.16` 的 ST7701 RGB LCD 初始化、主动低电平背光 PWM 和基础 RGB565 绘制。RGB panel 当前使用 16-bit data width、18MHz PCLK、PSRAM framebuffer、2 个 framebuffer 和 10 行 bounce buffer。`vibe_display_show_status` 会把状态写入串口日志，并在 LCD 上渲染顶部状态色、参考迷宫、任务计数和任务列表。
+屏幕驱动当前已接入 Waveshare `ESP32-S3-LCD-3.16` 的 ST7701 RGB LCD 初始化、主动低电平背光 PWM 和基础 RGB565 绘制。RGB panel 当前使用 16-bit data width、16MHz PCLK、PSRAM framebuffer、2 个 framebuffer 和 40 行 bounce buffer。`vibe_display_show_status` 会把状态写入串口日志，并在 LCD 上渲染顶部状态色、参考迷宫、任务计数和任务列表。
 
 BLE Central 连接后，屏幕会显示 `idle / desktop connected`；断开后会显示 `offline / desktop disconnected`，避免设备停留在过期的任务状态上。
 

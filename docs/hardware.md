@@ -36,7 +36,7 @@
 
 ## 当前源码采用的板级连接
 
-以下来自当前 `projects/esp32/main/vibe_display.c`，是固件实现正在使用的 GPIO 配置。项目记录中已有一次目标板屏幕闭环：串口日志确认 LCD 初始化和 BLE 广播，macOS 桌面端可连接并写入 `v: 2` 状态包，屏幕可显示 high score、Codex 5H / 7D 用量和底部任务列表。固件版本 `82d2180` 已在目标板完成烧录、串口启动、BLE 连接、健康特征实机读取、肉眼屏幕复核和长时间稳定性观察：LCD 初始化、BLE 广播、Central 连接、连续 `v: 2` 状态写入、token 摘要、页脚、底部余量、任务色块内缩、无边缘蓝线、macOS 硬件页健康读数和稳定性表现均正常，health JSON 已确认包含 `backlightOn:true`，坏状态包后会回传 `lastParseError:"invalid JSON"`。固件版本 `524c46d` 已完成目标板烧录；macOS 演示包提交 `939583d` 的 `CTX color` 场景已实机复核，82% warning 黄色和 92% critical 红色尾标显示正常。当前 RGB panel 配置为 16-bit data width、18MHz PCLK、PSRAM framebuffer、2 个 framebuffer 和 10 行 bounce buffer。
+以下来自当前 `projects/esp32/main/vibe_display.c`，是固件实现正在使用的 GPIO 配置。项目记录中已有一次目标板屏幕闭环：串口日志确认 LCD 初始化和 BLE 广播，macOS 桌面端可连接并写入 `v: 2` 状态包，屏幕可显示 high score、Codex 5H / 7D 用量和底部任务列表。固件版本 `82d2180` 已在目标板完成烧录、串口启动、BLE 连接、健康特征实机读取、肉眼屏幕复核和长时间稳定性观察：LCD 初始化、BLE 广播、Central 连接、连续 `v: 2` 状态写入、token 摘要、页脚、底部余量、任务色块内缩、无边缘蓝线、macOS 硬件页健康读数和稳定性表现均正常，health JSON 已确认包含 `backlightOn:true`，坏状态包后会回传 `lastParseError:"invalid JSON"`。固件版本 `524c46d` 已完成目标板烧录；macOS 演示包提交 `939583d` 的 `CTX color` 场景已实机复核，82% warning 黄色和 92% critical 红色尾标显示正常。当前 RGB panel 配置为 16-bit data width、16MHz PCLK、PSRAM framebuffer、2 个 framebuffer 和 40 行 bounce buffer。
 
 | 用途 | GPIO |
 | --- | --- |
