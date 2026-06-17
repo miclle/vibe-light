@@ -15,6 +15,7 @@
 - 屏幕页脚会在左下方显示短状态，例如 `CODEX LIVE`；旧协议包显示为 `CODEX LEGACY`，不直接暴露 `v1` / `v2` 这类内部协议版本。活跃/等待/错误计数只保留在迷宫里的 `ACTIVE` / `WAIT` / `ERR` 计数区，避免重复。页脚使用中性灰并与底边保留 12px 余量，避免贴到屏幕最底部；任务状态色块内缩显示，避免在屏幕边缘形成蓝色竖线。
 - 固件连接状态已经会主动刷新屏幕：Central 连接时显示 `idle / desktop connected`，断开时显示 `offline / desktop disconnected`。
 - 健康状态包已经包含运行时长、BLE 连接状态、最近显示状态、heap 余量、启动后 heap 低水位、渲染 tick、背光状态和最近解析错误；macOS 硬件页会展示这些诊断信息。
+- 最新 ESP32 显示路径已拆分竖屏 / 横屏渲染模块，并把竖屏 `busy` 动画提交路径改为 RGB driver 三 framebuffer 轮转；`CODEX: 5H / 7D` 用量信息由 macOS 端优先保留在 compact BLE 包中。当前实机仍观察到轻微屏幕闪烁，而且在没有吃豆人动画时也会出现，下一步应从 ST7701 RGB LCD 时序、PCLK / porch / bounce buffer、PSRAM 带宽、VSYNC 同步、背光 PWM 或硬件供电方向排查，而不是只盯竖屏动画绘制逻辑。
 - macOS app 已有独立“固件烧录”页，可枚举常见 ESP32 USB 串口、加载并校验内置 `FirmwareBundle`、调用 helper 执行 `write_flash`，成功后启动 BLE 扫描；`projects/esp32/tools/package_firmware_bundle.py` 可从 ESP-IDF build 产物生成带 SHA-256 的 app resource 固件包，`projects/esp32/tools/package_firmware_tools.py` 可把 `esptool` 依赖 vendor 到 `FirmwareTools/python-packages/`，并生成 GPL source offer / 对应源码归档。
 - Vibe Light 自有源码已经切换为 source-available 非商用许可：个人、学习、研究和其他非商业用途可免费使用；商业使用、商业分发或作为商业产品 / 服务的一部分使用，需要原作者单独书面授权；fork、复制、修改和再分发必须保留原作者署名、非商用限制和商业授权要求。
 - 当前公开 latest release 为 `v0.1.2`，tag 指向 `ffe505e76e0da0f5b7abcd6c8a22cbb48e7852c6`；release asset 包含 `VibeLightApp-0.1.2-arm64-notarized.zip`、`VibeLightApp-0.1.2-x86_64-notarized.zip`、`desktop-firmware-release-0.1.2-arm64.md`、`desktop-firmware-release-0.1.2-x86_64.md`、`appcast.xml` 和 `appcast-x86_64.xml`。`v0.1.2` 已完成双架构 CI notarized release、latest appcast 匿名下载、下载包签名 / notarization / 架构扫描验证；`v0.1.1` 已完成默认 stable feed Sparkle 更新、下载包启动、USB 固件烧录和 BLE 重连验证。
@@ -23,6 +24,13 @@
 - 固件版本 `3215f23` 已完成目标板烧录和实机观察，确认结构拆分后的固件启动、屏幕显示和 BLE 链路正常。
 
 ## 最近实机验证
+
+- 时间：2026-06-17 CST。
+- 端口：`/dev/cu.usbmodem1101`。
+- 固件版本：`v0.1.2-25-ge420d99`。
+- 验证范围：竖屏 / 横屏渲染拆分、竖屏动画三 framebuffer 隔离、RGB VSYNC restart 配置、macOS compact BLE 包优先保留 `usage`、ESP32 构建和实机烧录。
+- 结果确认：`make esp32-build` 通过；Swift 全量测试曾用 scratch path 跑过 85 个测试通过；desktop update release tests、ESP32 parser tests、竖屏 / 横屏预览和 `git diff --check` 通过。`make esp32-flash-only ESP32_PORT=/dev/cu.usbmodem1101` 烧录成功，识别 `ESP32-S3 (QFN56) (revision v0.2)`、8MB PSRAM 和 MAC `1c:db:d4:7b:3f:cc`，三段写入均 `Hash of data verified`。烧录后串口确认连续 `v:2` busy 状态包被接受，包内带 `usage.codex5hRemainingPercent` / `usage.codex7dRemainingPercent`，屏幕可恢复显示 `CODEX: 5H / 7D`。
+- 已知问题：用户实机观察到屏幕仍会轻微闪烁，且没有吃豆人动画时也会出现；这更像 LCD/RGB 输出链路或背光 / 供电层面的微闪，不再局限于竖屏 Pac-Man 动画刷新。
 
 - 时间：2026-06-16 09:37 CST。
 - 端口：`/dev/cu.usbmodem1101`。
@@ -140,7 +148,12 @@
 
 ## 未完成事项
 
-1. **横屏 layout mode 需要实机复核**
+1. **ESP32 屏幕轻微闪烁需要底层排查**
+   - 当前已知现象：即使没有竖屏吃豆人动画，屏幕也会有轻微闪烁。
+   - 已尝试方向：停用 / 恢复竖屏动画 timer、局部迷宫刷新、双 framebuffer、减少动画重绘带宽、RGB VSYNC restart、三 framebuffer 轮转，以及 macOS 端 compact 包保留 `usage`。
+   - 下一步建议优先复核 ST7701 初始化参数、RGB PCLK / hsync / vsync porch、bounce buffer、PSRAM 带宽、LCD driver VSYNC / DMA 生命周期、背光 PWM 频率和硬件供电稳定性；不要把问题只归因于 Pac-Man 动画。
+
+2. **横屏 layout mode 需要实机复核**
    - 固件已用 QMI8658 加速度方向在竖屏 / 横屏之间切换；IMU 不可用时保持竖屏。
    - 横屏原型不改 BLE 协议，整屏展示由 `docs/Pac-Man-landscape.png` 生成的截图样式吃豆人画面，不额外叠加顶部或底部状态栏；`busy` 时计分、关卡和 `HIGH SCORE` 推进仍沿用竖屏同一套显示模型规则。
    - 下一步需要肉眼确认横放方向、旋转方向、整屏截图样式画面清晰度和 QMI8658 读数稳定性。
