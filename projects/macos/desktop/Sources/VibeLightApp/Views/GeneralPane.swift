@@ -34,6 +34,12 @@ struct GeneralPane: View {
             Section("偏好") {
                 Toggle("开机启动", isOn: $model.launchAtLogin)
                 Toggle("启动后自动连接 VibeLight 设备", isOn: $model.autoConnectDevice)
+                Stepper(
+                    "Codex 7D 红灯阈值：\(model.codex7dRedThresholdPercent)%",
+                    value: $model.codex7dRedThresholdPercent,
+                    in: 0...100,
+                    step: 5
+                )
             }
         }
         .formStyle(.grouped)

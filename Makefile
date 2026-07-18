@@ -6,6 +6,7 @@ export LESS := -FRX
 ROOT_DIR := $(CURDIR)
 MACOS_DIR := $(ROOT_DIR)/projects/macos/desktop
 ESP32_DIR := $(ROOT_DIR)/projects/esp32
+ESP32_LED_DIR := $(ROOT_DIR)/projects/esp32-led
 IDF_PATH ?= /Users/miclle/esp/esp-idf
 ESP32_PORT ?= /dev/cu.usbmodem1101
 ESP32_BAUD ?= 460800
@@ -46,6 +47,10 @@ help:
 	@printf '  make esp32-build       使用 ESP-IDF 构建固件\n'
 	@printf '  make esp32-flash       烧录固件并打开串口 monitor\n'
 	@printf '  make esp32-flash-only  只烧录固件，不打开串口 monitor\n\n'
+	@printf 'ESP32 DevKit 三色灯固件:\n'
+	@printf '  make esp32-led-test        运行灯色模型 host 测试\n'
+	@printf '  make esp32-led-build       使用 ESP-IDF 构建三色灯固件\n'
+	@printf '  make esp32-led-flash-only  只烧录三色灯固件\n\n'
 	@printf '变量:\n'
 	@printf '  IDF_PATH=%s\n' '$(IDF_PATH)'
 	@printf '  ESP32_PORT=%s\n' '$(ESP32_PORT)'
@@ -77,6 +82,7 @@ clean:
 	rm -rf $(ROOT_DIR)/dist
 	rm -rf $(MACOS_DIR)/.build
 	rm -rf $(ESP32_DIR)/build
+	rm -rf $(ESP32_LED_DIR)/build
 
 .PHONY: desktop-build desktop-test desktop-run desktop-debug desktop-logs desktop-telemetry desktop-verify notary-store notary-validate firmware-release desktop-release desktop-release-notarized hook-sample
 desktop-build:
@@ -118,7 +124,7 @@ desktop-release-notarized:
 hook-sample:
 	printf '%s\n' '{"source":"codex","event":"PreToolUse","detail":"running shell"}' | swift run --package-path $(MACOS_DIR) vibe-light-hook
 
-.PHONY: check-idf idf-shell esp32-test esp32-preview esp32-build esp32-flash esp32-flash-only
+.PHONY: check-idf idf-shell esp32-test esp32-preview esp32-build esp32-flash esp32-flash-only esp32-led-test esp32-led-build esp32-led-flash-only
 check-idf:
 	@test -f "$(IDF_PATH)/export.sh" || { \
 		echo "ESP-IDF export.sh not found at $(IDF_PATH)/export.sh. Set IDF_PATH to an ESP-IDF checkout." >&2; \
@@ -144,3 +150,12 @@ esp32-flash:
 
 esp32-flash-only:
 	IDF_PATH="$(IDF_PATH)" ESP32_PORT="$(ESP32_PORT)" ESP32_BAUD="$(ESP32_BAUD)" $(ESP32_DIR)/tools/flash_firmware.sh --flash-only "$(ESP32_PORT)"
+
+esp32-led-test:
+	IDF_PATH="$(IDF_PATH)" $(ESP32_LED_DIR)/tests/run_tests.sh
+
+esp32-led-build: check-idf
+	export PATH="$(IDF_SAFE_PATH)" && source "$(IDF_PATH)/export.sh" >/tmp/vibe-idf-export.log && cd "$(ESP32_LED_DIR)" && idf.py build
+
+esp32-led-flash-only: esp32-led-build
+	export PATH="$(IDF_SAFE_PATH)" && source "$(IDF_PATH)/export.sh" >/tmp/vibe-idf-export.log && cd "$(ESP32_LED_DIR)" && idf.py -p "$(ESP32_PORT)" -b "$(ESP32_BAUD)" flash

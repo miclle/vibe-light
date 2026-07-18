@@ -60,6 +60,13 @@ public struct FirmwareBundleManifest: Codable, Equatable {
         }
     }
 
+    public var bleDeviceName: String {
+        let normalizedHardware = targetHardware.lowercased()
+        return normalizedHardware.contains("devkit") || normalizedHardware.contains("三色灯")
+            ? "VibeLight-LED"
+            : "VibeLight-S3"
+    }
+
     public func writeJSON(to url: URL) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -132,6 +139,34 @@ public struct FirmwareBundleValidator {
         }
 
         return FirmwareBundle(url: url, manifest: manifest)
+    }
+}
+
+public struct FirmwareBundleCatalog {
+    private let fileManager: FileManager
+    private let validator: FirmwareBundleValidator
+
+    public init(fileManager: FileManager = .default) {
+        self.fileManager = fileManager
+        self.validator = FirmwareBundleValidator(fileManager: fileManager)
+    }
+
+    public func validatedBundles(in rootURL: URL) throws -> [FirmwareBundle] {
+        let candidates = try fileManager.contentsOfDirectory(
+            at: rootURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ).filter { candidate in
+            fileManager.fileExists(atPath: candidate.appendingPathComponent("manifest.json").path)
+        }
+        return try candidates
+            .map { try validator.validatedBundle(at: $0) }
+            .sorted { left, right in
+                if left.manifest.targetHardware == right.manifest.targetHardware {
+                    return left.url.lastPathComponent < right.url.lastPathComponent
+                }
+                return left.manifest.targetHardware < right.manifest.targetHardware
+            }
     }
 }
 

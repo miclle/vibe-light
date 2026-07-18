@@ -7,6 +7,9 @@
 - macOS SwiftPM app 已有通用、智能体安装、硬件设备、固件烧录和事件五个主要界面。
 - Hook CLI 会把 Codex / Claude 事件写入本地 `events.jsonl`，桌面端轮询事件并通过 `TaskTracker` 聚合多任务状态。
 - BLE 协议当前以 `v: 2` 多任务状态包为主，保留 `v: 1` 降级路径；Codex 用量摘要会从 transcript 最新 `token_count` 事件提取，并提供 5h / 7d 剩余百分比、低余量 reset 提示和每条 Codex 任务的上下文已用百分比 / token 摘要。
+- `StatusPacket v2` 已增加可选 `alerts`：任务错误产生 `taskError`，Codex 7D 剩余不高于通用偏好中的阈值时产生 `codex7dLow`；阈值默认 10%，未知用量不告警。
+- macOS BLE 管理已改为每台 Peripheral 独立保存连接、GATT 特征和 health packet；扫描不会因第一台设备连接而停止，同一状态会广播到全部已就绪设备。
+- `projects/esp32-led` 已实现 `ESP32-S3-DevKitC-1 N16R8` 三色灯固件：GPIO4 / 5 / 6 分别独立驱动红 / 黄 / 绿 LED，告警、执行中、等待人工或最近完成条件可让对应灯以 1 秒周期同步慢闪；协议 parser / health formatter 已抽到 `projects/esp32-common/vibe_protocol` 供 LCD 与 LED 共用。
 - ESP32-S3 固件已接入 BLE Peripheral、状态解析、健康读取特征、ST7701 LCD 初始化、RGB565 framebuffer 绘制和 Codex 吃豆人 `busy` 迷宫动画；实机运行时当前锁定竖屏，优先保证显示稳定。
 - 显示模型已从“简单任务列表”推进到 320px 竖屏参考迷宫舞台、横屏整屏截图样式吃豆人 RLE host-side 预览、213 个豆子、4 个能量豆、最多 5 个错相主角、底部贴边任务面板、任务时长 / 新鲜度尾标和渲染签名去重。
 - 屏幕任务详情会优先展示当前工具动作，例如 `Bash / TEST make quick`、`Bash / BUILD idf.py`、`Bash / SERIAL read_serial.py`、`Bash / APP quit`、`Bash / SEARCH StatusPacket` 或 `Edit / README.md`，避免只显示泛化任务摘要或完整 shell 命令。
@@ -16,7 +19,7 @@
 - 固件连接状态已经会主动刷新屏幕：Central 连接时显示 `idle / desktop connected`，断开时显示 `offline / desktop disconnected`。
 - 健康状态包已经包含运行时长、BLE 连接状态、最近显示状态、heap 余量、启动后 heap 低水位、渲染 tick、背光状态和最近解析错误；macOS 硬件页会展示这些诊断信息。
 - 最新 ESP32 显示路径已拆分竖屏 / 横屏渲染模块；实机运行路径已回退到 `7d4442c8` 同类稳定架构：应用侧 PSRAM framebuffer 绘制完整竖屏画面，再交给 RGB driver 双 framebuffer 提交，不再直接轮转 driver 内部 framebuffer。用户已确认这版不再闪屏，吃豆动画也较流畅。横屏自动切换暂不启用，后续恢复前必须先解决 VSYNC / frame-done 协调问题。
-- macOS app 已有独立“固件烧录”页，可枚举常见 ESP32 USB 串口、加载并校验内置 `FirmwareBundle`、调用 helper 执行 `write_flash`，成功后启动 BLE 扫描；`projects/esp32/tools/package_firmware_bundle.py` 可从 ESP-IDF build 产物生成带 SHA-256 的 app resource 固件包，`projects/esp32/tools/package_firmware_tools.py` 可把 `esptool` 依赖 vendor 到 `FirmwareTools/python-packages/`，并生成 GPL source offer / 对应源码归档。
+- macOS app 已有独立“固件烧录”页，可枚举常见 ESP32 USB 串口、从 `FirmwareBundles/display` 与 `FirmwareBundles/led` 选择并校验目标固件、调用 helper 执行 `write_flash`，成功后启动 BLE 扫描；发布准备脚本会构建并打包 LCD / LED 两套固件，`package_firmware_tools.py` 继续负责 bundled `esptool` 和 GPL source 材料。
 - Vibe Light 自有源码已经切换为 source-available 非商用许可：个人、学习、研究和其他非商业用途可免费使用；商业使用、商业分发或作为商业产品 / 服务的一部分使用，需要原作者单独书面授权；fork、复制、修改和再分发必须保留原作者署名、非商用限制和商业授权要求。
 - 当前公开 latest release 为 `v0.1.2`，tag 指向 `ffe505e76e0da0f5b7abcd6c8a22cbb48e7852c6`；release asset 包含 `VibeLightApp-0.1.2-arm64-notarized.zip`、`VibeLightApp-0.1.2-x86_64-notarized.zip`、`desktop-firmware-release-0.1.2-arm64.md`、`desktop-firmware-release-0.1.2-x86_64.md`、`appcast.xml` 和 `appcast-x86_64.xml`。`v0.1.2` 已完成双架构 CI notarized release、latest appcast 匿名下载、下载包签名 / notarization / 架构扫描验证；`v0.1.1` 已完成默认 stable feed Sparkle 更新、下载包启动、USB 固件烧录和 BLE 重连验证。
 - 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试、校验迷宫预览脚本读取显示模型布局常量、生成竖屏迷宫 / 竖屏全屏 / 横屏全屏 PNG 预览并执行 Git whitespace 检查；ESP32 显示闭环已完成一次实机烧录和屏幕确认。
@@ -24,6 +27,12 @@
 - 固件版本 `3215f23` 已完成目标板烧录和实机观察，确认结构拆分后的固件启动、屏幕显示和 BLE 链路正常。
 
 ## 最近实机验证
+
+- 时间：2026-07-18 CST。
+- 端口：`/dev/cu.usbmodem5C4E0035341`。
+- 固件版本：`v0.1.2-28-g5f3a6e0-dirty`，ELF SHA-256 前缀 `91abdbb73`。
+- 验证范围：DevKitC-1 LED 固件 NimBLE host 栈溢出修复、完整构建、USB 烧录、桌面端自动 BLE 重连和连续状态写入。
+- 结果确认：故障固件可稳定复现 `A stack overflow in task nimble_host has been detected` 和 `RTC_SW_CPU_RST`；将 host task 栈从 4096 字节提高到 8192 字节并增加配置回归检查后，bootloader、app 和 partition table 三段写入均 `Hash of data verified`。烧录后串口连续 30 秒接受 18 个完整 `v: 2` 状态包，统计为 `stack_overflows=0`、`panics=0`、`reboots=0`；随后不再打开串口的 30 秒蓝牙观察没有新的连接状态变化。外接三盏 LED 的全部状态颜色仍需逐项肉眼验收。
 
 - 时间：2026-06-17 CST。
 - 端口：`/dev/cu.usbmodem2101`。
@@ -155,25 +164,33 @@
 
 ## 未完成事项
 
-1. **横屏 runtime 恢复需要单独设计和实机验证**
+1. **三色灯设备需要完成灯色实机验收**
+   - `ESP32-S3-DevKitC-1 N16R8` 已完成固件烧录、BLE 连续状态写入和重启循环修复；包含 2 个 `busy` 和 1 个最近 `success` 的真实状态包已确认固件以约 500 ms 间隔交替输出 `yellow=1 green=1` 和全灭，黄绿两路同步慢闪，红黄绿 LED 的剩余业务组合仍需逐项肉眼验证。
+   - 实机验收需覆盖上电自检、LCD + LED 同时连接、黄灯执行中、绿灯等待 / 完成 60 秒、错误红灯、7D 阈值边界、断连熄灭和长时间稳定性。
+
+2. **横屏 runtime 恢复需要单独设计和实机验证**
    - 当前取舍：实机运行时锁定竖屏，横屏 RLE 数据、布局模型和 host-side preview 保留，但 QMI8658 自动横竖屏切换不在启动路径启用。
    - 背景：直接轮转 RGB driver 内部 framebuffer 会在目标板上造成轻微闪烁；竖屏稳定路径已经回退到应用侧 PSRAM framebuffer + RGB driver 双 framebuffer 提交。
    - 下一步建议先设计 VSYNC / frame-done 协调方案，再逐步恢复横屏 runtime；恢复过程中必须保持竖屏路径不变，并用目标板确认横放方向、旋转方向、整屏截图样式画面清晰度和长时间无闪屏。
 
 ## 推荐推进顺序
 
-1. **准备下一版公开发布入口**
+1. **完成 DevKit 三色灯实机验收**
+   - 按 `docs/hardware.md` 接线并烧录 LED 固件，逐项验证三路独立状态、组合点亮、7D 阈值和断连熄灭。
+   - 与 LCD 同时连接，确认状态包和 health packet 不串设备，任一设备断开不影响另一台。
+
+2. **准备下一版公开发布入口**
    - 基于当前非商用许可准备下一版 release 或 beta。
    - 继续用真实用户路径重点观察首次打开、蓝牙授权、固件烧录向导、USB 串口识别、RST / BOOT 指引、烧录日志感知和 BLE 重连体验。
 
-2. **守住现有竖屏和发布闭环**
+3. **守住现有竖屏和发布闭环**
    - 后续协议、任务摘要、硬件页或烧录页改动优先补测试和实机回归。
    - 每次发布前继续重复 GitHub release asset 下载、Gatekeeper / codesign、strict helper 和真机烧录验证。
 
-3. **处理非阻塞发布治理**
+4. **处理非阻塞发布治理**
    - 自有源码非商用许可和第三方 GPL/source 材料需要分开审阅；如果进入商业授权或商业分发，仍建议做最终法律 / 合规确认，重点复核 bundled `esptool` GPLv2+ source offer、源码归档和第三方 notices 的最终发布形态。
 
-4. **恢复横屏 runtime**
+5. **恢复横屏 runtime**
    - 横屏是产品方向探索，不是当前链路可靠性的前置条件。
    - 先从 VSYNC / frame-done 协调和独立实验分支开始，确认不会影响竖屏稳定路径后，再通过目标板横放 / 竖立观察决定是否继续产品化为可配置展示模式。
 

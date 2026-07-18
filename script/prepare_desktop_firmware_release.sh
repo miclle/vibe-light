@@ -13,8 +13,8 @@ usage() {
 usage: script/prepare_desktop_firmware_release.sh [options]
 
 Prepares the desktop app firmware flashing resources:
-  1. build ESP32 firmware unless skipped
-  2. package FirmwareBundle from flasher_args.json
+  1. build LCD and LED ESP32 firmware unless skipped
+  2. package both targets under FirmwareBundles
   3. vendor esptool Python packages into FirmwareTools
   4. verify the bundled helper with a narrowed PATH
 
@@ -66,9 +66,20 @@ cd "$ROOT_DIR"
 
 if [[ "$SKIP_ESP32_BUILD" -eq 0 ]]; then
   make esp32-build
+  make esp32-led-build
 fi
 
 projects/esp32/tools/package_firmware_bundle.py \
+  --build-dir projects/esp32/build \
+  --output-dir projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareBundles/display \
+  --target-hardware "Waveshare ESP32-S3-LCD-3.16" \
+  --version "$VERSION" \
+  --minimum-desktop-version "$MINIMUM_DESKTOP_VERSION"
+
+projects/esp32/tools/package_firmware_bundle.py \
+  --build-dir projects/esp32-led/build \
+  --output-dir projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareBundles/led \
+  --target-hardware "ESP32-S3-DevKitC-1 N16R8 三色灯" \
   --version "$VERSION" \
   --minimum-desktop-version "$MINIMUM_DESKTOP_VERSION"
 

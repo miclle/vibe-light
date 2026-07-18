@@ -9,7 +9,7 @@ The desktop app lives in `projects/macos/desktop` and is a SwiftPM app using Swi
 - `Sources/VibeLightCore/StatusModels.swift`: display states, hook event mapping, `StatusPacket`, `StatusTask` and `HealthPacket`.
 - `Sources/VibeLightCore/TaskTracker.swift`: multi-task aggregation and `v: 2` packet creation.
 - `Sources/VibeLightCore/EventStore.swift`: recent event storage and current state.
-- `Sources/VibeLightCore/HardwareDevice.swift` and `HardwareReconnectPolicy.swift`: device model and reconnect behavior.
+- `Sources/VibeLightCore/HardwareDevice.swift` and `HardwareReconnectPolicy.swift`: per-device connection state and reconnect behavior.
 - `Sources/VibeLightApp/Views/HardwareDevicesPane.swift`: hardware scan/connect/send workflow.
 - `Sources/VibeLightHook/main.swift`: stdin hook CLI entrypoint.
 
@@ -22,6 +22,7 @@ The desktop app lives in `projects/macos/desktop` and is a SwiftPM app using Swi
 - Keep `StatusPacket` small. Truncate user-facing text before BLE writes.
 - For task timing, keep top-level `StatusPacket.ts` as packet generation time and task-level `updatedAt` as the task's last event time; firmware derives `RUN`, `WAIT` and freshness labels from the difference.
 - Keep Codex usage extraction aligned between `HookPayloadDecoder`, `CodexUsageReader`, `TaskTracker`, Swift tests and the protocol docs.
+- Keep one CoreBluetooth context per peripheral. Scanning and connecting a second device must not discard the first device's characteristics or health state; status writes fan out to every ready device.
 - When changing packet shape, update Swift tests, ESP32 parser tests and `docs/architecture.md` together.
 - When changing hardware UI affordances, keep the "硬件设备" page useful for manual packet sending and demo packets.
 

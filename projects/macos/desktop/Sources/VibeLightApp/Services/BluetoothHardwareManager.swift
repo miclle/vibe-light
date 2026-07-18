@@ -4,31 +4,40 @@ import VibeLightCore
 
 @MainActor
 final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManagerDelegate, @preconcurrency CBPeripheralDelegate {
+    private final class PeripheralContext {
+        let peripheral: CBPeripheral
+        var statusCharacteristic: CBCharacteristic?
+        var healthCharacteristic: CBCharacteristic?
+
+        init(peripheral: CBPeripheral) {
+            self.peripheral = peripheral
+        }
+    }
+
     private let serviceUUID = CBUUID(string: "7d8f0001-7b9a-4f0b-9e8a-8b4c2c7f1000")
     private let statusCharacteristicUUID = CBUUID(string: "7d8f0002-7b9a-4f0b-9e8a-8b4c2c7f1000")
     private let healthCharacteristicUUID = CBUUID(string: "7d8f0003-7b9a-4f0b-9e8a-8b4c2c7f1000")
 
     private var central: CBCentralManager?
     private var peripheralsByID: [String: CBPeripheral] = [:]
-    private var statusCharacteristic: CBCharacteristic?
-    private var healthCharacteristic: CBCharacteristic?
-    private var connectedPeripheral: CBPeripheral?
+    private var contextsByID: [String: PeripheralContext] = [:]
+    private var connectionAttemptIDs: Set<String> = []
+    private var manualDisconnectIDs: Set<String> = []
     private var shouldScanWhenPoweredOn = false
-    private var shouldAutoConnectFirstDevice = false
+    private var shouldAutoConnectDevices = false
     private var shouldClearDevicesWhenPoweredOn = false
-    private var isManualDisconnectInProgress = false
     private let store = HardwareDeviceStore()
 
     private let onDevicesChanged: ([HardwareDevice]) -> Void
     private let onStateChanged: (HardwareConnectionState, Bool, String) -> Void
-    private let onHealthChanged: (HealthPacket?) -> Void
+    private let onHealthChanged: (String, HealthPacket?) -> Void
     private let latestPacketData: (Int) -> Data?
     private let autoConnectEnabled: () -> Bool
 
     init(
         onDevicesChanged: @escaping ([HardwareDevice]) -> Void,
         onStateChanged: @escaping (HardwareConnectionState, Bool, String) -> Void,
-        onHealthChanged: @escaping (HealthPacket?) -> Void,
+        onHealthChanged: @escaping (String, HealthPacket?) -> Void,
         latestPacketData: @escaping (Int) -> Data?,
         autoConnectEnabled: @escaping () -> Bool
     ) {
@@ -42,10 +51,12 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
     }
 
     var canWriteStatus: Bool {
-        connectedPeripheral != nil && statusCharacteristic != nil
+        contextsByID.values.contains { context in
+            context.peripheral.state == .connected && context.statusCharacteristic != nil
+        }
     }
 
-    func startScan(autoConnectFirstDevice: Bool = false, clearDevices: Bool = false) {
+    func startScan(autoConnectDevices: Bool = false, clearDevices: Bool = false) {
         guard let central else { return }
 
         switch central.state {
@@ -53,13 +64,13 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
             break
         case .unknown, .resetting:
             shouldScanWhenPoweredOn = true
-            shouldAutoConnectFirstDevice = autoConnectFirstDevice
+            shouldAutoConnectDevices = autoConnectDevices
             shouldClearDevicesWhenPoweredOn = clearDevices
             publish("等待蓝牙就绪后扫描。")
             return
         default:
             shouldScanWhenPoweredOn = false
-            shouldAutoConnectFirstDevice = false
+            shouldAutoConnectDevices = false
             shouldClearDevicesWhenPoweredOn = false
             store.fail(central.state.recoveryMessage)
             publish(central.state.recoveryMessage)
@@ -67,10 +78,10 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
         }
 
         shouldScanWhenPoweredOn = false
-        shouldAutoConnectFirstDevice = autoConnectFirstDevice
+        shouldAutoConnectDevices = autoConnectDevices
         shouldClearDevicesWhenPoweredOn = false
         store.startScanning(clearDevices: clearDevices)
-        publish("正在扫描 VibeLight 设备...")
+        publish(autoConnectDevices ? "正在扫描并连接所有 VibeLight 设备..." : "正在扫描 VibeLight 设备...")
         central.scanForPeripherals(withServices: [serviceUUID], options: [
             CBCentralManagerScanOptionAllowDuplicatesKey: true,
         ])
@@ -78,7 +89,7 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
 
     func stopScan() {
         shouldScanWhenPoweredOn = false
-        shouldAutoConnectFirstDevice = false
+        shouldAutoConnectDevices = false
         shouldClearDevicesWhenPoweredOn = false
         central?.stopScan()
         store.stopScanning()
@@ -91,79 +102,76 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
             publish()
             return
         }
+        guard peripheral.state == .disconnected, !connectionAttemptIDs.contains(deviceID) else { return }
 
-        central?.stopScan()
-        shouldAutoConnectFirstDevice = false
+        connectionAttemptIDs.insert(deviceID)
         store.markConnecting(deviceID)
         publish("正在连接 \(peripheral.name ?? "VibeLight")...")
         central?.connect(peripheral)
     }
 
     func disconnect() {
-        isManualDisconnectInProgress = true
-        if let connectedPeripheral {
-            central?.cancelPeripheralConnection(connectedPeripheral)
-        }
-        connectedPeripheral = nil
-        statusCharacteristic = nil
-        healthCharacteristic = nil
-        shouldAutoConnectFirstDevice = false
+        shouldAutoConnectDevices = false
         shouldClearDevicesWhenPoweredOn = false
-        onHealthChanged(nil)
+        let deviceIDs = Set(contextsByID.keys).union(connectionAttemptIDs)
+        manualDisconnectIDs.formUnion(deviceIDs)
+        for deviceID in deviceIDs {
+            if let peripheral = peripheralsByID[deviceID] {
+                central?.cancelPeripheralConnection(peripheral)
+            }
+            onHealthChanged(deviceID, nil)
+        }
+        contextsByID.removeAll()
+        connectionAttemptIDs.removeAll()
         store.disconnect()
-        publish("已断开设备。")
+        publish("已断开全部设备。")
     }
 
     @discardableResult
     func sendLatestPacket() -> Bool {
-        sendPacketData(
-            messageWhenMissing: "没有可写入的设备或状态包。",
-            successMessage: "已同步最近状态包。"
-        ) { [latestPacketData] maximumWriteLength in
+        sendPacketData(messageWhenMissing: "没有可写入的设备或状态包。") { [latestPacketData] maximumWriteLength in
             latestPacketData(maximumWriteLength)
         }
     }
 
     @discardableResult
     func sendPacket(_ packet: StatusPacket) -> Bool {
-        sendPacketData(
-            messageWhenMissing: "没有可写入的设备。",
-            successMessage: "已发送演示包。"
-        ) { maximumWriteLength in
+        sendPacketData(messageWhenMissing: "没有可写入的设备。") { maximumWriteLength in
             try? packet.encodedJSON(maximumWriteLength: maximumWriteLength)
         }
     }
 
     private func sendPacketData(
         messageWhenMissing: String,
-        successMessage: String,
         dataProvider: (Int) -> Data?
     ) -> Bool {
-        guard let connectedPeripheral,
-              let statusCharacteristic else {
+        var writeCount = 0
+        for context in contextsByID.values where context.peripheral.state == .connected {
+            guard let characteristic = context.statusCharacteristic else { continue }
+            let maximumWriteLength = context.peripheral.maximumWriteValueLength(for: .withResponse)
+            guard let data = dataProvider(maximumWriteLength) else { continue }
+            context.peripheral.writeValue(data, for: characteristic, type: .withResponse)
+            writeCount += 1
+        }
+
+        guard writeCount > 0 else {
             publish(messageWhenMissing)
             return false
         }
-
-        let maximumWriteLength = connectedPeripheral.maximumWriteValueLength(for: .withResponse)
-        guard let data = dataProvider(maximumWriteLength) else {
-            publish("没有可写入的状态包。")
-            return false
-        }
-
-        connectedPeripheral.writeValue(data, for: statusCharacteristic, type: .withResponse)
-        publish(successMessage)
+        publish("已同步状态到 \(writeCount) 个设备。")
         return true
     }
 
     func readHealthPacket() {
-        guard let connectedPeripheral,
-              let healthCharacteristic else {
-            publish("没有可读取的健康状态特征。")
-            return
+        var readCount = 0
+        for context in contextsByID.values where context.peripheral.state == .connected {
+            guard let characteristic = context.healthCharacteristic else { continue }
+            context.peripheral.readValue(for: characteristic)
+            readCount += 1
         }
-
-        connectedPeripheral.readValue(for: healthCharacteristic)
+        if readCount == 0 {
+            publish("没有可读取的健康状态特征。")
+        }
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -171,7 +179,7 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
         case .poweredOn:
             if shouldScanWhenPoweredOn {
                 startScan(
-                    autoConnectFirstDevice: shouldAutoConnectFirstDevice,
+                    autoConnectDevices: shouldAutoConnectDevices,
                     clearDevices: shouldClearDevicesWhenPoweredOn
                 )
             } else {
@@ -181,8 +189,14 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
             publish(shouldScanWhenPoweredOn ? "等待蓝牙就绪后扫描。" : central.state.recoveryMessage)
         default:
             shouldScanWhenPoweredOn = false
-            shouldAutoConnectFirstDevice = false
+            shouldAutoConnectDevices = false
             shouldClearDevicesWhenPoweredOn = false
+            for deviceID in contextsByID.keys {
+                onHealthChanged(deviceID, nil)
+            }
+            contextsByID.removeAll()
+            connectionAttemptIDs.removeAll()
+            store.disconnect()
             store.fail(central.state.recoveryMessage)
             publish(central.state.recoveryMessage)
         }
@@ -204,15 +218,17 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
         store.upsert(HardwareDevice(id: id, name: name, rssi: RSSI.intValue))
         publish("发现 \(store.devices.count) 个 VibeLight 设备。")
 
-        if shouldAutoConnectFirstDevice {
+        if shouldAutoConnectDevices {
             connect(deviceID: id)
         }
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        connectedPeripheral = peripheral
+        let id = peripheral.identifier.uuidString
+        connectionAttemptIDs.remove(id)
+        contextsByID[id] = PeripheralContext(peripheral: peripheral)
         peripheral.delegate = self
-        store.connect(peripheral.identifier.uuidString)
+        store.connect(id)
         publish("已连接 \(peripheral.name ?? "VibeLight")，正在发现服务。")
         peripheral.discoverServices([serviceUUID])
     }
@@ -222,15 +238,16 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
         didFailToConnect peripheral: CBPeripheral,
         error: Error?
     ) {
-        if connectedPeripheral?.identifier == peripheral.identifier {
-            connectedPeripheral = nil
-        }
-        statusCharacteristic = nil
-        healthCharacteristic = nil
-        onHealthChanged(nil)
-        store.fail(error?.localizedDescription ?? "连接失败")
+        let id = peripheral.identifier.uuidString
+        connectionAttemptIDs.remove(id)
+        contextsByID.removeValue(forKey: id)
+        onHealthChanged(id, nil)
+        store.fail(id, message: error?.localizedDescription ?? "连接失败")
         publish()
-        recoverConnectionIfNeeded(after: .connectFailure)
+        let wasManual = manualDisconnectIDs.remove(id) != nil
+        if !wasManual {
+            recoverConnectionIfNeeded(after: .connectFailure)
+        }
     }
 
     func centralManager(
@@ -238,26 +255,24 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
         didDisconnectPeripheral peripheral: CBPeripheral,
         error: Error?
     ) {
-        connectedPeripheral = nil
-        statusCharacteristic = nil
-        healthCharacteristic = nil
-        onHealthChanged(nil)
-        store.disconnect()
+        let id = peripheral.identifier.uuidString
+        contextsByID.removeValue(forKey: id)
+        connectionAttemptIDs.remove(id)
+        onHealthChanged(id, nil)
+        store.disconnect(id)
 
-        let event: HardwareReconnectPolicy.Event = isManualDisconnectInProgress ? .manualDisconnect : .unexpectedDisconnect
-        isManualDisconnectInProgress = false
-
-        if event == .manualDisconnect {
-            publish("设备已断开。")
+        let wasManual = manualDisconnectIDs.remove(id) != nil
+        if wasManual {
+            publish("\(peripheral.name ?? "设备") 已断开。")
         } else {
-            publish(error?.localizedDescription ?? "设备已断开，正在准备重新连接。")
+            publish(error?.localizedDescription ?? "\(peripheral.name ?? "设备") 已断开，正在准备重新连接。")
+            recoverConnectionIfNeeded(after: .unexpectedDisconnect)
         }
-        recoverConnectionIfNeeded(after: event)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         if let error {
-            store.fail(error.localizedDescription)
+            store.fail(peripheral.identifier.uuidString, message: error.localizedDescription)
             publish()
             return
         }
@@ -271,31 +286,31 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
         didDiscoverCharacteristicsFor service: CBService,
         error: Error?
     ) {
+        let id = peripheral.identifier.uuidString
         if let error {
-            store.fail(error.localizedDescription)
+            store.fail(id, message: error.localizedDescription)
             publish()
             return
         }
+        guard let context = contextsByID[id] else { return }
 
         service.characteristics?.forEach { characteristic in
             if characteristic.uuid == statusCharacteristicUUID {
-                statusCharacteristic = characteristic
+                context.statusCharacteristic = characteristic
             }
             if characteristic.uuid == healthCharacteristicUUID {
-                healthCharacteristic = characteristic
+                context.healthCharacteristic = characteristic
             }
         }
 
-        if healthCharacteristic != nil {
-            readHealthPacket()
+        if let healthCharacteristic = context.healthCharacteristic {
+            peripheral.readValue(for: healthCharacteristic)
         }
-
-        guard statusCharacteristic != nil else {
-            publish("未找到状态写入特征。")
+        guard context.statusCharacteristic != nil else {
+            publish("\(peripheral.name ?? "设备") 未找到状态写入特征。")
             return
         }
-
-        publish("设备已就绪，可以写入状态。")
+        publish("\(peripheral.name ?? "设备") 已就绪。")
         sendLatestPacket()
     }
 
@@ -304,20 +319,18 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
             publish("状态写入失败：\(error.localizedDescription)")
             return
         }
-
-        if characteristic.uuid == statusCharacteristicUUID {
-            readHealthPacket()
+        if characteristic.uuid == statusCharacteristicUUID,
+           let healthCharacteristic = contextsByID[peripheral.identifier.uuidString]?.healthCharacteristic {
+            peripheral.readValue(for: healthCharacteristic)
         }
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard characteristic.uuid == healthCharacteristicUUID else { return }
-
         if let error {
             publish("读取健康状态失败：\(error.localizedDescription)")
             return
         }
-
         guard let data = characteristic.value else {
             publish("健康状态为空。")
             return
@@ -325,8 +338,8 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
 
         do {
             let health = try JSONDecoder().decode(HealthPacket.self, from: data)
-            onHealthChanged(health)
-            publish("已读取设备健康状态。")
+            onHealthChanged(peripheral.identifier.uuidString, health)
+            publish("已读取 \(peripheral.name ?? "设备") 健康状态。")
         } catch {
             publish("健康状态解析失败：\(error.localizedDescription)")
         }
@@ -346,31 +359,25 @@ final class BluetoothHardwareManager: NSObject, @preconcurrency CBCentralManager
 
     private func recoverConnectionIfNeeded(after event: HardwareReconnectPolicy.Event) {
         let policy = HardwareReconnectPolicy(autoConnectEnabled: autoConnectEnabled())
-        guard policy.action(after: event) == .scanAndAutoConnectFirstDevice else {
-            return
+        guard policy.action(after: event) == .scanAndAutoConnectDevices else { return }
+        if store.isScanning {
+            shouldAutoConnectDevices = true
+        } else {
+            startScan(autoConnectDevices: true)
         }
-
-        startScan(autoConnectFirstDevice: true)
     }
 }
 
 private extension CBManagerState {
     var recoveryMessage: String {
         switch self {
-        case .unknown:
-            "正在检查蓝牙状态。"
-        case .resetting:
-            "蓝牙正在重置，稍后会自动继续扫描。"
-        case .unsupported:
-            "这台 Mac 不支持 BLE，无法扫描 VibeLight 设备。"
-        case .unauthorized:
-            "未获得蓝牙权限。请在系统设置 > 隐私与安全性 > 蓝牙中允许 Vibe Light。"
-        case .poweredOff:
-            "蓝牙已关闭。请先打开系统蓝牙后再扫描。"
-        case .poweredOn:
-            "蓝牙已就绪。"
-        @unknown default:
-            "蓝牙处于未知状态，请稍后重试。"
+        case .unknown: "正在检查蓝牙状态。"
+        case .resetting: "蓝牙正在重置，稍后会自动继续扫描。"
+        case .unsupported: "这台 Mac 不支持 BLE，无法扫描 VibeLight 设备。"
+        case .unauthorized: "未获得蓝牙权限。请在系统设置 > 隐私与安全性 > 蓝牙中允许 Vibe Light。"
+        case .poweredOff: "蓝牙已关闭。请先打开系统蓝牙后再扫描。"
+        case .poweredOn: "蓝牙已就绪。"
+        @unknown default: "蓝牙处于未知状态，请稍后重试。"
         }
     }
 }

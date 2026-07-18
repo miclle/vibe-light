@@ -223,6 +223,43 @@ import Testing
     #expect(object["detail"] as? String == "LAST ERR build failed")
 }
 
+@Test func displaySnapshotAddsTaskAndCodexQuotaAlertsToStatusPacket() {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(
+            taskID: "codex:task-a",
+            source: .codex,
+            kind: .stopFailure,
+            timestamp: base,
+            workspace: "firmware",
+            codexUsage: CodexUsage(weeklyRemainingPercent: 10)
+        ),
+    ]
+
+    let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(1))
+
+    #expect(snapshot.statusPacket(codex7dRedThresholdPercent: 10).alerts == [.taskError, .codex7dLow])
+    #expect(snapshot.statusPacket(codex7dRedThresholdPercent: 9).alerts == [.taskError])
+}
+
+@Test func displaySnapshotDoesNotAlertWhenCodexQuotaIsUnknown() {
+    let snapshot = DisplaySnapshot(
+        source: .codex,
+        state: .idle,
+        detail: "no active tasks",
+        timestamp: Date(timeIntervalSince1970: 1_780_300_800),
+        tasks: [],
+        staleAfter: 600
+    )
+
+    let packet = snapshot.statusPacket(codex7dRedThresholdPercent: 10)
+    let object = try? JSONSerialization.jsonObject(with: packet.encodedJSON()) as? [String: Any]
+
+    #expect(packet.alerts == [])
+    #expect(object?["alerts"] as? [String] == [])
+}
+
 @Test func taskTrackerExpiresLastResultAfterStaleWindow() {
     let base = Date(timeIntervalSince1970: 1_780_300_800)
     let tracker = TaskTracker(staleAfter: 60)
@@ -718,7 +755,8 @@ import Testing
                 source: .codex,
                 detail: "running task \(index) with extra detail"
             )
-        }
+        },
+        alerts: [.taskError, .codex7dLow]
     )
 
     let fullData = try packet.encodedJSON()
@@ -730,6 +768,7 @@ import Testing
     #expect(object["v"] as? Int == 1)
     #expect(object["tasks"] == nil)
     #expect(object["activeCount"] == nil)
+    #expect(object["alerts"] as? [String] == ["taskError", "codex7dLow"])
 }
 
 @Test func statusPacketCompactsV2BeforeFallingBackToV1() throws {
@@ -1360,9 +1399,36 @@ import Testing
     store.upsert(device)
     store.connect(device.id)
 
-    #expect(store.isScanning == false)
-    #expect(store.devices == [device])
+    #expect(store.isScanning)
+    #expect(store.devices.first?.connectionState == .connected)
     #expect(store.connectionState == .connected(device.id))
+}
+
+@Test func hardwareDeviceStoreTracksMultipleConnectionsWhileScanning() {
+    let store = HardwareDeviceStore()
+    let display = HardwareDevice(id: "display", name: "VibeLight-S3", rssi: -48)
+    let light = HardwareDevice(id: "light", name: "VibeLight-LED", rssi: -52)
+
+    store.startScanning()
+    store.upsert(display)
+    store.upsert(light)
+    store.markConnecting(display.id)
+    store.connect(display.id)
+    store.markConnecting(light.id)
+    store.connect(light.id)
+
+    #expect(store.isScanning)
+    #expect(store.connectedDeviceIDs == Set([display.id, light.id]))
+    #expect(store.devices.first(where: { $0.id == display.id })?.connectionState == .connected)
+    #expect(store.devices.first(where: { $0.id == light.id })?.connectionState == .connected)
+
+    store.startScanning(clearDevices: true)
+    #expect(store.connectedDeviceIDs == Set([display.id, light.id]))
+    #expect(store.devices.count == 2)
+
+    store.disconnect(display.id)
+    #expect(store.connectedDeviceIDs == Set([light.id]))
+    #expect(store.connectionState == .connected(light.id))
 }
 
 @Test func hardwareDeviceStoreCanClearStaleDevicesWhenStartingFreshScan() {
@@ -1389,8 +1455,8 @@ import Testing
 @Test func hardwareReconnectPolicyRestartsAutoConnectAfterUnexpectedDisconnect() {
     let policy = HardwareReconnectPolicy(autoConnectEnabled: true)
 
-    #expect(policy.action(after: .unexpectedDisconnect) == .scanAndAutoConnectFirstDevice)
-    #expect(policy.action(after: .connectFailure) == .scanAndAutoConnectFirstDevice)
+    #expect(policy.action(after: .unexpectedDisconnect) == .scanAndAutoConnectDevices)
+    #expect(policy.action(after: .connectFailure) == .scanAndAutoConnectDevices)
 }
 
 @Test func hardwareReconnectPolicyDoesNotRecoverManualDisconnectsOrDisabledAutoConnect() {
@@ -1412,13 +1478,16 @@ import Testing
     let preferences = VibeLightPreferences(defaults: defaults)
     #expect(preferences.autoConnectDevice)
     #expect(preferences.selectedManualState == .idle)
+    #expect(preferences.codex7dRedThresholdPercent == 10)
 
     preferences.autoConnectDevice = false
     preferences.selectedManualState = .waiting
+    preferences.codex7dRedThresholdPercent = 150
 
     let reloaded = VibeLightPreferences(defaults: defaults)
     #expect(!reloaded.autoConnectDevice)
     #expect(reloaded.selectedManualState == .waiting)
+    #expect(reloaded.codex7dRedThresholdPercent == 100)
 }
 
 @Test func firmwareBundleManifestDecodesFlashFilesInOffsetOrder() throws {
@@ -1443,6 +1512,7 @@ import Testing
     let manifest = try JSONDecoder().decode(FirmwareBundleManifest.self, from: data)
 
     #expect(manifest.targetChip == "esp32s3")
+    #expect(manifest.bleDeviceName == "VibeLight-S3")
     #expect(manifest.flashFiles.map(\.offset) == ["0x0", "0x8000", "0x10000"])
     #expect(manifest.flashFiles.map(\.path) == ["bootloader.bin", "partition-table.bin", "vibe_light_esp32.bin"])
 }
@@ -1492,6 +1562,42 @@ import Testing
         "0x8000", partition.path,
         "0x10000", app.path,
     ])
+}
+
+@Test func firmwareBundleCatalogLoadsMultipleHardwareTargets() throws {
+    let root = temporaryDirectory()
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+    for (directoryName, targetHardware) in [
+        ("display", "Waveshare ESP32-S3-LCD-3.16"),
+        ("led", "ESP32-S3-DevKitC-1 N16R8 三色灯"),
+    ] {
+        let directory = root.appendingPathComponent(directoryName, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let app = directory.appendingPathComponent("app.bin")
+        try Data(targetHardware.utf8).write(to: app)
+        let manifest = FirmwareBundleManifest(
+            version: "dev",
+            buildCommit: "abc1234",
+            targetChip: "esp32s3",
+            targetHardware: targetHardware,
+            flashMode: "dio",
+            flashFreq: "80m",
+            flashSize: "16MB",
+            minimumDesktopVersion: "dev",
+            files: [.init(offset: "0x10000", path: "app.bin", sha256: try app.sha256Hex())]
+        )
+        try manifest.writeJSON(to: directory.appendingPathComponent("manifest.json"))
+    }
+
+    let bundles = try FirmwareBundleCatalog().validatedBundles(in: root)
+
+    #expect(bundles.count == 2)
+    #expect(Set(bundles.map(\.manifest.targetHardware)) == Set([
+        "Waveshare ESP32-S3-LCD-3.16",
+        "ESP32-S3-DevKitC-1 N16R8 三色灯",
+    ]))
+    #expect(Set(bundles.map(\.manifest.bleDeviceName)) == Set(["VibeLight-S3", "VibeLight-LED"]))
 }
 
 @Test func firmwareChipProbeCommandBuildsNonDestructiveChipIdArguments() {

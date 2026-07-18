@@ -5,12 +5,36 @@ public struct HardwareDevice: Equatable, Identifiable, Sendable {
     public var name: String
     public var rssi: Int
     public var lastSeen: Date
+    public var connectionState: HardwareDeviceConnectionState
 
-    public init(id: String, name: String, rssi: Int, lastSeen: Date = Date()) {
+    public init(
+        id: String,
+        name: String,
+        rssi: Int,
+        lastSeen: Date = Date(),
+        connectionState: HardwareDeviceConnectionState = .disconnected
+    ) {
         self.id = id
         self.name = name
         self.rssi = rssi
         self.lastSeen = lastSeen
+        self.connectionState = connectionState
+    }
+}
+
+public enum HardwareDeviceConnectionState: Equatable, Sendable {
+    case disconnected
+    case connecting
+    case connected
+    case failed(String)
+
+    public var title: String {
+        switch self {
+        case .disconnected: "未连接"
+        case .connecting: "连接中"
+        case .connected: "已连接"
+        case .failed: "连接失败"
+        }
     }
 }
 
@@ -50,6 +74,11 @@ public final class HardwareDeviceStore {
     public private(set) var devices: [HardwareDevice]
     public private(set) var connectionState: HardwareConnectionState
     public private(set) var isScanning: Bool
+    private var globalFailureMessage: String?
+
+    public var connectedDeviceIDs: Set<String> {
+        Set(devices.lazy.filter { $0.connectionState == .connected }.map(\.id))
+    }
 
     public init(
         devices: [HardwareDevice] = [],
@@ -63,22 +92,25 @@ public final class HardwareDeviceStore {
 
     public func startScanning(clearDevices: Bool = false) {
         if clearDevices {
-            devices.removeAll()
+            devices.removeAll { device in
+                device.connectionState != .connected && device.connectionState != .connecting
+            }
         }
         isScanning = true
-        connectionState = .scanning
+        globalFailureMessage = nil
+        refreshAggregateState()
     }
 
     public func stopScanning() {
         isScanning = false
-        if case .scanning = connectionState {
-            connectionState = .disconnected
-        }
+        refreshAggregateState()
     }
 
     public func upsert(_ device: HardwareDevice) {
         if let index = devices.firstIndex(where: { $0.id == device.id }) {
-            devices[index] = device
+            var updated = device
+            updated.connectionState = devices[index].connectionState
+            devices[index] = updated
         } else {
             devices.append(device)
         }
@@ -86,20 +118,76 @@ public final class HardwareDeviceStore {
     }
 
     public func connect(_ id: String) {
-        isScanning = false
-        connectionState = .connected(id)
+        updateDevice(id) { $0.connectionState = .connected }
+        globalFailureMessage = nil
+        refreshAggregateState()
     }
 
     public func markConnecting(_ id: String) {
-        connectionState = .connecting(id)
+        updateDevice(id) { $0.connectionState = .connecting }
+        globalFailureMessage = nil
+        refreshAggregateState()
+    }
+
+    public func disconnect(_ id: String) {
+        updateDevice(id) { $0.connectionState = .disconnected }
+        refreshAggregateState()
     }
 
     public func disconnect() {
-        connectionState = .disconnected
+        for index in devices.indices {
+            devices[index].connectionState = .disconnected
+        }
+        globalFailureMessage = nil
+        refreshAggregateState()
+    }
+
+    public func fail(_ id: String, message: String) {
+        updateDevice(id) { $0.connectionState = .failed(message) }
+        refreshAggregateState()
     }
 
     public func fail(_ message: String) {
         isScanning = false
-        connectionState = .failed(message)
+        globalFailureMessage = message
+        refreshAggregateState()
+    }
+
+    private func updateDevice(_ id: String, body: (inout HardwareDevice) -> Void) {
+        guard let index = devices.firstIndex(where: { $0.id == id }) else { return }
+        body(&devices[index])
+    }
+
+    private func refreshAggregateState() {
+        if let connected = devices
+            .filter({ $0.connectionState == .connected })
+            .sorted(by: { $0.id < $1.id })
+            .first {
+            connectionState = .connected(connected.id)
+            return
+        }
+        if let connecting = devices
+            .filter({ $0.connectionState == .connecting })
+            .sorted(by: { $0.id < $1.id })
+            .first {
+            connectionState = .connecting(connecting.id)
+            return
+        }
+        if isScanning {
+            connectionState = .scanning
+            return
+        }
+        if let globalFailureMessage {
+            connectionState = .failed(globalFailureMessage)
+            return
+        }
+        if let failed = devices.compactMap({ device -> String? in
+            guard case let .failed(message) = device.connectionState else { return nil }
+            return message
+        }).first {
+            connectionState = .failed(failed)
+            return
+        }
+        connectionState = .disconnected
     }
 }

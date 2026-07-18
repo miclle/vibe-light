@@ -1,0 +1,32 @@
+menu "Vibe Light LED"
+
+config VIBE_LED_RED_GPIO
+    int "Red LED GPIO"
+    range 0 48
+    default 4
+
+config VIBE_LED_YELLOW_GPIO
+    int "Yellow LED GPIO"
+    range 0 48
+    default 5
+
+config VIBE_LED_GREEN_GPIO
+    int "Green LED GPIO"
+    range 0 48
+    default 6
+
+config VIBE_LED_CODEX_7D_RED_THRESHOLD_PERCENT
+    int "Fallback Codex 7D red threshold percent"
+    range 0 100
+    default 10
+
+config VIBE_LED_SUCCESS_HOLD_SECONDS
+    int "Completed task green hold in seconds"
+    range 1 3600
+    default 60
+
+config VIBE_LED_STARTUP_SELF_TEST
+    bool "Run red-yellow-green startup self-test"
+    default y
+
+endmenu

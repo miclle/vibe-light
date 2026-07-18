@@ -10,7 +10,11 @@ extern "C" {
 
 typedef struct {
     int animation_tick;
+    bool has_animation_tick;
     bool backlight_on;
+    bool has_backlight_on;
+    bool indicator_on;
+    bool has_indicator_on;
     bool connected;
     const char *device;
     unsigned free_heap_bytes;

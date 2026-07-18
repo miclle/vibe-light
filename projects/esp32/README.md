@@ -7,7 +7,9 @@
 - 作为 BLE Peripheral 广播 `VibeLight-S3` 设备。
 - 暴露 Vibe Light GATT service 和状态写入 / 健康状态特征。
 - 接收 macOS 应用写入的 `StatusPacket`。
-- 驱动 LCD 或 LED 输出 `idle`、`busy`、`waiting`、`success`、`error`、`offline` 等状态。
+- 驱动 LCD 输出 `idle`、`busy`、`waiting`、`success`、`error`、`offline` 等状态。
+
+这是 LCD 固件。`ESP32-S3-DevKitC-1 N16R8` 三色灯固件见 [`../esp32-led/README.md`](../esp32-led/README.md)；两者共享 `../esp32-common/vibe_protocol` 的状态 parser 和 health formatter。
 
 协议和硬件约束见：
 
@@ -66,7 +68,7 @@ BLE Central 连接后，屏幕会显示 `idle / desktop connected`；断开后�
 | 文件 | 职责 |
 | --- | --- |
 | `main/vibe_ble.*` | BLE Peripheral、GATT service、状态写入特征和健康读取特征。 |
-| `main/vibe_status.*` | `StatusPacket` JSON 解析、状态枚举和未知状态降级。 |
+| `../esp32-common/vibe_protocol/vibe_status.*` | LCD / LED 共用的 `StatusPacket` JSON 解析、alert flags、状态枚举和未知状态降级。 |
 | `main/vibe_cjk_font.*` | 嵌入式 GB2312 一级中文字体查找和 UTF-8 解码。 |
 | `main/vibe_display_model.*` | 渲染签名、参考迷宫坐标、本轮已吃豆子隐藏、`SCORE` / `LEVEL` 规则、角色数量和角色嘴型。 |
 | `main/vibe_display_format.c` | 任务行格式、任务时长 / 新鲜度尾标、Codex 用量 / reset 提示、紧凑计数、页脚和固件版本短文本。 |
@@ -118,15 +120,14 @@ projects/esp32/tools/flash_firmware.sh --flash-only /dev/cu.usbmodemXXXX
 
 如果无法进入下载模式，按住 BOOT 后单击 RST，再重新执行烧录命令。
 
-为 macOS app 内置烧录功能生成预编译固件包：
+为 macOS app 内置烧录功能生成 LCD 与 LED 两套预编译固件包：
 
 ```bash
-make esp32-build
-projects/esp32/tools/package_firmware_bundle.py --version dev --minimum-desktop-version dev
-projects/esp32/tools/package_firmware_tools.py --clean
+make esp32-build esp32-led-build
+script/prepare_desktop_firmware_release.sh --skip-esp32-build --version dev --minimum-desktop-version dev
 ```
 
-固件包脚本会读取 `build/flasher_args.json`，复制 bootloader、partition table 和 app bin，并生成带 SHA-256 校验的 `manifest.json` 到 desktop app 的 `Resources/FirmwareBundle/`。工具脚本会把 `esptool` 及其 Python 依赖安装到 `Resources/FirmwareTools/python-packages/`，供 app 内置 helper 使用；同时为 GPLv2+ 的 `esptool` 生成 `OPEN_SOURCE_NOTICES.md`、`SOURCE_OFFER.md` 和 `sources/esptool-<version>.tar.gz`。这些生成产物不提交到 git；发布构建应在打包 app 前执行。
+固件包脚本会分别读取 `projects/esp32/build/flasher_args.json` 和 `projects/esp32-led/build/flasher_args.json`，复制 bootloader、partition table 和 app bin，并在 desktop app 的 `Resources/FirmwareBundles/display/` 与 `Resources/FirmwareBundles/led/` 生成带 SHA-256 校验的 `manifest.json`。工具脚本会把 `esptool` 及其 Python 依赖安装到 `Resources/FirmwareTools/python-packages/`，供 app 内置 helper 使用；同时生成 GPL notice、source offer 和源码归档。生成的二进制与 manifest 不提交到 Git；发布构建应在打包 app 前执行。
 
 Host-side 快速测试：
 

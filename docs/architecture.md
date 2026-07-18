@@ -8,7 +8,7 @@ Vibe Light 是一个智能硬件项目，用于把本机 AI 编程工具的运�
 
 - **系统应用层**：macOS 原生应用，负责接收 Codex / Claude 等工具的状态，并决定要展示的硬件显示状态。
 - **通讯协议**：macOS 应用与 ESP32-S3 之间的 BLE GATT 协议，负责可靠传递状态。
-- **ESP32-S3 硬件层**：ESP32-S3 固件和显示输出控制，负责接收状态并驱动 Waveshare `ESP32-S3-LCD-3.16` 的 LCD。
+- **ESP32-S3 硬件层**：两套 ESP-IDF 固件复用协议组件，分别驱动 Waveshare `ESP32-S3-LCD-3.16` 的 LCD 和 `ESP32-S3-DevKitC-1 N16R8` 的红黄绿 LED。
 
 这三层分别处理状态来源、状态传输和硬件呈现，彼此通过稳定的数据契约连接。
 
@@ -99,7 +99,7 @@ sequenceDiagram
 | 状态归一化 | 把不同工具的 hook 事件映射成统一状态。 |
 | Task Tracker | 根据 task id、workspace 或 source 聚合同步到达的多任务事件，生成整体状态、Codex 用量摘要和最多 5 条屏幕任务摘要；Codex memory-writing 辅助事件会被过滤，避免干扰真实工作状态。 |
 | App State | 保存当前状态、设备连接状态和最近一次事件。 |
-| BLE Client | 使用 CoreBluetooth 扫描、连接 ESP32-S3，启动时可按偏好自动连接第一台发现的 VibeLight 设备，异常断开或连接失败后按偏好恢复扫描，并在设备就绪后写入最新状态包。 |
+| BLE Client | 使用 CoreBluetooth 持续扫描 Vibe Light service，为每台 Peripheral 独立保存连接、状态特征和健康特征；启动时可按偏好自动连接所有发现的设备，并把最新状态包逐台按各自 BLE 写入长度发送。单台设备异常断开不会丢失其他连接。 |
 | 硬件演示包 | 在“硬件设备”页提供固定 v2 `StatusPacket` 场景，用来调试屏幕任务列表；演示包直接写入 BLE，不写入 hook 事件日志。 |
 
 ### 状态模型
@@ -140,7 +140,7 @@ Codex / Claude 可能同时运行多个任务，事件到达顺序也可能穿�
 2. 否则任一任务处于 `busy` 时，整体显示 `busy`。
 3. 没有活跃任务时，整体显示 `idle`，但最近的 `error` / `success` 任务仍可作为任务行和 `LAST ERR` / `LAST OK` 摘要展示。
 
-当前 BLE 状态包使用 `v: 2`，除了整体 `source` / `state` / `detail` 外，还包含任务计数、Codex 用量摘要和最多 5 个任务行。ESP32-S3 屏幕顶部显示聚合状态和 Codex 5h / 7d 剩余百分比；当某个窗口剩余不高于 20% 且带有 reset 时间时，5h / 7d 百分比仍常驻显示，顶部状态区下沿会额外提示 `5H RESET 45m` 这类短 reset 行。中间保留给参考迷宫动画舞台，底部贴边区域显示任务计数、列表和任务新鲜度 / 运行时长；任务 context 有 token 数据时可显示 `CTX 4.2K/12K`，否则继续显示 `CTX xx%`。macOS 端会优先把 `waiting` / `busy` 任务排在前面，并用最近的 `error` / `success` 任务补满剩余行数；任务超过 5 条时只发送排序后的前 5 条。活跃任务尾标在运行 / 等待时长和 `CTX` 之间轮播；`contextUsedPercent` 达到 80% 时视为高上下文占用，`CTX` 出现频率从约四分之一提高到约二分之一，并用黄色显示；90% 及以上用红色显示。页脚左侧用短状态显示来源和链路状态，例如 `CODEX LIVE`；旧协议包显示 `CODEX LEGACY`，不直接暴露 `v1` / `v2` 这类内部协议版本。页脚右侧用 `FW 2a02678` 这类短文本显示固件自身 app version，便于烧录后现场确认版本。页脚使用中性灰、左侧与任务正文左边界对齐，并在屏幕底部保留少量余量，避免贴边显示伪影。任务状态色块内缩显示，避免在屏幕边缘形成竖线；活跃/等待/错误计数只显示在迷宫里的 `ACTIVE` / `WAIT` / `ERR` 计数区，避免与页脚重复。固件仍兼容旧的 `v: 1` 单状态包；当 `tasks[]` 为空时，屏幕会回退为空任务面板，并优先显示 `detail` 中的 `LAST OK ...` / `LAST ERR ...` 最近结果摘要。macOS 端会从已压缩的最近任务详情生成摘要，例如 `LAST OK Bash / TEST make quick` 或 `LAST ERR build failed`，并按任务 stale 窗口让最近结果和补位任务过期，过期后回到普通空闲状态，避免旧结果长期占屏。macOS 端如果发现完整 `v: 2` JSON 超过 BLE 单次写入长度，会自动降级为 `v: 1` 包，保证旧链路仍可写入。
+当前 BLE 状态包使用 `v: 2`，除了整体 `source` / `state` / `detail` 外，还包含任务计数、Codex 用量摘要、`alerts` 和最多 5 个任务行。`alerts` 由 macOS 端基于完整任务语义和用户偏好产生，无告警时发送空数组：存在错误时加入 `taskError`；Codex 7D 剩余百分比不高于用户配置阈值时加入 `codex7dLow`，默认阈值为 10%，未知用量不触发告警。ESP32-S3 屏幕继续显示完整任务视图；LED 固件消费同一包并提供远距离提示，只有缺少 `alerts` 字段的旧包才使用固件本地阈值兜底。固件仍兼容旧的 `v: 1` 单状态包；macOS 端如果发现完整 `v: 2` JSON 超过某台设备的 BLE 单次写入长度，会针对该设备自动降级为保留 `alerts` 的紧凑 `v: 1` 包。
 
 ### 设计原则
 
@@ -171,7 +171,7 @@ Codex / Claude 可能同时运行多个任务，事件到达顺序也可能穿�
 | 状态写入特征 UUID | `7d8f0002-7b9a-4f0b-9e8a-8b4c2c7f1000` |
 | 健康状态特征 UUID | `7d8f0003-7b9a-4f0b-9e8a-8b4c2c7f1000` |
 
-当前固件广播名为 `VibeLight-S3`。macOS 端扫描广播 VibeLight service 的设备，并在连接后发现状态写入特征和健康读取特征。
+LCD 固件广播名为 `VibeLight-S3`，LED 固件广播名为 `VibeLight-LED`。macOS 端扫描广播 Vibe Light service 的设备，可以同时连接两者，并在每条连接上独立发现状态写入特征和健康读取特征。
 
 ### 状态包
 
@@ -187,6 +187,7 @@ macOS 应用向状态写入特征写入 UTF-8 JSON。
   "activeCount": 3,
   "waitingCount": 1,
   "errorCount": 0,
+  "alerts": ["codex7dLow"],
   "usage": {
     "codex5hRemainingPercent": 88,
     "codex5hResetAt": 1780303500000,
@@ -225,6 +226,7 @@ macOS 应用向状态写入特征写入 UTF-8 JSON。
 | `activeCount` | number | 否 | 当前活跃任务数量，包含 `busy` 和 `waiting`。 |
 | `waitingCount` | number | 否 | 当前等待用户处理的任务数量。 |
 | `errorCount` | number | 否 | 最近聚合窗口内的错误任务数量。 |
+| `alerts` | array | 兼容旧包时可缺省 | 硬件告警原因。当前桌面端始终发送该字段，无告警时为 `[]`；当前值为 `taskError` 和 `codex7dLow`，未知值必须忽略。7D 阈值由 macOS 偏好决定，默认 10%。 |
 | `usage` | object | 否 | Codex 用量摘要；当前包含 `codex5hRemainingPercent` 和 `codex7dRemainingPercent`，均为 0-100 的剩余百分比；可选 `codex5hResetAt` 和 `codex7dResetAt` 是对应窗口 reset 的 Unix 毫秒时间戳。 |
 | `tasks` | array | 否 | ESP32-S3 屏幕列表行，最多发送 5 条；每条包含 `title`、`source`、`state`、可选 `detail`、可选 `updatedAt`、可选 `contextUsedPercent`、可选 `contextUsedTokens` 和可选 `contextWindowTokens`。`updatedAt` 是任务最近事件的 Unix 毫秒时间戳，固件用顶层 `ts` 减去它来显示 `RUN 03:12`、`WAIT 01:08` 或 `2m ago`；缺少或无效时回退显示 context。`contextUsedPercent` 是当前 Codex 会话上下文窗口已用百分比，固件兼容旧包的 `contextRemainingPercent` 并转换为已用百分比显示；当 `contextUsedTokens` 和 `contextWindowTokens` 同时存在时，固件优先显示 `CTX 4.2K/12K` 这类紧凑 token 摘要。任务标题限制为 32 个 UTF-8 字节，任务详情限制为 40 个 UTF-8 字节。 |
 
@@ -264,9 +266,10 @@ ESP32-S3 通过健康状态特征返回设备状态。
 | `minFreeHeapBytes` | number | 可选，启动后最小空闲 heap 字节数，用于观察内存低水位。 |
 | `animationTick` | number | 可选，固件本地显示动画 tick，用于判断渲染循环是否仍在推进。 |
 | `backlightOn` | boolean | 可选，当前背光是否处于开启状态。 |
+| `indicatorOn` | boolean | 可选，LED 设备当前是否有任一状态灯点亮。 |
 | `lastParseError` | string | 可选，最近一次状态写入解析或读取失败的短错误原因；没有错误时省略。 |
 
-macOS 应用在发现健康状态特征后会读取一次；后续每次状态写入响应成功后再读取一次，也可以由“硬件设备”页手动刷新，用于确认固件运行时间、最近显示状态、heap 余量、渲染 tick、背光状态和最近解析错误。
+macOS 应用在每台设备发现健康状态特征后会读取一次；后续每次状态写入响应成功后再读取对应设备，也可以由“硬件设备”页同时刷新全部设备。LCD 返回 heap、渲染 tick 和 `backlightOn`；LED 设备返回 `indicatorOn`，不伪造 LCD 背光字段。
 
 ### 协议原则
 
@@ -280,7 +283,7 @@ macOS 应用在发现健康状态特征后会读取一次；后续每次状态�
 
 ## ESP32-S3 硬件层
 
-ESP32-S3 硬件层负责把通讯协议转换为可见的硬件输出。当前输出设备是 Waveshare `ESP32-S3-LCD-3.16` 的 320 x 820 LCD；LED 或其他屏幕可作为后续输出适配，但不属于当前闭环。
+ESP32-S3 硬件层负责把通讯协议转换为可见输出。当前有两个独立固件目标：Waveshare `ESP32-S3-LCD-3.16` 的 320 x 820 LCD，以及 `ESP32-S3-DevKitC-1 N16R8` 的三色 LED。两者共享 `projects/esp32-common/vibe_protocol` 的 parser 和 health formatter，但各自持有 BLE Peripheral 与输出控制。
 
 ### 固件模块
 
@@ -309,14 +312,15 @@ ESP32-S3 硬件层负责把通讯协议转换为可见的硬件输出。当前�
 
 ### 显示输出映射
 
-| 状态 | LED 默认效果 | IPS TFT 默认效果 |
+| 独立条件 | 三色灯输出 | IPS TFT 默认效果 |
 | --- | --- | --- |
-| `idle` | 柔和白色呼吸。 | 白色顶部状态色，迷宫静态展示，底部为空任务状态。 |
-| `busy` | 蓝色脉冲。 | 蓝色顶部状态色，中间运行吃豆人迷宫动画，底部显示任务计数和列表。 |
-| `waiting` | 紫色慢脉冲。 | 紫色顶部状态色，底部突出等待任务。 |
-| `success` | 绿色闪烁后回到 `idle`。 | 绿色顶部状态色，底部显示最近完成任务。 |
-| `error` | 红色双闪后回到 `idle`。 | 红色顶部状态色，底部显示错误任务。 |
-| `offline` | 琥珀色慢闪。 | 琥珀色顶部状态色，底部回退为空任务或断开状态。 |
+| `taskError`、`codex7dLow` 或错误任务 | 红灯慢闪 | 红色状态和错误任务。 |
+| `waiting` / `waitingCount > 0` | 绿灯慢闪 | 紫色状态并突出等待任务。 |
+| 最近 60 秒内成功完成 | 绿灯慢闪；若同时有任务执行，则与黄灯同步闪烁 | 绿色状态或最近完成任务。 |
+| `busy` / 正在执行的任务 | 黄灯慢闪 | 蓝色状态、吃豆人动画和任务列表。 |
+| 空闲、离线或未知用量 | 全部熄灭 | 安静的空闲或断开界面。 |
+
+三色灯三路独立求值，不互相覆盖，并统一采用 1 秒慢闪周期（亮 500 ms、灭 500 ms）。例如同时存在错误任务、执行中任务和最近完成任务时，红、黄、绿三灯会同步闪烁。
 
 ### Codex 吃豆人任务动画
 
@@ -347,15 +351,7 @@ macOS 端也可以后续提供一个可选预览：在应用窗口里展示同�
 
 ### 硬件边界
 
-当前硬件层的架构边界：
-
-- 一个 ESP32-S3 开发板。
-- Waveshare `ESP32-S3-LCD-3.16` 的 320 x 820 LCD。
-- 一个 BLE GATT 服务。
-- 一个状态写入特征。
-- 一个健康状态读取特征。
-
-灯珠数量、多灯动画、外壳结构、电源管理和配网能力不属于当前架构层核心边界。横屏模式仍不属于 BLE 协议语义；当前实机运行时为稳定性锁定竖屏，后续如果恢复横屏或引入 LED / 其他屏幕，应继续复用同一个 `StatusPacket` 语义，由硬件层内部适配输出设备。
+当前硬件层允许一台 Mac 同时连接多台 Vibe Light Peripheral。每台设备暴露相同的一组 service、状态写入特征和健康读取特征，macOS 逐设备写入，不依赖广播顺序。LCD 和三色灯都复用同一个 `StatusPacket` 语义；GPIO 灯效、LCD 像素、横屏模式、外壳和电源管理仍属于各自固件内部实现，不进入 BLE 协议。
 
 ### 固件原则
 

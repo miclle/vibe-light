@@ -7,7 +7,7 @@ public struct HardwareReconnectPolicy: Sendable {
 
     public enum Action: Equatable, Sendable {
         case none
-        case scanAndAutoConnectFirstDevice
+        case scanAndAutoConnectDevices
     }
 
     private let autoConnectEnabled: Bool
@@ -25,7 +25,7 @@ public struct HardwareReconnectPolicy: Sendable {
         case .manualDisconnect:
             return .none
         case .unexpectedDisconnect, .connectFailure:
-            return .scanAndAutoConnectFirstDevice
+            return .scanAndAutoConnectDevices
         }
     }
 }

@@ -6,14 +6,15 @@
 
 ## 当前基线
 
-- 目标硬件：Waveshare `ESP32-S3-LCD-3.16`。
-- 固件工程：`projects/esp32`。
+- 源码目标硬件：Waveshare `ESP32-S3-LCD-3.16` 和 `ESP32-S3-DevKitC-1 N16R8` 三色灯。
+- 固件工程：`projects/esp32`（LCD）与 `projects/esp32-led`（LED）。
 - macOS app：`projects/macos/desktop`。
 - app 内烧录入口：侧边栏“固件烧录”页面。
-- BLE 设备名：`VibeLight-S3`。
+- BLE 设备名：`VibeLight-S3` 与 `VibeLight-LED`。
 - 当前公开 latest release：`v0.1.2`，tag 指向 `ffe505e76e0da0f5b7abcd6c8a22cbb48e7852c6`。
 - 当前 release assets：`VibeLightApp-0.1.2-arm64-notarized.zip`、`VibeLightApp-0.1.2-x86_64-notarized.zip`、`desktop-firmware-release-0.1.2-arm64.md`、`desktop-firmware-release-0.1.2-x86_64.md`、`appcast.xml` 和 `appcast-x86_64.xml`。
 - `v0.1.2` 已验证 GitHub latest appcast 可匿名下载，Apple Silicon feed 指向 `VibeLightApp-0.1.2-arm64-notarized.zip`，Intel feed 指向 `VibeLightApp-0.1.2-x86_64-notarized.zip`；两个下载包已完成本地解包、notarization staple、codesign 和 Mach-O 架构扫描。`v0.1.1` 下载包已验证 Sparkle stable feed 可从旧版更新到 `0.1.1`，并完成 USB 固件烧录和 BLE 重连。
+- 公开 `v0.1.2` 仍只内置旧的单 LCD `FirmwareBundle`；双固件 `FirmwareBundles` 尚未形成公开 release 或实机验收记录。
 
 ## 用户烧录流程
 
@@ -22,12 +23,12 @@
 1. 从 GitHub Releases 下载匹配当前 Mac 架构的最新 zip：新双平台 release 中 Apple Silicon 使用 `VibeLightApp-*-arm64-notarized.zip`，Intel 使用 `VibeLightApp-*-x86_64-notarized.zip`；旧 release 若只有 `VibeLightApp-*-notarized.zip`，则使用该单包。
 2. 用 Finder 或 Archive Utility 解压；命令行解压建议用 `ditto -x -k`，不要优先用 `unzip`。
 3. 打开 `VibeLightApp.app`。
-4. 用 USB 数据线连接 Waveshare `ESP32-S3-LCD-3.16`。
-5. 进入“固件烧录”页面，刷新并选择串口。
+4. 用 USB 数据线连接 Waveshare LCD 板或 ESP32-S3-DevKitC-1。
+5. 进入“固件烧录”页面，先选择与实际板子相符的目标固件，再刷新并选择串口。
 6. 点击“读取芯片”，确认识别到 `ESP32-S3` 和 MAC 后再继续。
 7. 点击烧录，等待 bootloader、partition table 和 app firmware 三段写入与 hash 校验完成。
 8. 烧录成功后按提示点按 `RST` 正常启动，不要按住 `BOOT`。
-9. 在 app 中连接 `VibeLight-S3` 并读取 health packet。
+9. 在 app 中连接 `VibeLight-S3` 或 `VibeLight-LED` 并读取 health packet。
 
 如果读取芯片失败且 app 判断需要进入下载模式，按住 `BOOT`，点按 `RST`，继续按住约 1 秒后松开 `BOOT`，再重新读取芯片。
 
@@ -36,11 +37,17 @@
 发布包内 app resource 需要包含：
 
 ```text
-FirmwareBundle/
-  manifest.json
-  bootloader.bin
-  partition-table.bin
-  vibe_light_esp32.bin
+FirmwareBundles/
+  display/
+    manifest.json
+    bootloader.bin
+    partition-table.bin
+    vibe_light_esp32.bin
+  led/
+    manifest.json
+    bootloader.bin
+    partition-table.bin
+    vibe_light_led.bin
 
 FirmwareTools/
   vibe-light-firmware-flasher
@@ -52,16 +59,16 @@ FirmwareTools/
   sources/esptool-<version>.tar.gz
 ```
 
-`FirmwareBundle/manifest.json` 必须记录：
+每个目标目录的 `manifest.json` 必须记录：
 
 - 固件版本和构建 commit。
 - 目标芯片 `esp32s3`。
-- 目标硬件 Waveshare `ESP32-S3-LCD-3.16`。
+- 与目录匹配的目标硬件名称。
 - flash mode、freq、size。
 - 每个 bin 文件的 offset、文件名和 SHA-256。
 - 最低兼容 desktop app 版本。
 
-ESP32 当前写入项来自 `projects/esp32/build/flasher_args.json`：
+每套写入项来自对应工程的 `build/flasher_args.json`，当前 offset 均为：
 
 - `bootloader/bootloader.bin` at `0x0`
 - `partition_table/partition-table.bin` at `0x8000`
@@ -79,7 +86,7 @@ script/prepare_desktop_firmware_release.sh \
   --require-bundled-python
 ```
 
-如果只想复用现有 `projects/esp32/build` 产物：
+如果只想复用现有 `projects/esp32/build` 和 `projects/esp32-led/build` 产物：
 
 ```bash
 script/prepare_desktop_firmware_release.sh \
@@ -92,8 +99,8 @@ script/prepare_desktop_firmware_release.sh \
 
 这个脚本会：
 
-1. 构建 ESP32 固件，除非传入 `--skip-esp32-build`。
-2. 调用 `projects/esp32/tools/package_firmware_bundle.py` 生成 `FirmwareBundle`。
+1. 构建 LCD 与 LED 两套 ESP32 固件，除非传入 `--skip-esp32-build`。
+2. 调用 `projects/esp32/tools/package_firmware_bundle.py` 生成 `FirmwareBundles/display` 和 `FirmwareBundles/led`。
 3. 调用 `projects/esp32/tools/package_firmware_tools.py --clean` vendor `esptool` 和 Python 依赖。
 4. 复制 `--python-runtime` 到 `FirmwareTools/python/`。
 5. 在收窄 PATH 下运行 helper `--help`，验证不依赖用户 PATH。
@@ -102,9 +109,8 @@ script/prepare_desktop_firmware_release.sh \
 只做开发验证时也可以拆开运行：
 
 ```bash
-make esp32-build
-projects/esp32/tools/package_firmware_bundle.py --version dev --minimum-desktop-version dev
-projects/esp32/tools/package_firmware_tools.py --clean
+make esp32-build esp32-led-build
+script/prepare_desktop_firmware_release.sh --skip-esp32-build --version dev --minimum-desktop-version dev
 ```
 
 ## 本地签名和 notarization
@@ -345,12 +351,12 @@ VIBE_LIGHT_FIRMWARE_FLASHER_STRICT=1 \
   --flash_mode dio \
   --flash_freq 80m \
   --flash_size 16MB \
-  0x0 FirmwareBundle/bootloader.bin \
-  0x8000 FirmwareBundle/partition-table.bin \
-  0x10000 FirmwareBundle/vibe_light_esp32.bin
+  0x0 FirmwareBundles/display/bootloader.bin \
+  0x8000 FirmwareBundles/display/partition-table.bin \
+  0x10000 FirmwareBundles/display/vibe_light_esp32.bin
 ```
 
-实际 offset、flash 参数和文件路径应以下载包内 `FirmwareBundle/manifest.json` 为准。优先通过 app UI 完成烧录；手写 `write_flash` 只用于底层 helper 回归。
+实际 offset、flash 参数和文件路径应以所选目标目录内的 `manifest.json` 为准。优先通过 app UI 完成烧录；手写 `write_flash` 只用于底层 helper 回归。
 
 ## 真机验收
 

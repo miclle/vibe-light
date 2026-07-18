@@ -2,12 +2,12 @@
 
 ## Scope
 
-The firmware lives in `projects/esp32` and targets Waveshare `ESP32-S3-LCD-3.16`. It uses ESP-IDF, BLE GATT, cJSON, ST7701 RGB LCD initialization, PSRAM framebuffer drawing and a lightweight renderer instead of LVGL for the current phase.
+The LCD firmware lives in `projects/esp32` and targets Waveshare `ESP32-S3-LCD-3.16`. The LED firmware lives in `projects/esp32-led` and targets `ESP32-S3-DevKitC-1 N16R8`. Both use ESP-IDF and share the BLE status/health parser in `projects/esp32-common/vibe_protocol`.
 
 ## Core Files
 
 - `main/vibe_ble.*`: BLE peripheral, `VibeLight-S3` advertising, status write characteristic and health read characteristic.
-- `main/vibe_status.*`: JSON packet parsing and display state conversion.
+- `../esp32-common/vibe_protocol/vibe_status.*`: JSON packet parsing, alert flags and display state conversion shared by both firmwares.
 - `main/vibe_display_model.*`: render signatures, reference maze coordinates, eaten-pellet visibility reset, actor count and animation geometry that can be tested on host.
 - `main/vibe_display_format.c`: task row formatting, task timing / freshness trailing labels, Codex usage line and reset hint, compact counts, footer text and firmware-version text.
 - `main/vibe_display_score.*`: NVS-backed high score persistence.
@@ -19,6 +19,7 @@ The firmware lives in `projects/esp32` and targets Waveshare `ESP32-S3-LCD-3.16`
 ## Rules
 
 - Keep BLE callbacks and parser paths non-blocking.
+- LED output channels are independent and active-high by default: red GPIO4, yellow GPIO5, green GPIO6, each through its own 330 ohm resistor. Derive each channel separately so error, busy, and waiting/recent-success signals can blink together; keep the shared slow-blink cadence at 500 ms on and 500 ms off unless the product behavior changes explicitly.
 - Keep status writes under the current firmware limit; packets at 1024 bytes or larger are rejected.
 - Unknown top-level or task states should degrade to `idle`; malformed packets should be rejected without mutating the previous packet.
 - Keep display-model logic testable in `vibe_display_model.*` when it does not require hardware handles.
@@ -36,6 +37,7 @@ Run host-side C tests:
 
 ```bash
 projects/esp32/tests/run_status_parser_tests.sh
+projects/esp32-led/tests/run_tests.sh
 ```
 
 Generate host-side visual previews when changing display geometry:

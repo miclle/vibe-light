@@ -33,6 +33,7 @@ run_step() {
 run_step "Swift tests" swift test --package-path "$ROOT_DIR/projects/macos/desktop"
 run_step "Desktop update release tests" "$ROOT_DIR/script/test_desktop_update_release.sh"
 run_step "ESP32 status parser tests" "$ROOT_DIR/projects/esp32/tests/run_status_parser_tests.sh"
+run_step "ESP32 LED model tests" "$ROOT_DIR/projects/esp32-led/tests/run_tests.sh"
 run_step "ESP32 display previews" "$ROOT_DIR/projects/esp32/tools/render_maze_preview.py" /tmp/vibe-maze-preview.png
 run_step "ESP32 full-screen preview" "$ROOT_DIR/projects/esp32/tools/render_maze_preview.py" --full-screen /tmp/vibe-screen-preview.png
 run_step "ESP32 landscape preview" "$ROOT_DIR/projects/esp32/tools/render_maze_preview.py" --landscape-screen /tmp/vibe-landscape-preview.png
@@ -44,6 +45,8 @@ if [[ "$RUN_ESP32_BUILD" == "1" ]]; then
   fi
 
   run_step "ESP32 firmware build" zsh -lc "export PATH=\"$IDF_SAFE_PATH\" && source \"$IDF_PATH/export.sh\" >/tmp/vibe-idf-export.log && cd \"$ROOT_DIR/projects/esp32\" && idf.py build"
+  run_step "ESP32 LED firmware build" zsh -lc "export PATH=\"$IDF_SAFE_PATH\" && source \"$IDF_PATH/export.sh\" >/tmp/vibe-idf-export.log && cd \"$ROOT_DIR/projects/esp32-led\" && idf.py build"
+  run_step "ESP32 LED BLE stack check" zsh -lc "export PATH=\"$IDF_SAFE_PATH\" && source \"$IDF_PATH/export.sh\" >/tmp/vibe-idf-export.log && /bin/bash \"$ROOT_DIR/projects/esp32-led/tests/check_ble_stack_usage.sh\""
 fi
 
 run_step "Git whitespace check" git -C "$ROOT_DIR" diff --check

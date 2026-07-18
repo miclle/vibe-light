@@ -67,8 +67,8 @@ run_or_note "Hook and usage ingestion" "${SEARCH[@]}" "vibe-light-hook|standardO
   projects/macos/desktop/Sources/VibeLightCore/EventLog.swift
 
 run_or_note "ESP32 protocol parser" "${SEARCH[@]}" "VIBE_STATUS_MAX_TASKS|vibe_status_packet_t|contextUsedPercent|contextRemainingPercent|1024|unknown|idle" \
-  projects/esp32/main/vibe_status.h \
-  projects/esp32/main/vibe_status.c \
+  projects/esp32-common/vibe_protocol/vibe_status.h \
+  projects/esp32-common/vibe_protocol/vibe_status.c \
   projects/esp32/main/vibe_ble.c
 
 run_or_note "ESP32 display model constants" "${SEARCH[@]}" "VIBE_DISPLAY_MAZE|VIBE_DISPLAY_TASK|ANIMATION_PERIOD|PELLET|CTX|signature|actor_count" \

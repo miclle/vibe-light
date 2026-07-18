@@ -17,9 +17,7 @@ int vibe_health_format_json(char *payload, size_t payload_size, const vibe_healt
 
     int written = snprintf(payload,
                            payload_size,
-                           "{\"animationTick\":%d,\"backlightOn\":%s,\"connected\":%s,\"device\":\"",
-                           snapshot->animation_tick,
-                           snapshot->backlight_on ? "true" : "false",
+                           "{\"connected\":%s,\"device\":\"",
                            snapshot->connected ? "true" : "false");
     if (written < 0 || (size_t)written >= payload_size) {
         return -1;
@@ -55,6 +53,39 @@ int vibe_health_format_json(char *payload, size_t payload_size, const vibe_healt
         return -1;
     }
     written += tail;
+
+    if (snapshot->has_animation_tick) {
+        tail = snprintf(payload + written,
+                        payload_size - (size_t)written,
+                        ",\"animationTick\":%d",
+                        snapshot->animation_tick);
+        if (tail < 0 || (size_t)tail >= payload_size - (size_t)written) {
+            return -1;
+        }
+        written += tail;
+    }
+
+    if (snapshot->has_backlight_on) {
+        tail = snprintf(payload + written,
+                        payload_size - (size_t)written,
+                        ",\"backlightOn\":%s",
+                        snapshot->backlight_on ? "true" : "false");
+        if (tail < 0 || (size_t)tail >= payload_size - (size_t)written) {
+            return -1;
+        }
+        written += tail;
+    }
+
+    if (snapshot->has_indicator_on) {
+        tail = snprintf(payload + written,
+                        payload_size - (size_t)written,
+                        ",\"indicatorOn\":%s",
+                        snapshot->indicator_on ? "true" : "false");
+        if (tail < 0 || (size_t)tail >= payload_size - (size_t)written) {
+            return -1;
+        }
+        written += tail;
+    }
 
     if (last_parse_error[0] != '\0') {
         tail = snprintf(payload + written, payload_size - (size_t)written, ",\"lastParseError\":\"");

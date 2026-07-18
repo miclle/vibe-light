@@ -21,7 +21,8 @@ DEFAULT_OUTPUT_DIR = (
     / "Sources"
     / "VibeLightApp"
     / "Resources"
-    / "FirmwareBundle"
+    / "FirmwareBundles"
+    / "display"
 )
 
 
@@ -52,6 +53,11 @@ def main() -> int:
     parser.add_argument("--version", default="dev")
     parser.add_argument("--commit", default=git_commit())
     parser.add_argument("--minimum-desktop-version", default="dev")
+    parser.add_argument(
+        "--target-hardware",
+        default="Waveshare ESP32-S3-LCD-3.16",
+        help="Human-readable hardware target stored in manifest.json",
+    )
     args = parser.parse_args()
 
     flasher_args_url = args.build_dir / "flasher_args.json"
@@ -83,7 +89,7 @@ def main() -> int:
         "version": args.version,
         "buildCommit": args.commit,
         "targetChip": target_chip,
-        "targetHardware": "Waveshare ESP32-S3-LCD-3.16",
+        "targetHardware": args.target_hardware,
         "flashMode": flash_settings.get("flash_mode", "dio"),
         "flashFreq": flash_settings.get("flash_freq", "80m"),
         "flashSize": flash_settings.get("flash_size", "16MB"),

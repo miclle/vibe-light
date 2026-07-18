@@ -17,10 +17,8 @@ idf_component_register(
         "vibe_display_portrait.c"
         "vibe_display_score.c"
         "vibe_display_text.c"
-        "vibe_health.c"
         "vibe_landscape_maze_data.c"
         "vibe_orientation.c"
-        "vibe_status.c"
     INCLUDE_DIRS
         "."
         "lcd/io_additions"
@@ -33,6 +31,7 @@ idf_component_register(
         esp_timer
         json
         nvs_flash
+        vibe_protocol
 )
 
 set(VIBE_CJK_FONT_PYTHON_CANDIDATES

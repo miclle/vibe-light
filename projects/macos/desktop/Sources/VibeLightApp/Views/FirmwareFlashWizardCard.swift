@@ -34,6 +34,17 @@ struct FirmwareFlashWizardCard: View {
             Text("固件烧录向导")
                 .font(.title2.bold())
 
+            if model.firmwareBundles.count > 1 {
+                Picker("目标设备", selection: $model.selectedFirmwareHardware) {
+                    ForEach(model.firmwareBundles, id: \.manifest.targetHardware) { bundle in
+                        Text(bundle.manifest.targetHardware)
+                            .tag(Optional(bundle.manifest.targetHardware))
+                    }
+                }
+                .pickerStyle(.menu)
+                .disabled(model.isFirmwareChipProbing || model.isFirmwareFlashing)
+            }
+
             if let bundle = model.firmwareBundle {
                 HStack(spacing: 16) {
                     FirmwareMetadataItem(title: "固件版本", value: bundle.manifest.version)
@@ -278,7 +289,7 @@ struct FirmwareFlashWizardCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 InstructionLine(index: 1, text: "点按一下 RST，让设备正常启动。")
                 InstructionLine(index: 2, text: "这一步不要按住 BOOT。")
-                InstructionLine(index: 3, text: "如果屏幕没有画面，再点按一次 RST。")
+                InstructionLine(index: 3, text: "等待目标设备启动；LCD 会显示画面，LED 板会执行三色自检。")
             }
 
             Button {
@@ -292,8 +303,8 @@ struct FirmwareFlashWizardCard: View {
 
     private var connectBLEPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if model.hardwareConnectionState.isConnected {
-                Label("已连接 VibeLight-S3，正在读取健康状态。", systemImage: "link")
+            if targetDeviceIsConnected {
+                Label("已连接 \(model.selectedFirmwareBLEDeviceName)，正在读取健康状态。", systemImage: "link")
                     .foregroundStyle(.green)
 
                 Button {
@@ -303,7 +314,7 @@ struct FirmwareFlashWizardCard: View {
                 }
                 .buttonStyle(.borderedProminent)
             } else if model.hardwareDevices.isEmpty {
-                Label("等待发现 VibeLight-S3。设备屏幕亮起后，通常几秒内会出现。", systemImage: "antenna.radiowaves.left.and.right")
+                Label("等待发现 \(model.selectedFirmwareBLEDeviceName)。设备启动后通常几秒内会出现。", systemImage: "antenna.radiowaves.left.and.right")
                     .foregroundStyle(.secondary)
 
                 Button {
@@ -314,7 +325,7 @@ struct FirmwareFlashWizardCard: View {
                 .buttonStyle(.borderedProminent)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("选择刚启动的 VibeLight-S3。")
+                    Text("选择刚启动的 \(model.selectedFirmwareBLEDeviceName)。")
                         .font(.callout)
                     ForEach(model.hardwareDevices) { device in
                         HStack(spacing: 12) {
@@ -335,10 +346,10 @@ struct FirmwareFlashWizardCard: View {
                             Button {
                                 model.connectHardwareDevice(device)
                             } label: {
-                                Label("连接", systemImage: "link")
+                                Label(device.connectionState == .connected ? "已连接" : "连接", systemImage: "link")
                             }
                             .buttonStyle(.borderedProminent)
-                            .disabled(model.hardwareConnectionState.isConnecting)
+                            .disabled(device.connectionState == .connecting || device.connectionState == .connected)
                         }
                         .padding(12)
                         .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -349,6 +360,12 @@ struct FirmwareFlashWizardCard: View {
                     }
                 }
             }
+        }
+    }
+
+    private var targetDeviceIsConnected: Bool {
+        model.hardwareDevices.contains {
+            $0.name == model.selectedFirmwareBLEDeviceName && $0.connectionState == .connected
         }
     }
 
@@ -517,7 +534,7 @@ private enum FirmwareWizardStep: Int, CaseIterable, Identifiable {
         case .confirmAndFlash: "确认目标后才开始写入。"
         case .writeFirmware: "等待写入和 hash 校验完成。"
         case .restartDevice: "烧录后用 RST 正常启动。"
-        case .connectBLE: "等待发现并连接 VibeLight-S3。"
+        case .connectBLE: "等待发现并连接所选 Vibe Light 设备。"
         case .finish: "健康状态已更新。"
         }
     }

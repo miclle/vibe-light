@@ -4,6 +4,7 @@ public struct VibeLightPreferences {
     private enum Keys {
         static let autoConnectDevice = "autoConnectDevice"
         static let selectedManualState = "selectedManualState"
+        static let codex7dRedThresholdPercent = "codex7dRedThresholdPercent"
     }
 
     private let defaults: UserDefaults
@@ -34,6 +35,18 @@ public struct VibeLightPreferences {
         }
         nonmutating set {
             defaults.set(newValue.rawValue, forKey: Keys.selectedManualState)
+        }
+    }
+
+    public var codex7dRedThresholdPercent: Int {
+        get {
+            guard defaults.object(forKey: Keys.codex7dRedThresholdPercent) != nil else {
+                return 10
+            }
+            return min(100, max(0, defaults.integer(forKey: Keys.codex7dRedThresholdPercent)))
+        }
+        nonmutating set {
+            defaults.set(min(100, max(0, newValue)), forKey: Keys.codex7dRedThresholdPercent)
         }
     }
 }

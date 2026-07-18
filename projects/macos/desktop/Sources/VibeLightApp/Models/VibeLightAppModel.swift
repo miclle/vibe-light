@@ -14,9 +14,11 @@ final class VibeLightAppModel: ObservableObject {
     @Published private(set) var hardwareDevices: [HardwareDevice] = []
     @Published private(set) var hardwareConnectionState: HardwareConnectionState = .disconnected
     @Published private(set) var hardwareHealthPacket: HealthPacket?
+    @Published private(set) var hardwareHealthPackets: [String: HealthPacket] = [:]
     @Published private(set) var hardwareMessage = "未扫描设备。"
     @Published private(set) var isHardwareScanning = false
     @Published private(set) var firmwareSerialPorts: [String] = []
+    @Published private(set) var firmwareBundles: [FirmwareBundle] = []
     @Published private(set) var firmwareBundle: FirmwareBundle?
     @Published private(set) var firmwareFlashMessage = "未检查固件包。"
     @Published private(set) var firmwareFlashLog = ""
@@ -34,10 +36,33 @@ final class VibeLightAppModel: ObservableObject {
             }
         }
     }
+    @Published var selectedFirmwareHardware: String? {
+        didSet {
+            guard oldValue != selectedFirmwareHardware else { return }
+            firmwareBundle = firmwareBundles.first {
+                $0.manifest.targetHardware == selectedFirmwareHardware
+            }
+            clearFirmwareChipProbeConfirmation()
+            if let firmwareBundle {
+                firmwareFlashMessage = "已选择 \(firmwareBundle.manifest.targetHardware) 固件。"
+            }
+        }
+    }
     @Published var launchAtLogin = false
     @Published var autoConnectDevice: Bool {
         didSet {
             preferences.autoConnectDevice = autoConnectDevice
+        }
+    }
+    @Published var codex7dRedThresholdPercent: Int {
+        didSet {
+            let clamped = min(100, max(0, codex7dRedThresholdPercent))
+            if clamped != codex7dRedThresholdPercent {
+                codex7dRedThresholdPercent = clamped
+                return
+            }
+            preferences.codex7dRedThresholdPercent = clamped
+            refreshEvents()
         }
     }
     @Published var selectedManualState: DisplayState {
@@ -46,6 +71,10 @@ final class VibeLightAppModel: ObservableObject {
         }
     }
     @Published var bridgeMessage = "等待 hook 事件..."
+
+    var selectedFirmwareBLEDeviceName: String {
+        firmwareBundle?.manifest.bleDeviceName ?? "VibeLight"
+    }
 
     private let eventLog: EventLog
     private let agentInstaller: AgentInstaller
@@ -72,6 +101,7 @@ final class VibeLightAppModel: ObservableObject {
         self.taskTracker = taskTracker
         self.firmwareFlashProcessRunner = firmwareFlashProcessRunner
         self.autoConnectDevice = preferences.autoConnectDevice
+        self.codex7dRedThresholdPercent = preferences.codex7dRedThresholdPercent
         self.selectedManualState = preferences.selectedManualState
         refreshEvents()
         refreshAgentStatuses()
@@ -85,9 +115,16 @@ final class VibeLightAppModel: ObservableObject {
                 self?.hardwareMessage = message
                 self?.updateFirmwareReconnectMessage(for: state)
             },
-            onHealthChanged: { [weak self] health in
-                self?.hardwareHealthPacket = health
-                self?.finishFirmwareReconnectIfNeeded(health: health)
+            onHealthChanged: { [weak self] deviceID, health in
+                guard let self else { return }
+                if let health {
+                    hardwareHealthPackets[deviceID] = health
+                    hardwareHealthPacket = health
+                    finishFirmwareReconnectIfNeeded(health: health)
+                } else {
+                    hardwareHealthPackets.removeValue(forKey: deviceID)
+                    hardwareHealthPacket = hardwareHealthPackets.values.first
+                }
             },
             latestPacketData: { [weak self] maximumWriteLength in
                 try? self?.latestPacket?.encodedJSON(maximumWriteLength: maximumWriteLength)
@@ -106,7 +143,7 @@ final class VibeLightAppModel: ObservableObject {
             events = loadedEvents
 
             let snapshot = taskTracker.snapshot(from: loadedEvents, fallbackCodexUsage: latestCodexUsage)
-            let packet = snapshot.statusPacket
+            let packet = snapshot.statusPacket(codex7dRedThresholdPercent: codex7dRedThresholdPercent)
             let packetData = try? packet.encodedJSON()
 
             displaySnapshot = snapshot
@@ -193,7 +230,7 @@ final class VibeLightAppModel: ObservableObject {
 
         didStartHardwareAutoConnect = true
         DispatchQueue.main.async { [weak self] in
-            self?.bluetoothManager?.startScan(autoConnectFirstDevice: true)
+            self?.bluetoothManager?.startScan(autoConnectDevices: true)
         }
     }
 
@@ -242,16 +279,23 @@ final class VibeLightAppModel: ObservableObject {
         firmwareFlashFailureKind = nil
 
         do {
-            guard let bundleURL = bundledFirmwareURL() else {
+            let bundles = try bundledFirmwareBundles()
+            guard !bundles.isEmpty else {
+                firmwareBundles = []
                 firmwareBundle = nil
-                firmwareFlashMessage = "当前 App 未内置固件包。发布构建前请先生成 FirmwareBundle。"
+                firmwareFlashMessage = "当前 App 未内置固件包。发布构建前请先生成 FirmwareBundles。"
                 return
             }
-
-            let bundle = try FirmwareBundleValidator().validatedBundle(at: bundleURL)
+            firmwareBundles = bundles
+            let selectedHardware = bundles.contains { $0.manifest.targetHardware == selectedFirmwareHardware }
+                ? selectedFirmwareHardware
+                : bundles.first?.manifest.targetHardware
+            selectedFirmwareHardware = selectedHardware
+            let bundle = bundles.first { $0.manifest.targetHardware == selectedHardware } ?? bundles[0]
             firmwareBundle = bundle
             firmwareFlashMessage = "已加载固件 \(bundle.manifest.version) / \(bundle.manifest.targetHardware)。"
         } catch {
+            firmwareBundles = []
             firmwareBundle = nil
             firmwareFlashMessage = "固件包不可用：\(error.localizedDescription)"
         }
@@ -356,6 +400,7 @@ final class VibeLightAppModel: ObservableObject {
         didCompleteFirmwareFlash = false
         firmwareFlashFailureKind = nil
         hardwareHealthPacket = nil
+        hardwareHealthPackets.removeAll()
         isFirmwareAwaitingReconnect = false
         firmwareFlashMessage = "正在烧录 \(selectedFirmwareSerialPort)..."
         firmwareFlashLog = ""
@@ -375,7 +420,7 @@ final class VibeLightAppModel: ObservableObject {
                 didCompleteFirmwareFlash = true
                 isFirmwareAwaitingReconnect = true
                 firmwareFlashFailureKind = nil
-                firmwareFlashMessage = "烧录完成。请点按 RST 正常启动设备，App 会继续扫描 VibeLight-S3。"
+                firmwareFlashMessage = "烧录完成。请点按 RST 正常启动设备，App 会继续扫描 \(selectedFirmwareBLEDeviceName)。"
                 isFirmwareFlashing = false
                 startHardwareScan(clearDevices: true)
             } catch {
@@ -434,15 +479,17 @@ final class VibeLightAppModel: ObservableObject {
             return
         }
         if state.isConnected {
-            firmwareFlashMessage = "烧录完成。已重新连接 VibeLight-S3，正在读取健康状态。"
+            firmwareFlashMessage = "烧录完成。已有 Vibe Light 设备在线，仍在等待 \(selectedFirmwareBLEDeviceName) 的健康状态。"
         }
     }
 
     private func finishFirmwareReconnectIfNeeded(health: HealthPacket?) {
-        guard isFirmwareAwaitingReconnect, health != nil else {
+        guard isFirmwareAwaitingReconnect,
+              let health,
+              health.device == selectedFirmwareBLEDeviceName else {
             return
         }
-        firmwareFlashMessage = "烧录完成。已重新连接 VibeLight-S3，健康状态已更新。"
+        firmwareFlashMessage = "烧录完成。已重新连接 \(health.device)，健康状态已更新。"
         isFirmwareAwaitingReconnect = false
     }
 
@@ -462,12 +509,18 @@ final class VibeLightAppModel: ObservableObject {
         return FileManager.default.isExecutableFile(atPath: url.path) ? url : nil
     }
 
-    private func bundledFirmwareURL() -> URL? {
-        guard let url = AppResourceBundle.bundle.url(forResource: "FirmwareBundle", withExtension: nil),
-              FileManager.default.fileExists(atPath: url.appendingPathComponent("manifest.json").path) else {
-            return nil
+    private func bundledFirmwareBundles() throws -> [FirmwareBundle] {
+        if let catalogURL = AppResourceBundle.bundle.url(forResource: "FirmwareBundles", withExtension: nil) {
+            let bundles = try FirmwareBundleCatalog().validatedBundles(in: catalogURL)
+            if !bundles.isEmpty {
+                return bundles
+            }
         }
-        return url
+        if let legacyURL = AppResourceBundle.bundle.url(forResource: "FirmwareBundle", withExtension: nil),
+           FileManager.default.fileExists(atPath: legacyURL.appendingPathComponent("manifest.json").path) {
+            return [try FirmwareBundleValidator().validatedBundle(at: legacyURL)]
+        }
+        return []
     }
 
     private func firmwareFlashHelperURL() -> URL? {

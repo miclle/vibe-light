@@ -33,5 +33,5 @@
 - Current protocol docs should include Codex usage and task timing if relevant: 5h / 7d remaining percentages, optional reset timestamps, task-level `updatedAt` timing, and `CTX` context used percentage as the trailing-label fallback or active-task rotating label.
 - Hardware facts should remain tied to Waveshare `ESP32-S3-LCD-3.16` unless the user changes target hardware.
 - Hardware verification notes must name the verified time or firmware version when available. Do not imply later commits are on-device verified unless the current turn actually flashed or observed the board.
-- Current firmware advertises as `VibeLight-S3`; document BLE examples with that concrete device name unless code changes it.
+- LCD firmware advertises as `VibeLight-S3`; LED firmware advertises as `VibeLight-LED`. Document both names when discussing discovery or multi-device behavior.
 - Display docs should mention the host-side PNG previews when layout or maze geometry changes.

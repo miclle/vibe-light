@@ -41,8 +41,14 @@ projects/esp32/build/
 projects/esp32/managed_components/
 projects/esp32/sdkconfig
 projects/esp32/sdkconfig.old
+projects/esp32-led/build/
+projects/esp32-led/managed_components/
+projects/esp32-led/sdkconfig
+projects/esp32-led/sdkconfig.old
 projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareBundle/*.bin
 projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareBundle/manifest.json
+projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareBundles/*/*.bin
+projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareBundles/*/manifest.json
 projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/python-packages/
 projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/python/
 projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareTools/THIRD_PARTY_NOTICES.md

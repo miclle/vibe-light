@@ -4,7 +4,7 @@
 
 Vibe Light 把本机 AI 编程工具的运行状态同步到一块实体桌面屏幕上。
 
-项目由 macOS 原生桌面应用和 ESP32-S3 显示固件组成。Codex / Claude 通过本地 hooks 写入事件，macOS app 将事件归一化为紧凑的任务状态，再通过 BLE 写入 ESP32-S3。硬件屏幕会展示当前是否运行中、是否等待批准、最近错误、Codex 用量压力，以及运行状态下的 Codex 吃豆人迷宫动画。
+项目由 macOS 原生桌面应用、ESP32-S3 LCD 固件和三色灯固件组成。Codex / Claude 通过本地 hooks 写入事件，macOS app 将事件归一化为紧凑的任务状态，再通过 BLE 同步到所有已连接设备。LCD 展示任务列表和 Codex 吃豆人迷宫动画；红、黄、绿 LED 提供远距离状态提示。
 
 <table>
   <tr>
@@ -27,6 +27,8 @@ Vibe Light 把本机 AI 编程工具的运行状态同步到一块实体桌面�
 - 将多个 Codex / Claude 任务聚合成一个适合硬件显示的状态视图。
 - 在屏幕上显示最多 5 条任务摘要、活跃 / 等待 / 错误计数、任务新鲜度、运行时长和 Codex context 用量摘要。
 - 驱动竖屏 320 x 820 ESP32-S3 LCD 界面，并在 `busy` 状态下播放 Codex 迷宫动画。
+- 同时连接 LCD 与三色灯设备，并把同一状态广播到两者。
+- 用黄灯表示执行中、绿灯表示等待人工处理或最近完成、红灯表示错误或 Codex 7D 剩余额度低于可配置阈值。
 - 提供 macOS app 内固件烧录流程，测试用户无需安装 ESP-IDF 即可初始化目标 ESP32-S3 设备。
 
 ## 当前状态
@@ -45,13 +47,14 @@ Vibe Light 目前已有 `v0.1.2` macOS release，核心链路已经具备 macOS 
 
 ## 硬件
 
-当前支持的目标设备是：
+源码当前支持两类目标设备：
 
-- Waveshare `ESP32-S3-LCD-3.16`
-- ESP32-S3，带 8 MB PSRAM
-- 320 x 820 ST7701 RGB LCD
+- Waveshare `ESP32-S3-LCD-3.16`：ESP32-S3、8 MB PSRAM、320 x 820 ST7701 RGB LCD。
+- `ESP32-S3-DevKitC-1 N16R8`：GPIO4 / GPIO5 / GPIO6 分别连接红 / 黄 / 绿 LED，每路串联 330Ω 限流电阻。
 - USB 用于固件烧录
 - BLE 用于状态同步
+
+当前公开 `v0.1.2` release 仍只内置 LCD 固件；三色灯和双固件选择属于下一版待发布能力。
 
 硬件事实和官方资料入口见 [docs/hardware.md](docs/hardware.md)。
 
@@ -78,21 +81,22 @@ Vibe Light 目前已有 `v0.1.2` macOS release，核心链路已经具备 macOS 
 
 - 通用：查看当前硬件显示状态、最近事件桥接状态、手动调试状态和基础偏好。
 - 智能体安装：安装或卸载 Codex / Claude 的 Vibe Light hooks。
-- 硬件设备：扫描、连接设备、发送状态包、读取 health packet，并发送显示演示包。
-- 固件烧录：引导用户完成 USB 芯片读取、固件写入、重启、BLE 重连和健康状态验证。
+- 硬件设备：保持扫描并同时连接多台 Vibe Light 设备，向所有设备发送状态包、读取各设备 health packet，并发送显示演示包。
+- 固件烧录：选择 LCD 或三色灯目标，引导用户完成 USB 芯片读取、固件写入、重启、BLE 重连和健康状态验证。
 - 事件：查看本机采集到的 hook 事件和诊断信息。
 
 Hook CLI 会保持安静：它从 stdin 读取 JSON，追加写入 `~/Library/Application Support/VibeLight/events.jsonl`；失败时只写 stderr，并以 fail-open 方式退出，避免影响 Codex / Claude 原有工作流。
 
 ## ESP32-S3 固件
 
-固件位于 [projects/esp32](projects/esp32)。它负责：
+LCD 固件位于 [projects/esp32](projects/esp32)，三色灯固件位于 [projects/esp32-led](projects/esp32-led)，共享协议组件位于 `projects/esp32-common/vibe_protocol`。两套固件使用相同 GATT UUID 和 `StatusPacket`：
 
 - 以 `VibeLight-S3` 名称广播 BLE Peripheral。
 - 接收 macOS app 写入的紧凑 UTF-8 JSON `StatusPacket`。
 - 返回包含 uptime、连接状态、最近显示状态、heap、render tick、背光状态和最近解析错误的 health packet。
 - 使用轻量 framebuffer renderer 直接驱动 Waveshare LCD。
 - 同时兼容当前 `v: 2` 多任务状态包和旧的 `v: 1` 单状态包。
+- 三色灯固件以 `VibeLight-LED` 广播，红灯独立表示告警，黄灯独立表示执行中，绿灯独立表示等待人工或最近完成；对应条件存在时以 1 秒周期慢闪，多个条件同时存在时同步闪烁。
 
 协议、状态模型和跨端职责见 [docs/architecture.md](docs/architecture.md)。固件细节见 [projects/esp32/README.md](projects/esp32/README.md)。
 
@@ -124,6 +128,7 @@ make desktop-run
 ```bash
 make esp32-test
 make esp32-preview
+make esp32-led-test
 ```
 
 本机有 ESP-IDF 时，从源码构建并烧录固件：
@@ -131,6 +136,8 @@ make esp32-preview
 ```bash
 make esp32-build
 make esp32-flash ESP32_PORT=/dev/cu.usbmodemXXXX
+make esp32-led-build
+make esp32-led-flash-only ESP32_PORT=/dev/cu.usbmodemXXXX
 ```
 
 只有手动运行 `idf.py` 时，才需要进入已激活的 ESP-IDF shell：
@@ -172,7 +179,9 @@ make docs-check
 projects/
   macos/
     desktop/   # macOS SwiftPM app、Hook CLI、BLE client、测试
-  esp32/       # ESP32-S3 固件和 host-side 测试
+  esp32/       # Waveshare LCD 固件和 host-side 测试
+  esp32-led/   # ESP32-S3-DevKitC-1 三色灯固件和测试
+  esp32-common/# 两套固件共享的 BLE 协议 parser / health formatter
 docs/          # 架构、硬件、固件烧录和发布记录
 script/        # 环境搭建、验证、打包和发布脚本
 ```

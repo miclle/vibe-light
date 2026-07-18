@@ -1,8 +1,10 @@
 # Vibe Light 硬件记录
 
-## 当前硬件
+## 当前硬件目标
 
-项目当前采购的开发板为 Waveshare `ESP32-S3-LCD-3.16`。
+### LCD 设备
+
+项目现有 LCD 开发板为 Waveshare `ESP32-S3-LCD-3.16`。
 
 - 官方文档：https://www.waveshare.net/wiki/ESP32-S3-LCD-3.16
 - 产品定位：基于 ESP32-S3 的 HMI 开发板，适合用作 Vibe Light 的 BLE 外设和本地状态显示终端。
@@ -23,14 +25,31 @@
 | 外设接口 | UART、I2C SH1.0 4PIN、USB MX1.25 4PIN |
 | 按键 | RST、BOOT；按住 BOOT 后单击 RST 可进入下载模式 |
 
+### 三色灯设备
+
+新增目标板为 Espressif `ESP32-S3-DevKitC-1 N16R8`（16MB Flash、8MB PSRAM），固件位于 `projects/esp32-led`，BLE 广播名为 `VibeLight-LED`。官方入口：[ESP32-S3-DevKitC-1 User Guide](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide.html)。
+
+每个普通直插 LED 必须使用独立限流电阻，默认使用 330Ω；固件按主动高电平驱动，并保证单次最多点亮一盏灯。
+
+| LED | GPIO | 接线 |
+| --- | --- | --- |
+| 红 | GPIO4 | GPIO4 → 330Ω → LED 正极；LED 负极 → GND |
+| 黄 | GPIO5 | GPIO5 → 330Ω → LED 正极；LED 负极 → GND |
+| 绿 | GPIO6 | GPIO6 → 330Ω → LED 正极；LED 负极 → GND |
+
+N16R8 使用 Octal Flash / PSRAM 时不要改用 GPIO35、GPIO36、GPIO37。GPIO4、GPIO5、GPIO6 也避开了 BOOT strap 和 USB Serial/JTAG 默认引脚。若使用高功率灯、灯带或多个并联 LED，不能直接由 GPIO 供电，应增加晶体管或 MOSFET 驱动。
+
+上电自检依次点亮红、黄、绿各 300ms。运行时三个灯独立判断：错误或 7D 低额度触发红灯，存在执行中任务触发黄灯，等待人工处理或最近 60 秒完成触发绿灯；活动灯统一按 1 秒周期同步慢闪（亮 500 ms、灭 500 ms），空闲、断连或状态超时后全灭。2026-07-18 已将当前 dirty build（ELF SHA-256 前缀 `a4b642e3a`）通过 `/dev/cu.usbmodem5C4E0035341` 烧录到 DevKitC-1，三段写入均完成 hash 校验；修复 NimBLE host 4096 字节栈溢出并提高到 8192 字节后，串口连续 30 秒接受 18 个 `v: 2` 状态包，未再出现 stack overflow、panic 或重启，随后独立 30 秒蓝牙观察也没有新的连接状态变化。独立输出版本已在包含 2 个 `busy` 和 1 个最近 `success` 的真实 BLE 状态包下交替输出 `red=0 yellow=1 green=1` 与三灯全灭，间隔约 500 ms，确认黄绿两路可同步慢闪；外接 LED 的剩余业务组合仍需继续逐项肉眼验收。
+
 ## 与项目架构的关系
 
-这块板子可以承担架构中的 ESP32-S3 硬件层：
+两块板子共同承担架构中的 ESP32-S3 硬件层，并可被同一 macOS app 同时连接：
 
 - 作为 BLE Peripheral 广播 `VibeLight` 设备并暴露 GATT 服务。
 - 接收 macOS 应用写入的 `StatusPacket`。
 - 使用 3.16 英寸 LCD 显示 `idle`、`busy`、`waiting`、`success`、`error`、`offline` 等状态。
 - 通过健康状态特征回传运行时长、连接状态、最近状态、heap 余量、渲染 tick、背光状态和最近解析错误。
+- DevKit 三色灯使用同一状态包和健康特征，通过红、黄、绿同步慢闪输出远距离提示；health 使用 `indicatorOn` 表示当前闪烁相位是否有灯点亮，不伪造 LCD 的 `backlightOn`。
 
 板载 LCD 让第一版不必再外接单独屏幕；板载 BOOT 按键可以保留为调试输入，例如切换测试界面或控制背光。板载 Micro SD、RTC、IMU 和电池电压读取能力暂不属于核心链路，但可作为后续诊断页或设备健康信息的扩展来源。
 

@@ -40,6 +40,7 @@ let package = Package(
                 .process("Resources/Assets.xcassets"),
                 .process("Resources/icon.svg"),
                 .copy("Resources/FirmwareBundle"),
+                .copy("Resources/FirmwareBundles"),
                 .copy("Resources/FirmwareTools"),
             ],
             linkerSettings: [

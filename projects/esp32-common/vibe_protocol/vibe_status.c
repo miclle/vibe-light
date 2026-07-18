@@ -89,6 +89,28 @@ static void parse_task(cJSON *item, vibe_status_task_t *task)
     }
 }
 
+static uint32_t parse_alerts(cJSON *root)
+{
+    cJSON *alerts = cJSON_GetObjectItemCaseSensitive(root, "alerts");
+    if (!cJSON_IsArray(alerts)) {
+        return VIBE_STATUS_ALERT_NONE;
+    }
+
+    uint32_t flags = VIBE_STATUS_ALERT_NONE;
+    cJSON *item = NULL;
+    cJSON_ArrayForEach(item, alerts) {
+        if (!cJSON_IsString(item) || item->valuestring == NULL) {
+            continue;
+        }
+        if (strcmp(item->valuestring, "taskError") == 0) {
+            flags |= VIBE_STATUS_ALERT_TASK_ERROR;
+        } else if (strcmp(item->valuestring, "codex7dLow") == 0) {
+            flags |= VIBE_STATUS_ALERT_CODEX_7D_LOW;
+        }
+    }
+    return flags;
+}
+
 void vibe_status_default(vibe_status_packet_t *packet)
 {
     if (packet == NULL) {
@@ -104,6 +126,8 @@ void vibe_status_default(vibe_status_packet_t *packet)
     packet->active_count = 0;
     packet->waiting_count = 0;
     packet->error_count = 0;
+    packet->alerts_present = false;
+    packet->alert_flags = VIBE_STATUS_ALERT_NONE;
     packet->codex_5h_remaining_percent = -1;
     packet->codex_7d_remaining_percent = -1;
     packet->task_count = 0;
@@ -149,6 +173,8 @@ bool vibe_status_parse_json(const uint8_t *data, size_t length, vibe_status_pack
     parsed->active_count = json_int(root, "activeCount");
     parsed->waiting_count = json_int(root, "waitingCount");
     parsed->error_count = json_int(root, "errorCount");
+    parsed->alerts_present = cJSON_IsArray(cJSON_GetObjectItemCaseSensitive(root, "alerts"));
+    parsed->alert_flags = parse_alerts(root);
 
     cJSON *usage = cJSON_GetObjectItemCaseSensitive(root, "usage");
     if (cJSON_IsObject(usage)) {

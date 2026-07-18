@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IDF_PATH="${IDF_PATH:-/Users/miclle/esp/esp-idf}"
 CJSON_DIR="$IDF_PATH/components/json/cJSON"
+PROTOCOL_DIR="$ROOT_DIR/../esp32-common/vibe_protocol"
 BUILD_DIR="$ROOT_DIR/build/host-tests"
 BINARY="$BUILD_DIR/vibe_status_parser_test"
 
@@ -61,6 +62,7 @@ clang \
   -Wall \
   -Wextra \
   -I "$ROOT_DIR/main" \
+  -I "$PROTOCOL_DIR" \
   -I "$CJSON_DIR" \
   "$ROOT_DIR/tests/vibe_status_parser_test.c" \
   "$ROOT_DIR/main/vibe_cjk_font.c" \
@@ -68,8 +70,8 @@ clang \
   "$ROOT_DIR/main/vibe_display_model.c" \
   "$ROOT_DIR/main/vibe_display_maze_data.c" \
   "$ROOT_DIR/main/vibe_landscape_maze_data.c" \
-  "$ROOT_DIR/main/vibe_health.c" \
-  "$ROOT_DIR/main/vibe_status.c" \
+  "$PROTOCOL_DIR/vibe_health.c" \
+  "$PROTOCOL_DIR/vibe_status.c" \
   "$CJSON_DIR/cJSON.c" \
   -o "$BINARY"
 

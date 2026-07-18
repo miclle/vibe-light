@@ -94,7 +94,21 @@ public struct DisplaySnapshot: Equatable, Sendable {
     }
 
     public var statusPacket: StatusPacket {
-        StatusPacket(
+        statusPacket(codex7dRedThresholdPercent: 10)
+    }
+
+    public func statusPacket(codex7dRedThresholdPercent: Int) -> StatusPacket {
+        var alerts: [StatusAlert] = []
+        if errorCount > 0 {
+            alerts.append(.taskError)
+        }
+        let threshold = min(100, max(0, codex7dRedThresholdPercent))
+        if let remaining = codexUsage?.weeklyRemainingPercent,
+           remaining <= threshold {
+            alerts.append(.codex7dLow)
+        }
+
+        return StatusPacket(
             v: 2,
             source: source,
             state: state,
@@ -122,7 +136,8 @@ public struct DisplaySnapshot: Equatable, Sendable {
                     codex5hResetAt: $0.fiveHourResetAtMilliseconds,
                     codex7dResetAt: $0.weeklyResetAtMilliseconds
                 )
-            }
+            },
+            alerts: alerts
         )
     }
 }

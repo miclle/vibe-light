@@ -124,16 +124,13 @@ struct HardwareDevicesPane: View {
                 ContentUnavailableView(
                     "未发现设备",
                     systemImage: "cpu",
-                    description: Text("点击扫描设备，查找附近的 VibeLight-S3。")
+                    description: Text("点击扫描设备，查找附近的 VibeLight-S3 或 VibeLight-LED。")
                 )
                 .frame(maxWidth: .infinity, minHeight: 220)
             } else {
                 VStack(spacing: 10) {
                     ForEach(model.hardwareDevices) { device in
-                        HardwareDeviceRow(
-                            device: device,
-                            connectionState: model.hardwareConnectionState
-                        ) {
+                        HardwareDeviceRow(device: device) {
                             model.connectHardwareDevice(device)
                         }
                     }
@@ -148,7 +145,9 @@ struct HardwareDevicesPane: View {
         VStack(alignment: .leading, spacing: 16) {
             CardTitle(
                 title: "设备健康",
-                subtitle: model.hardwareHealthPacket == nil ? "连接后读取运行状态" : "最近一次健康状态",
+                subtitle: model.hardwareHealthPackets.isEmpty
+                    ? "连接后读取运行状态"
+                    : "已读取 \(model.hardwareHealthPackets.count) 台设备",
                 systemImage: "heart.text.square"
             )
 
@@ -160,6 +159,9 @@ struct HardwareDevicesPane: View {
                     HealthMetricRow(title: "最近状态", value: health.lastState.title, systemImage: "waveform.path.ecg")
                     if let backlightOn = health.backlightOn {
                         HealthMetricRow(title: "背光", value: backlightOn ? "开启" : "关闭", systemImage: "lightbulb")
+                    }
+                    if let indicatorOn = health.indicatorOn {
+                        HealthMetricRow(title: "指示灯", value: indicatorOn ? "点亮" : "熄灭", systemImage: "light.beacon.max")
                     }
                     if let freeHeapBytes = health.freeHeapBytes {
                         HealthMetricRow(title: "可用 heap", value: formatBytes(freeHeapBytes), systemImage: "memorychip")
@@ -288,7 +290,6 @@ private struct HealthMetricRow: View {
 
 private struct HardwareDeviceRow: View {
     var device: HardwareDevice
-    var connectionState: HardwareConnectionState
     var connect: () -> Void
 
     var body: some View {
@@ -306,8 +307,8 @@ private struct HardwareDeviceRow: View {
                 HStack(spacing: 8) {
                     Text(device.name)
                         .font(.headline)
-                    if isCurrentDevice {
-                        Text("当前")
+                    if isConnected {
+                        Text("已连接")
                             .font(.caption.bold())
                             .padding(.horizontal, 7)
                             .padding(.vertical, 3)
@@ -329,52 +330,40 @@ private struct HardwareDeviceRow: View {
                 Label(connectButtonTitle, systemImage: connectButtonIcon)
             }
             .buttonStyle(.bordered)
-            .disabled(connectionState.isConnected || connectionState.isConnecting)
+            .disabled(isConnected || isConnecting)
         }
         .padding(12)
         .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(isCurrentDevice ? Color.green.opacity(0.45) : Color(nsColor: .separatorColor).opacity(0.5))
+                .strokeBorder(isConnected ? Color.green.opacity(0.45) : Color(nsColor: .separatorColor).opacity(0.5))
         )
     }
 
-    private var isCurrentDevice: Bool {
-        if case .connected(let id) = connectionState {
-            return id == device.id
-        }
-        return false
+    private var isConnected: Bool {
+        device.connectionState == .connected
     }
 
-    private var isConnectingDevice: Bool {
-        if case .connecting(let id) = connectionState {
-            return id == device.id
-        }
-        return false
+    private var isConnecting: Bool {
+        device.connectionState == .connecting
     }
 
     private var connectButtonTitle: String {
-        if isCurrentDevice {
+        if isConnected {
             return "已连接"
         }
-        if isConnectingDevice {
+        if isConnecting {
             return "连接中"
-        }
-        if connectionState.isConnected {
-            return "先断开"
         }
         return "连接"
     }
 
     private var connectButtonIcon: String {
-        if isCurrentDevice {
+        if isConnected {
             return "checkmark.circle"
         }
-        if isConnectingDevice {
+        if isConnecting {
             return "ellipsis"
-        }
-        if connectionState.isConnected {
-            return "lock"
         }
         return "link"
     }

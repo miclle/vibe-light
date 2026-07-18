@@ -5,7 +5,7 @@
 ## 项目事实
 
 - macOS 桌面端在 `projects/macos/desktop`，使用 SwiftPM、SwiftUI 和 CoreBluetooth。
-- ESP32-S3 固件在 `projects/esp32`，目标硬件是 Waveshare `ESP32-S3-LCD-3.16`，优先使用 ESP-IDF。
+- LCD 固件在 `projects/esp32`，目标硬件是 Waveshare `ESP32-S3-LCD-3.16`；三色灯固件在 `projects/esp32-led`，目标硬件是 `ESP32-S3-DevKitC-1 N16R8`；两者共享 `projects/esp32-common/vibe_protocol`，统一使用 ESP-IDF。
 - 跨端协议和架构记录在 `docs/architecture.md`。
 - 硬件事实和官方资料入口记录在 `docs/hardware.md`。
 - 当前待办和近期验证重点记录在 `TODO.md`。
@@ -23,7 +23,7 @@
 - 先用 `git status --short --branch` 看清楚本地分支和已有改动；不要回滚用户未提交的代码。
 - 回答架构、协议或硬件能力问题时，优先追源码和当前文档，不凭印象回答。
 - README 保持产品和上手视角；实现细节放到 `docs/architecture.md`、`projects/esp32/README.md`、`TODO.md` 或 `.agents/rules/`。
-- 跨 macOS / ESP32 协议变更必须同时核对 `StatusModels.swift`、`TaskTracker.swift`、`vibe_status.*`、`vibe_display_model.*` 和协议文档。
+- 跨 macOS / ESP32 协议变更必须同时核对 `StatusModels.swift`、`TaskTracker.swift`、`projects/esp32-common/vibe_protocol/vibe_status.*`、LCD `vibe_display_model.*`、LED `vibe_led_model.*` 和协议文档。
 - Hook CLI 必须保持 stdout 安静、失败只写 stderr 并 fail-open；不要把调试 JSON 输出重新接回 hook 流程。
 - Codex 用量相关变更要同时核对 `HookPayloadDecoder`、`CodexUsageReader`、`TaskTracker`、`StatusPacket`、固件 parser/display-model 测试和协议文档。
 - 固件显示逻辑尽量把可测试的状态转换、任务行格式、紧凑计数、参考迷宫坐标、本轮已吃豆子隐藏、角色数量、角色嘴型和去重判断放在 `vibe_display_model.*`，再由 `vibe_display.c` 做硬件绘制。

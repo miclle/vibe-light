@@ -4,7 +4,7 @@
 
 Vibe Light syncs the status of local AI coding tools to a physical desktop display.
 
-The project combines a native macOS app with ESP32-S3 display firmware. Codex / Claude write local hook events, the macOS app normalizes those events into a compact task state, and the app sends that state to the ESP32-S3 over BLE. The hardware display shows whether the tools are idle, running, waiting for approval, or recently failed, along with Codex usage pressure and a Codex maze animation while work is in progress.
+The project combines a native macOS app with ESP32-S3 LCD and three-LED firmware. Codex / Claude write local hook events, the macOS app normalizes those events into a compact task state, and the app broadcasts that state to every connected Vibe Light device over BLE. The LCD provides the detailed task view; red, yellow, and green LEDs provide an at-a-glance signal.
 
 <table>
   <tr>
@@ -27,6 +27,8 @@ The project combines a native macOS app with ESP32-S3 display firmware. Codex / 
 - Aggregates multiple Codex / Claude tasks into one hardware-friendly status view.
 - Displays up to 5 task summaries, active / waiting / error counts, task freshness, runtime, and Codex context usage.
 - Drives a portrait 320 x 820 ESP32-S3 LCD interface and plays a Codex maze animation while the status is `busy`.
+- Connects the LCD and LED devices at the same time and sends the same state to both.
+- Uses yellow for running work, green for user intervention or recent completion, and red for errors or a configurable low Codex 7D quota.
 - Provides in-app macOS firmware flashing so test users can initialize the target ESP32-S3 device without installing ESP-IDF.
 
 ## Current Status
@@ -45,13 +47,14 @@ The release flow now covers Developer ID signing, notarization, the release chec
 
 ## Hardware
 
-The currently supported target device is:
+The source tree supports two hardware targets:
 
-- Waveshare `ESP32-S3-LCD-3.16`
-- ESP32-S3 with 8 MB PSRAM
-- 320 x 820 ST7701 RGB LCD
+- Waveshare `ESP32-S3-LCD-3.16` with an 8 MB PSRAM and 320 x 820 ST7701 RGB LCD.
+- `ESP32-S3-DevKitC-1 N16R8` with red, yellow, and green LEDs on GPIO4, GPIO5, and GPIO6; each LED requires its own 330-ohm resistor.
 - USB for firmware flashing
 - BLE for status sync
+
+The public `v0.1.2` release still bundles only the LCD firmware; the LED target and dual-firmware picker are implemented for a future release.
 
 Hardware facts and official reference links live in [docs/hardware.md](docs/hardware.md).
 
@@ -78,21 +81,22 @@ It currently has five main views:
 
 - General: current hardware display state, recent event bridge state, manual debug status, and basic preferences.
 - Agent Install: install or uninstall the Vibe Light hooks for Codex / Claude.
-- Hardware Devices: scan for devices, connect, send status packets, read health packets, and send display demo packets.
-- Firmware Flashing: guide USB chip reads, firmware writes, reboot, BLE reconnect, and health verification.
+- Hardware Devices: keep scanning while multiple devices are connected, broadcast status packets, read per-device health packets, and send display demo packets.
+- Firmware Flashing: select the LCD or LED target, then guide USB chip reads, firmware writes, reboot, BLE reconnect, and health verification.
 - Events: inspect locally collected hook events and diagnostics.
 
 The hook CLI stays quiet: it reads JSON from stdin and appends events to `~/Library/Application Support/VibeLight/events.jsonl`. On failure, it writes only to stderr and exits fail-open so it does not interrupt existing Codex / Claude workflows.
 
 ## ESP32-S3 Firmware
 
-The firmware lives in [projects/esp32](projects/esp32). It is responsible for:
+The LCD firmware lives in [projects/esp32](projects/esp32), the LED firmware lives in [projects/esp32-led](projects/esp32-led), and both share the protocol parser under `projects/esp32-common/vibe_protocol`. They are responsible for:
 
 - Advertising as a BLE Peripheral named `VibeLight-S3`.
 - Receiving compact UTF-8 JSON `StatusPacket` writes from the macOS app.
 - Returning health packets with uptime, connection state, latest display state, heap, render tick, backlight state, and latest parse error.
 - Driving the Waveshare LCD directly with a lightweight framebuffer renderer.
 - Remaining compatible with the current `v: 2` multitask status packet and the older `v: 1` single-status packet.
+- Advertising the LED device as `VibeLight-LED` and driving red alerts, yellow busy work, and green waiting/recent-success signals independently with a synchronized 1-second slow blink when multiple conditions are active.
 
 The protocol, status model, and cross-layer responsibilities are documented in [docs/architecture.md](docs/architecture.md). Firmware details live in [projects/esp32/README.md](projects/esp32/README.md).
 
@@ -124,6 +128,7 @@ Run firmware host-side tests and generate display previews:
 ```bash
 make esp32-test
 make esp32-preview
+make esp32-led-test
 ```
 
 If ESP-IDF is available locally, build and flash firmware from source:
@@ -131,6 +136,8 @@ If ESP-IDF is available locally, build and flash firmware from source:
 ```bash
 make esp32-build
 make esp32-flash ESP32_PORT=/dev/cu.usbmodemXXXX
+make esp32-led-build
+make esp32-led-flash-only ESP32_PORT=/dev/cu.usbmodemXXXX
 ```
 
 Only enter an activated ESP-IDF shell when running `idf.py` manually:
@@ -172,7 +179,9 @@ Firmware display previews are generated at:
 projects/
   macos/
     desktop/   # macOS SwiftPM app, hook CLI, BLE client, tests
-  esp32/       # ESP32-S3 firmware and host-side tests
+  esp32/       # Waveshare LCD firmware and host-side tests
+  esp32-led/   # ESP32-S3-DevKitC-1 three-LED firmware and tests
+  esp32-common/# Shared protocol parser and health formatter
 docs/          # Architecture, hardware, firmware flashing, release notes
 script/        # Environment setup, verification, packaging, release scripts
 ```

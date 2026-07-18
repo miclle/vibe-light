@@ -20,6 +20,12 @@ typedef enum {
     VIBE_DISPLAY_OFFLINE,
 } vibe_display_state_t;
 
+typedef enum {
+    VIBE_STATUS_ALERT_NONE = 0,
+    VIBE_STATUS_ALERT_TASK_ERROR = 1 << 0,
+    VIBE_STATUS_ALERT_CODEX_7D_LOW = 1 << 1,
+} vibe_status_alert_t;
+
 typedef struct {
     char title[VIBE_STATUS_TEXT_MAX];
     char source[VIBE_STATUS_TEXT_MAX];
@@ -42,6 +48,8 @@ typedef struct {
     int active_count;
     int waiting_count;
     int error_count;
+    bool alerts_present;
+    uint32_t alert_flags;
     int codex_5h_remaining_percent;
     int codex_7d_remaining_percent;
     int64_t codex_5h_reset_at_ms;

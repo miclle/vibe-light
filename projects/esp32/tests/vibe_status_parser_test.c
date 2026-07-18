@@ -91,6 +91,25 @@ static void test_v2_task_list_packet(void)
     assert(strcmp(packet.tasks[4].title, "extra-2") == 0);
 }
 
+static void test_v2_alert_flags_ignore_unknown_values(void)
+{
+    vibe_status_packet_t packet;
+    vibe_status_default(&packet);
+
+    assert(parse(
+        "{\"alerts\":[\"taskError\",\"futureAlert\",\"codex7dLow\"],\"source\":\"codex\",\"state\":\"idle\",\"v\":2}",
+        &packet
+    ));
+    assert((packet.alert_flags & VIBE_STATUS_ALERT_TASK_ERROR) != 0);
+    assert((packet.alert_flags & VIBE_STATUS_ALERT_CODEX_7D_LOW) != 0);
+    assert(packet.alert_flags == (VIBE_STATUS_ALERT_TASK_ERROR | VIBE_STATUS_ALERT_CODEX_7D_LOW));
+    assert(packet.alerts_present);
+
+    assert(parse("{\"source\":\"codex\",\"state\":\"idle\",\"v\":2}", &packet));
+    assert(!packet.alerts_present);
+    assert(packet.alert_flags == VIBE_STATUS_ALERT_NONE);
+}
+
 static void test_v2_usage_packet(void)
 {
     const char *json =
@@ -187,7 +206,9 @@ static void test_health_payload_reports_backlight_and_last_parse_error(void)
     char payload[256];
     vibe_health_snapshot_t snapshot = {
         .animation_tick = 42,
+        .has_animation_tick = true,
         .backlight_on = true,
+        .has_backlight_on = true,
         .connected = true,
         .device = "VibeLight-S3",
         .free_heap_bytes = 4218880,
@@ -209,6 +230,14 @@ static void test_health_payload_reports_backlight_and_last_parse_error(void)
 
     assert(written > 0);
     assert(strstr(payload, "lastParseError") == NULL);
+
+    snapshot.has_backlight_on = false;
+    snapshot.has_indicator_on = true;
+    snapshot.indicator_on = true;
+    written = vibe_health_format_json(payload, sizeof(payload), &snapshot);
+    assert(written > 0);
+    assert(strstr(payload, "backlightOn") == NULL);
+    assert(strstr(payload, "\"indicatorOn\":true") != NULL);
 }
 
 static void test_unknown_states_fall_back_to_idle(void)
@@ -1506,6 +1535,7 @@ int main(void)
 {
     test_v1_status_packet();
     test_v2_task_list_packet();
+    test_v2_alert_flags_ignore_unknown_values();
     test_v2_usage_packet();
     test_v2_usage_packet_formats_low_remaining_reset_hint();
     test_v2_usage_packet_accepts_legacy_context_remaining();

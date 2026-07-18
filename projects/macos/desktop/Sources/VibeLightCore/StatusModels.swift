@@ -51,6 +51,11 @@ public enum DisplayState: String, Codable, CaseIterable, Identifiable, Sendable 
     }
 }
 
+public enum StatusAlert: String, Codable, Equatable, Sendable {
+    case taskError
+    case codex7dLow
+}
+
 public enum HookEventKind: String, Codable, CaseIterable, Identifiable, Sendable {
     case sessionStart = "SessionStart"
     case userPromptSubmit = "UserPromptSubmit"
@@ -236,6 +241,7 @@ public struct StatusPacket: Codable, Equatable, Sendable {
     public var errorCount: Int?
     public var tasks: [StatusTask]?
     public var usage: StatusUsage?
+    public var alerts: [StatusAlert]?
 
     public init(
         v: Int = 1,
@@ -247,7 +253,8 @@ public struct StatusPacket: Codable, Equatable, Sendable {
         waitingCount: Int? = nil,
         errorCount: Int? = nil,
         tasks: [StatusTask]? = nil,
-        usage: StatusUsage? = nil
+        usage: StatusUsage? = nil,
+        alerts: [StatusAlert]? = nil
     ) {
         self.v = v
         self.source = source
@@ -259,6 +266,7 @@ public struct StatusPacket: Codable, Equatable, Sendable {
         self.errorCount = errorCount
         self.tasks = tasks
         self.usage = usage
+        self.alerts = alerts
     }
 
     public init(event: VibeHookEvent) {
@@ -485,6 +493,7 @@ public struct HealthPacket: Codable, Equatable, Sendable {
     public var minFreeHeapBytes: Int?
     public var animationTick: Int?
     public var backlightOn: Bool?
+    public var indicatorOn: Bool?
     public var lastParseError: String?
 
     public init(
@@ -497,6 +506,7 @@ public struct HealthPacket: Codable, Equatable, Sendable {
         minFreeHeapBytes: Int? = nil,
         animationTick: Int? = nil,
         backlightOn: Bool? = nil,
+        indicatorOn: Bool? = nil,
         lastParseError: String? = nil
     ) {
         self.v = v
@@ -508,6 +518,7 @@ public struct HealthPacket: Codable, Equatable, Sendable {
         self.minFreeHeapBytes = minFreeHeapBytes
         self.animationTick = animationTick
         self.backlightOn = backlightOn
+        self.indicatorOn = indicatorOn
         self.lastParseError = lastParseError
     }
 }
