@@ -54,6 +54,9 @@ public enum DisplayState: String, Codable, CaseIterable, Identifiable, Sendable 
 public enum StatusAlert: String, Codable, Equatable, Sendable {
     case taskError
     case codex7dLow
+    case taskBusy
+    case taskWaiting
+    case taskSuccess
 }
 
 public enum HookEventKind: String, Codable, CaseIterable, Identifiable, Sendable {

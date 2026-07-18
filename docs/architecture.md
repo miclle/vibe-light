@@ -140,7 +140,7 @@ Codex / Claude 可能同时运行多个任务，事件到达顺序也可能穿�
 2. 否则任一任务处于 `busy` 时，整体显示 `busy`。
 3. 没有活跃任务时，整体显示 `idle`，但最近的 `error` / `success` 任务仍可作为任务行和 `LAST ERR` / `LAST OK` 摘要展示。
 
-当前 BLE 状态包使用 `v: 2`，除了整体 `source` / `state` / `detail` 外，还包含任务计数、Codex 用量摘要、`alerts` 和最多 5 个任务行。`alerts` 由 macOS 端基于完整任务语义和用户偏好产生，无告警时发送空数组：存在错误时加入 `taskError`；Codex 7D 剩余百分比不高于用户配置阈值时加入 `codex7dLow`，默认阈值为 10%，未知用量不触发告警。ESP32-S3 屏幕继续显示完整任务视图；LED 固件消费同一包并提供远距离提示，只有缺少 `alerts` 字段的旧包才使用固件本地阈值兜底。固件仍兼容旧的 `v: 1` 单状态包；macOS 端如果发现完整 `v: 2` JSON 超过某台设备的 BLE 单次写入长度，会针对该设备自动降级为保留 `alerts` 的紧凑 `v: 1` 包。
+当前 BLE 状态包使用 `v: 2`，除了整体 `source` / `state` / `detail` 外，还包含任务计数、Codex 用量摘要、`alerts` 和最多 5 个任务行。`alerts` 由 macOS 端基于完整任务语义和用户偏好产生，无条件时发送空数组：存在错误时加入 `taskError`；Codex 7D 剩余百分比不高于用户配置阈值时加入 `codex7dLow`；完整任务集合中存在执行、等待或最近 60 秒完成时，分别加入 `taskBusy`、`taskWaiting`、`taskSuccess`。这些轻量标记不受 5 行任务列表截断影响。ESP32-S3 屏幕继续显示完整任务视图；LED 固件消费同一包并独立判断三路提示，只有缺少 `alerts` 字段的旧包才使用固件本地阈值兜底。固件仍兼容旧的 `v: 1` 单状态包；macOS 端如果发现完整 `v: 2` JSON 超过某台设备的 BLE 单次写入长度，会针对该设备自动降级为保留 `alerts` 的紧凑 `v: 1` 包，因此混合灯态仍可完整表达。
 
 ### 设计原则
 
@@ -226,7 +226,7 @@ macOS 应用向状态写入特征写入 UTF-8 JSON。
 | `activeCount` | number | 否 | 当前活跃任务数量，包含 `busy` 和 `waiting`。 |
 | `waitingCount` | number | 否 | 当前等待用户处理的任务数量。 |
 | `errorCount` | number | 否 | 最近聚合窗口内的错误任务数量。 |
-| `alerts` | array | 兼容旧包时可缺省 | 硬件告警原因。当前桌面端始终发送该字段，无告警时为 `[]`；当前值为 `taskError` 和 `codex7dLow`，未知值必须忽略。7D 阈值由 macOS 偏好决定，默认 10%。 |
+| `alerts` | array | 兼容旧包时可缺省 | 硬件条件标记。当前桌面端始终发送该字段，无条件时为 `[]`；当前值为 `taskError`、`codex7dLow`、`taskBusy`、`taskWaiting` 和 `taskSuccess`，未知值必须忽略。`taskSuccess` 只在完成后 60 秒内发送；7D 阈值由 macOS 偏好决定，默认 10%。这些标记在任务行截断和紧凑 `v: 1` 降级时仍会保留。 |
 | `usage` | object | 否 | Codex 用量摘要；当前包含 `codex5hRemainingPercent` 和 `codex7dRemainingPercent`，均为 0-100 的剩余百分比；可选 `codex5hResetAt` 和 `codex7dResetAt` 是对应窗口 reset 的 Unix 毫秒时间戳。 |
 | `tasks` | array | 否 | ESP32-S3 屏幕列表行，最多发送 5 条；每条包含 `title`、`source`、`state`、可选 `detail`、可选 `updatedAt`、可选 `contextUsedPercent`、可选 `contextUsedTokens` 和可选 `contextWindowTokens`。`updatedAt` 是任务最近事件的 Unix 毫秒时间戳，固件用顶层 `ts` 减去它来显示 `RUN 03:12`、`WAIT 01:08` 或 `2m ago`；缺少或无效时回退显示 context。`contextUsedPercent` 是当前 Codex 会话上下文窗口已用百分比，固件兼容旧包的 `contextRemainingPercent` 并转换为已用百分比显示；当 `contextUsedTokens` 和 `contextWindowTokens` 同时存在时，固件优先显示 `CTX 4.2K/12K` 这类紧凑 token 摘要。任务标题限制为 32 个 UTF-8 字节，任务详情限制为 40 个 UTF-8 字节。 |
 
@@ -315,9 +315,9 @@ ESP32-S3 硬件层负责把通讯协议转换为可见输出。当前有两个�
 | 独立条件 | 三色灯输出 | IPS TFT 默认效果 |
 | --- | --- | --- |
 | `taskError`、`codex7dLow` 或错误任务 | 红灯慢闪 | 红色状态和错误任务。 |
-| `waiting` / `waitingCount > 0` | 绿灯慢闪 | 紫色状态并突出等待任务。 |
-| 最近 60 秒内成功完成 | 绿灯慢闪；若同时有任务执行，则与黄灯同步闪烁 | 绿色状态或最近完成任务。 |
-| `busy` / 正在执行的任务 | 黄灯慢闪 | 蓝色状态、吃豆人动画和任务列表。 |
+| `taskWaiting`、`waiting` 或 `waitingCount > 0` | 绿灯慢闪 | 紫色状态并突出等待任务。 |
+| `taskSuccess` 或最近 60 秒内成功完成 | 绿灯慢闪；若同时有任务执行，则与黄灯同步闪烁 | 绿色状态或最近完成任务。 |
+| `taskBusy`、`busy` 或正在执行的任务 | 黄灯慢闪 | 蓝色状态、吃豆人动画和任务列表。 |
 | 空闲、离线或未知用量 | 全部熄灭 | 安静的空闲或断开界面。 |
 
 三色灯三路独立求值，不互相覆盖，并统一采用 1 秒慢闪周期（亮 500 ms、灭 500 ms）。例如同时存在错误任务、执行中任务和最近完成任务时，红、黄、绿三灯会同步闪烁。

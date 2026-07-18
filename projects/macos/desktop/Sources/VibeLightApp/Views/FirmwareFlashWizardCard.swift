@@ -172,7 +172,7 @@ struct FirmwareFlashWizardCard: View {
 
     private var connectUSBPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("用 USB 数据线连接 Waveshare ESP32-S3-LCD-3.16，然后刷新串口。")
+            Text("用 USB 数据线连接 \(model.firmwareBundle?.manifest.targetHardware ?? "目标 ESP32-S3 开发板")，然后刷新串口。")
                 .font(.callout)
 
             firmwarePortControls

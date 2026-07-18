@@ -106,6 +106,12 @@ static uint32_t parse_alerts(cJSON *root)
             flags |= VIBE_STATUS_ALERT_TASK_ERROR;
         } else if (strcmp(item->valuestring, "codex7dLow") == 0) {
             flags |= VIBE_STATUS_ALERT_CODEX_7D_LOW;
+        } else if (strcmp(item->valuestring, "taskBusy") == 0) {
+            flags |= VIBE_STATUS_ALERT_TASK_BUSY;
+        } else if (strcmp(item->valuestring, "taskWaiting") == 0) {
+            flags |= VIBE_STATUS_ALERT_TASK_WAITING;
+        } else if (strcmp(item->valuestring, "taskSuccess") == 0) {
+            flags |= VIBE_STATUS_ALERT_TASK_SUCCESS;
         }
     }
     return flags;

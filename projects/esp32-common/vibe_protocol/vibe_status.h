@@ -24,6 +24,9 @@ typedef enum {
     VIBE_STATUS_ALERT_NONE = 0,
     VIBE_STATUS_ALERT_TASK_ERROR = 1 << 0,
     VIBE_STATUS_ALERT_CODEX_7D_LOW = 1 << 1,
+    VIBE_STATUS_ALERT_TASK_BUSY = 1 << 2,
+    VIBE_STATUS_ALERT_TASK_WAITING = 1 << 3,
+    VIBE_STATUS_ALERT_TASK_SUCCESS = 1 << 4,
 } vibe_status_alert_t;
 
 typedef struct {

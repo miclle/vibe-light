@@ -67,6 +67,7 @@ public struct DisplaySnapshot: Equatable, Sendable {
     public var activeCount: Int
     public var waitingCount: Int
     public var errorCount: Int
+    public var hasRecentSuccess: Bool
     public var codexUsage: CodexUsage?
 
     public init(
@@ -79,6 +80,7 @@ public struct DisplaySnapshot: Equatable, Sendable {
         activeCount: Int = 0,
         waitingCount: Int = 0,
         errorCount: Int = 0,
+        hasRecentSuccess: Bool = false,
         codexUsage: CodexUsage? = nil
     ) {
         self.source = source
@@ -90,6 +92,7 @@ public struct DisplaySnapshot: Equatable, Sendable {
         self.activeCount = activeCount
         self.waitingCount = waitingCount
         self.errorCount = errorCount
+        self.hasRecentSuccess = hasRecentSuccess
         self.codexUsage = codexUsage
     }
 
@@ -106,6 +109,15 @@ public struct DisplaySnapshot: Equatable, Sendable {
         if let remaining = codexUsage?.weeklyRemainingPercent,
            remaining <= threshold {
             alerts.append(.codex7dLow)
+        }
+        if activeCount > waitingCount {
+            alerts.append(.taskBusy)
+        }
+        if waitingCount > 0 {
+            alerts.append(.taskWaiting)
+        }
+        if hasRecentSuccess {
+            alerts.append(.taskSuccess)
         }
 
         return StatusPacket(
@@ -143,6 +155,8 @@ public struct DisplaySnapshot: Equatable, Sendable {
 }
 
 public struct TaskTracker: Sendable {
+    private static let ledSuccessHoldWindow: TimeInterval = 60
+
     public var staleAfter: TimeInterval
     private let detailFormatter = TaskDetailFormatter()
     private let codexUsageResolver = CodexUsageResolver()
@@ -211,6 +225,13 @@ public struct TaskTracker: Sendable {
         let waitingCount = tasks.filter { $0.state == .waiting }.count
         let busyCount = tasks.filter { $0.state == .busy }.count
         let errorCount = tasks.filter { $0.state == .error }.count
+        let hasRecentSuccess = tasks.contains { task in
+            guard task.state == .success else {
+                return false
+            }
+            let age = now.timeIntervalSince(task.lastUpdated)
+            return age >= 0 && age <= Self.ledSuccessHoldWindow
+        }
 
         return DisplaySnapshot(
             source: aggregateSource(for: sourceTasks.isEmpty ? [primary] : sourceTasks),
@@ -222,6 +243,7 @@ public struct TaskTracker: Sendable {
             activeCount: busyCount + waitingCount,
             waitingCount: waitingCount,
             errorCount: errorCount,
+            hasRecentSuccess: hasRecentSuccess,
             codexUsage: codexUsage
         )
     }

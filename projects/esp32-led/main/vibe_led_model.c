@@ -58,14 +58,17 @@ vibe_led_state_t vibe_led_state_for_status(
                      packet_has_task_state(packet, VIBE_DISPLAY_ERROR);
     output.red_on = has_alert || low_quota || has_error;
 
-    bool has_waiting = packet->state == VIBE_DISPLAY_WAITING ||
+    bool has_waiting = (packet->alert_flags & VIBE_STATUS_ALERT_TASK_WAITING) != 0 ||
+                       packet->state == VIBE_DISPLAY_WAITING ||
                        packet->waiting_count > 0 ||
                        packet_has_task_state(packet, VIBE_DISPLAY_WAITING);
-    bool has_success = packet->state == VIBE_DISPLAY_SUCCESS ||
+    bool has_success = (packet->alert_flags & VIBE_STATUS_ALERT_TASK_SUCCESS) != 0 ||
+                       packet->state == VIBE_DISPLAY_SUCCESS ||
                        packet_has_recent_success(packet, now_ms, policy->success_hold_ms);
     output.green_on = has_waiting || has_success;
 
-    bool has_busy = packet->state == VIBE_DISPLAY_BUSY ||
+    bool has_busy = (packet->alert_flags & VIBE_STATUS_ALERT_TASK_BUSY) != 0 ||
+                    packet->state == VIBE_DISPLAY_BUSY ||
                     packet->active_count - packet->waiting_count > 0 ||
                     packet_has_task_state(packet, VIBE_DISPLAY_BUSY);
     output.yellow_on = has_busy;

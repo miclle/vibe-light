@@ -135,6 +135,68 @@ import Testing
     #expect(snapshot.errorCount == 1)
 }
 
+@Test func taskTrackerPreservesIndependentLedSignalsOutsideVisibleRowsAndV1Fallback() throws {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    var events = (0..<5).map { index in
+        VibeHookEvent(
+            taskID: "codex:busy-\(index)",
+            source: .codex,
+            kind: .preToolUse,
+            timestamp: base.addingTimeInterval(Double(index)),
+            workspace: "busy-\(index)"
+        )
+    }
+    events.append(
+        .init(
+            taskID: "codex:waiting",
+            source: .codex,
+            kind: .permissionRequest,
+            timestamp: base.addingTimeInterval(5),
+            workspace: "waiting"
+        )
+    )
+    events.append(
+        .init(
+            taskID: "codex:success",
+            source: .codex,
+            kind: .stop,
+            timestamp: base.addingTimeInterval(6),
+            workspace: "success"
+        )
+    )
+
+    let snapshot = tracker.snapshot(from: events.reversed(), now: base.addingTimeInterval(7))
+    let packet = snapshot.statusPacket
+    let constrainedData = try packet.encodedJSON(maximumWriteLength: 180)
+    let object = try #require(JSONSerialization.jsonObject(with: constrainedData) as? [String: Any])
+
+    #expect(snapshot.tasks.count == 5)
+    #expect(!snapshot.tasks.contains { $0.state == .success })
+    #expect(Set(packet.alerts?.map(\.rawValue) ?? []) == ["taskBusy", "taskWaiting", "taskSuccess"])
+    #expect(object["v"] as? Int == 1)
+    #expect(Set(object["alerts"] as? [String] ?? []) == ["taskBusy", "taskWaiting", "taskSuccess"])
+}
+
+@Test func taskTrackerExpiresLedSuccessSignalAfterHoldWindow() {
+    let base = Date(timeIntervalSince1970: 1_780_300_800)
+    let tracker = TaskTracker()
+    let events: [VibeHookEvent] = [
+        .init(
+            taskID: "codex:success",
+            source: .codex,
+            kind: .stop,
+            timestamp: base,
+            workspace: "success"
+        ),
+    ]
+
+    let snapshot = tracker.snapshot(from: events, now: base.addingTimeInterval(61))
+
+    #expect(snapshot.tasks.map(\.state) == [.success])
+    #expect(!(snapshot.statusPacket.alerts?.map(\.rawValue).contains("taskSuccess") ?? false))
+}
+
 @Test func taskTrackerKeepsAggregateSourceFocusedOnActiveTasksWhenBackfilled() {
     let base = Date(timeIntervalSince1970: 1_780_300_800)
     let tracker = TaskTracker()
@@ -1937,6 +1999,7 @@ import Testing
     #expect(checksum.message.contains("重新生成固件包"))
     #expect(wrongChip.kind == .unsupportedChip)
     #expect(wrongChip.message.contains("ESP32-S3"))
+    #expect(!wrongChip.message.contains("Waveshare"))
 }
 
 private func temporaryDirectory() -> URL {

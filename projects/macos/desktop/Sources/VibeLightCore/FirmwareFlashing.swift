@@ -564,7 +564,7 @@ public struct FirmwareFlashFailureAdvice: Equatable {
             (normalized.contains("this chip is esp32") && !normalized.contains("esp32-s3")) ||
             normalized.contains("not esp32-s3") {
             kind = .unsupportedChip
-            message = "烧录失败：连接的设备不是 ESP32-S3。请确认硬件是 Waveshare ESP32-S3-LCD-3.16。"
+            message = "烧录失败：连接的设备不是 ESP32-S3。请确认 USB 连接的是当前所选目标板。"
         } else if Self.matchesAny(normalized, [
             "no module named esptool",
             "no bundled esptool runtime found",

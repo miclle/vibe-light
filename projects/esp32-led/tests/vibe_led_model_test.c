@@ -139,6 +139,20 @@ static void test_error_busy_and_success_turn_on_all_three_leds(void)
     assert(state.green_on);
 }
 
+static void test_compact_alert_signals_keep_busy_waiting_and_success_independent(void)
+{
+    vibe_status_packet_t packet = packet_with_state(VIBE_DISPLAY_IDLE);
+    packet.alert_flags = VIBE_STATUS_ALERT_TASK_BUSY |
+                         VIBE_STATUS_ALERT_TASK_WAITING |
+                         VIBE_STATUS_ALERT_TASK_SUCCESS;
+    packet.alerts_present = true;
+
+    vibe_led_state_t state = vibe_led_state_for_status(&packet, packet.timestamp_ms, &POLICY);
+    assert(!state.red_on);
+    assert(state.yellow_on);
+    assert(state.green_on);
+}
+
 static void test_idle_and_unknown_quota_are_off(void)
 {
     vibe_status_packet_t packet = packet_with_state(VIBE_DISPLAY_IDLE);
@@ -181,6 +195,7 @@ int main(void)
     test_recent_success_expires_after_hold_window();
     test_recent_success_and_busy_turn_on_green_and_yellow();
     test_error_busy_and_success_turn_on_all_three_leds();
+    test_compact_alert_signals_keep_busy_waiting_and_success_independent();
     test_idle_and_unknown_quota_are_off();
     test_active_leds_blink_on_for_500ms_then_off_for_500ms();
     puts("vibe_led_model_test: ok");

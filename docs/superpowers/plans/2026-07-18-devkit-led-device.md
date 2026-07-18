@@ -4,7 +4,7 @@
 
 **Goal:** 新增可与现有 LCD 同时工作的 ESP32-S3-DevKitC-1 三色灯设备，并由 macOS 统一广播任务告警、等待、执行和最近完成状态。
 
-**Architecture:** macOS 继续负责 Codex / Claude 语义、7D 阈值偏好和告警计算，通过向后兼容的 `StatusPacket v2.alerts` 广播给所有设备。LCD 与 LED 固件共用状态 parser；LED 固件把协议状态转换为单一灯色，macOS 蓝牙层以 peripheral id 管理多个连接上下文。
+**Architecture:** macOS 继续负责 Codex / Claude 语义、7D 阈值偏好和硬件条件计算，通过向后兼容的 `StatusPacket v2.alerts` 广播给所有设备。LCD 与 LED 固件共用状态 parser；LED 固件把协议状态转换为独立、同步慢闪的三路输出，macOS 蓝牙层以 peripheral id 管理多个连接上下文。
 
 **Tech Stack:** Swift 6.1、SwiftUI、CoreBluetooth、ESP-IDF 5.5、NimBLE、C11、cJSON。
 
@@ -31,7 +31,7 @@
 - Test: `projects/macos/desktop/Tests/VibeLightCoreTests/VibeLightCoreTests.swift`
 
 **Interfaces:**
-- Produces: `StatusAlert.taskError`, `StatusAlert.codex7dLow` and `DisplaySnapshot.statusPacket(codex7dRedThresholdPercent:)`.
+- Produces: `StatusAlert.taskError`, `StatusAlert.codex7dLow`, `StatusAlert.taskBusy`, `StatusAlert.taskWaiting`, `StatusAlert.taskSuccess` and `DisplaySnapshot.statusPacket(codex7dRedThresholdPercent:)`.
 - Produces: `VibeLightPreferences.codex7dRedThresholdPercent` clamped to `0...100`.
 
 - [ ] **Step 1: Write failing Swift tests**
@@ -53,6 +53,9 @@ Expected: compilation fails because the alert API and preference do not exist.
 public enum StatusAlert: String, Codable, Equatable, Sendable {
     case taskError
     case codex7dLow
+    case taskBusy
+    case taskWaiting
+    case taskSuccess
 }
 
 public func statusPacket(codex7dRedThresholdPercent: Int) -> StatusPacket

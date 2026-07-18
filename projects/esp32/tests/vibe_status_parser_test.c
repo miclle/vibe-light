@@ -97,12 +97,21 @@ static void test_v2_alert_flags_ignore_unknown_values(void)
     vibe_status_default(&packet);
 
     assert(parse(
-        "{\"alerts\":[\"taskError\",\"futureAlert\",\"codex7dLow\"],\"source\":\"codex\",\"state\":\"idle\",\"v\":2}",
+        "{\"alerts\":[\"taskError\",\"taskBusy\",\"taskWaiting\",\"taskSuccess\",\"futureAlert\",\"codex7dLow\"],\"source\":\"codex\",\"state\":\"idle\",\"v\":2}",
         &packet
     ));
     assert((packet.alert_flags & VIBE_STATUS_ALERT_TASK_ERROR) != 0);
     assert((packet.alert_flags & VIBE_STATUS_ALERT_CODEX_7D_LOW) != 0);
-    assert(packet.alert_flags == (VIBE_STATUS_ALERT_TASK_ERROR | VIBE_STATUS_ALERT_CODEX_7D_LOW));
+    assert((packet.alert_flags & VIBE_STATUS_ALERT_TASK_BUSY) != 0);
+    assert((packet.alert_flags & VIBE_STATUS_ALERT_TASK_WAITING) != 0);
+    assert((packet.alert_flags & VIBE_STATUS_ALERT_TASK_SUCCESS) != 0);
+    assert(packet.alert_flags == (
+        VIBE_STATUS_ALERT_TASK_ERROR |
+        VIBE_STATUS_ALERT_CODEX_7D_LOW |
+        VIBE_STATUS_ALERT_TASK_BUSY |
+        VIBE_STATUS_ALERT_TASK_WAITING |
+        VIBE_STATUS_ALERT_TASK_SUCCESS
+    ));
     assert(packet.alerts_present);
 
     assert(parse("{\"source\":\"codex\",\"state\":\"idle\",\"v\":2}", &packet));

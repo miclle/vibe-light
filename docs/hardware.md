@@ -29,7 +29,7 @@
 
 新增目标板为 Espressif `ESP32-S3-DevKitC-1 N16R8`（16MB Flash、8MB PSRAM），固件位于 `projects/esp32-led`，BLE 广播名为 `VibeLight-LED`。官方入口：[ESP32-S3-DevKitC-1 User Guide](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide.html)。
 
-每个普通直插 LED 必须使用独立限流电阻，默认使用 330Ω；固件按主动高电平驱动，并保证单次最多点亮一盏灯。
+每个普通直插 LED 必须使用独立限流电阻，默认使用 330Ω；固件按主动高电平驱动，三个状态通道独立判断，多个条件同时成立时对应 LED 会同步慢闪。
 
 | LED | GPIO | 接线 |
 | --- | --- | --- |
@@ -39,7 +39,7 @@
 
 N16R8 使用 Octal Flash / PSRAM 时不要改用 GPIO35、GPIO36、GPIO37。GPIO4、GPIO5、GPIO6 也避开了 BOOT strap 和 USB Serial/JTAG 默认引脚。若使用高功率灯、灯带或多个并联 LED，不能直接由 GPIO 供电，应增加晶体管或 MOSFET 驱动。
 
-上电自检依次点亮红、黄、绿各 300ms。运行时三个灯独立判断：错误或 7D 低额度触发红灯，存在执行中任务触发黄灯，等待人工处理或最近 60 秒完成触发绿灯；活动灯统一按 1 秒周期同步慢闪（亮 500 ms、灭 500 ms），空闲、断连或状态超时后全灭。2026-07-18 已将当前 dirty build（ELF SHA-256 前缀 `a4b642e3a`）通过 `/dev/cu.usbmodem5C4E0035341` 烧录到 DevKitC-1，三段写入均完成 hash 校验；修复 NimBLE host 4096 字节栈溢出并提高到 8192 字节后，串口连续 30 秒接受 18 个 `v: 2` 状态包，未再出现 stack overflow、panic 或重启，随后独立 30 秒蓝牙观察也没有新的连接状态变化。独立输出版本已在包含 2 个 `busy` 和 1 个最近 `success` 的真实 BLE 状态包下交替输出 `red=0 yellow=1 green=1` 与三灯全灭，间隔约 500 ms，确认黄绿两路可同步慢闪；外接 LED 的剩余业务组合仍需继续逐项肉眼验收。
+上电自检依次点亮红、黄、绿各 300ms。运行时三个灯独立判断：错误或 7D 低额度触发红灯，存在执行中任务触发黄灯，等待人工处理或最近 60 秒完成触发绿灯；活动灯统一按 1 秒周期同步慢闪（亮 500 ms、灭 500 ms），空闲、断连或状态超时后全灭。2026-07-18 已将包含独立 `taskBusy`、`taskWaiting`、`taskSuccess` 紧凑信号的当前 dirty build（ELF SHA-256 前缀 `7ab7a24d5`）通过 `/dev/cu.usbmodem5C4E0035341` 烧录到 DevKitC-1，三段写入均完成 hash 校验；修复 NimBLE host 4096 字节栈溢出并提高到 8192 字节后，串口连续 30 秒接受 18 个 `v: 2` 状态包，未再出现 stack overflow、panic 或重启，随后独立 30 秒蓝牙观察也没有新的连接状态变化。独立输出版本已在包含 2 个 `busy` 和 1 个最近 `success` 的真实 BLE 状态包下交替输出 `red=0 yellow=1 green=1` 与三灯全灭，间隔约 500 ms，确认黄绿两路可同步慢闪；外接 LED 的剩余业务组合仍需继续逐项肉眼验收。
 
 ## 与项目架构的关系
 
