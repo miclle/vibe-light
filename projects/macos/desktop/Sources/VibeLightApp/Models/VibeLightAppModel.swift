@@ -103,6 +103,7 @@ final class VibeLightAppModel: ObservableObject {
         self.autoConnectDevice = preferences.autoConnectDevice
         self.codex7dRedThresholdPercent = preferences.codex7dRedThresholdPercent
         self.selectedManualState = preferences.selectedManualState
+        refreshManagedHookExecutable()
         refreshEvents()
         refreshAgentStatuses()
         bluetoothManager = BluetoothHardwareManager(
@@ -212,6 +213,20 @@ final class VibeLightAppModel: ObservableObject {
             agentInstallMessage = "\(agent.displayName) 卸载失败：\(error.localizedDescription)"
         }
         refreshAgentStatuses()
+    }
+
+    private func refreshManagedHookExecutable() {
+        guard let hookURL = bundledHookURL() else {
+            return
+        }
+
+        do {
+            if try agentInstaller.refreshManagedHookExecutable(from: hookURL) {
+                agentInstallMessage = "已更新 Vibe Light hook。"
+            }
+        } catch {
+            agentInstallMessage = "更新 Vibe Light hook 失败：\(error.localizedDescription)"
+        }
     }
 
     func startHardwareScan(clearDevices: Bool = false) {

@@ -87,6 +87,23 @@ public struct AgentInstaller {
         return destinationURL
     }
 
+    public func refreshManagedHookExecutable(from sourceURL: URL) throws -> Bool {
+        let hasInstalledAgent = try AgentKind.allCases.contains {
+            try status($0).isInstalled
+        }
+        guard hasInstalledAgent else {
+            return false
+        }
+
+        let destinationURL = stableHookExecutableURL()
+        guard !fileManager.contentsEqual(atPath: sourceURL.path, andPath: destinationURL.path) else {
+            return false
+        }
+
+        _ = try prepareHookExecutable(from: sourceURL)
+        return true
+    }
+
     public func uninstall(_ agent: AgentKind) throws {
         let url = primaryConfigURL(for: agent)
         guard let data = try? Data(contentsOf: url) else {

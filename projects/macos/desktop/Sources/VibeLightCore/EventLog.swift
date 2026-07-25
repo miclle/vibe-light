@@ -149,17 +149,45 @@ public struct CodexUsageReader: Sendable {
         let rateLimits = payload["rate_limits"] as? [String: Any]
         let primary = rateLimits?["primary"] as? [String: Any]
         let secondary = rateLimits?["secondary"] as? [String: Any]
+        let fiveHour = rateLimitWindow(
+            minutes: 5 * 60,
+            primary: primary,
+            secondary: secondary,
+            legacyFallback: primary
+        )
+        let weekly = rateLimitWindow(
+            minutes: 7 * 24 * 60,
+            primary: primary,
+            secondary: secondary,
+            legacyFallback: secondary
+        )
         let contextTokens = contextTokenUsage(from: info)
 
         return CodexUsage(
-            fiveHourRemainingPercent: remainingPercent(from: primary),
-            weeklyRemainingPercent: remainingPercent(from: secondary),
+            fiveHourRemainingPercent: remainingPercent(from: fiveHour),
+            weeklyRemainingPercent: remainingPercent(from: weekly),
             contextUsedPercent: contextUsedPercent(from: contextTokens),
             contextUsedTokens: contextTokens?.used,
             contextWindowTokens: contextTokens?.window,
-            fiveHourResetAtMilliseconds: resetAtMilliseconds(from: primary),
-            weeklyResetAtMilliseconds: resetAtMilliseconds(from: secondary)
+            fiveHourResetAtMilliseconds: resetAtMilliseconds(from: fiveHour),
+            weeklyResetAtMilliseconds: resetAtMilliseconds(from: weekly)
         )
+    }
+
+    private func rateLimitWindow(
+        minutes: Int,
+        primary: [String: Any]?,
+        secondary: [String: Any]?,
+        legacyFallback: [String: Any]?
+    ) -> [String: Any]? {
+        let windows = [primary, secondary].compactMap { $0 }
+        if let match = windows.first(where: {
+            number($0["window_minutes"]).map { Int($0.rounded()) } == minutes
+        }) {
+            return match
+        }
+
+        return windows.allSatisfy { number($0["window_minutes"]) == nil } ? legacyFallback : nil
     }
 
     private func remainingPercent(from window: [String: Any]?) -> Int? {
@@ -315,14 +343,16 @@ public struct EventLog: Sendable {
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
+        let resolver = CodexUsageResolver()
+        var usageCache: [String: CodexUsage] = [:]
+        var usageMisses = Set<String>()
 
         return try TailLineReader.readLinesFromEnd(from: fileURL) { line in
             guard let event = try? decoder.decode(VibeHookEvent.self, from: Data(line.utf8)),
-                  event.source == .codex,
-                  let usage = event.codexUsage else {
+                  event.source == .codex else {
                 return nil
             }
-            return usage
+            return resolver.resolve(for: event, cache: &usageCache, misses: &usageMisses)
         }
     }
 

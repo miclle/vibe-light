@@ -6,23 +6,20 @@ struct CodexUsageResolver: Sendable {
         cache: inout [String: CodexUsage],
         misses: inout Set<String>
     ) -> CodexUsage? {
-        if let codexUsage = event.codexUsage {
-            return codexUsage
-        }
         guard let transcriptPath = codexTranscriptPath(for: event) else {
-            return nil
+            return event.codexUsage
         }
 
         if let cached = cache[transcriptPath] {
             return cached
         }
         if misses.contains(transcriptPath) {
-            return nil
+            return event.codexUsage
         }
 
         guard let usage = CodexUsageReader().readLatest(from: URL(fileURLWithPath: transcriptPath)) else {
             misses.insert(transcriptPath)
-            return nil
+            return event.codexUsage
         }
 
         cache[transcriptPath] = usage

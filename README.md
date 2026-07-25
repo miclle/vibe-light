@@ -85,7 +85,7 @@ Vibe Light 目前已有 `v0.1.2` macOS release，核心链路已经具备 macOS 
 - 固件烧录：选择 LCD 或三色灯目标，引导用户完成 USB 芯片读取、固件写入、重启、BLE 重连和健康状态验证。
 - 事件：查看本机采集到的 hook 事件和诊断信息。
 
-Hook CLI 会保持安静：它从 stdin 读取 JSON，追加写入 `~/Library/Application Support/VibeLight/events.jsonl`；失败时只写 stderr，并以 fail-open 方式退出，避免影响 Codex / Claude 原有工作流。
+Hook CLI 会保持安静：它从 stdin 读取 JSON，追加写入 `~/Library/Application Support/VibeLight/events.jsonl`；失败时只写 stderr，并以 fail-open 方式退出，避免影响 Codex / Claude 原有工作流。已安装 Vibe Light 管理的 hook 时，应用升级后会在下次启动自动同步新的内置 hook，不需要先卸载再安装。
 
 ## ESP32-S3 固件
 

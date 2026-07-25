@@ -124,21 +124,13 @@ void vibe_display_format_usage_summary(const vibe_status_packet_t *packet, vibe_
         return;
     }
 
-    format_percent(summary->five_hour, sizeof(summary->five_hour), "5H", packet->codex_5h_remaining_percent);
     format_percent(summary->weekly, sizeof(summary->weekly), "7D", packet->codex_7d_remaining_percent);
-    if (!format_reset_hint(summary->reset_hint,
-                           sizeof(summary->reset_hint),
-                           "5H",
-                           packet->codex_5h_remaining_percent,
-                           packet->codex_5h_reset_at_ms,
-                           packet->timestamp_ms)) {
-        format_reset_hint(summary->reset_hint,
-                          sizeof(summary->reset_hint),
-                          "7D",
-                          packet->codex_7d_remaining_percent,
-                          packet->codex_7d_reset_at_ms,
-                          packet->timestamp_ms);
-    }
+    format_reset_hint(summary->reset_hint,
+                      sizeof(summary->reset_hint),
+                      "7D",
+                      packet->codex_7d_remaining_percent,
+                      packet->codex_7d_reset_at_ms,
+                      packet->timestamp_ms);
 }
 
 void vibe_display_format_usage_line(const vibe_display_usage_summary_t *summary, char *text, size_t text_size)
@@ -152,11 +144,7 @@ void vibe_display_format_usage_line(const vibe_display_usage_summary_t *summary,
         return;
     }
 
-    if (summary->five_hour[0] != '\0' && summary->weekly[0] != '\0') {
-        snprintf(text, text_size, "CODEX: %s %s", summary->five_hour, summary->weekly);
-    } else if (summary->five_hour[0] != '\0') {
-        snprintf(text, text_size, "CODEX: %s", summary->five_hour);
-    } else if (summary->weekly[0] != '\0') {
+    if (summary->weekly[0] != '\0') {
         snprintf(text, text_size, "CODEX: %s", summary->weekly);
     }
 }

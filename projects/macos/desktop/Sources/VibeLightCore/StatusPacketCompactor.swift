@@ -99,6 +99,17 @@ struct StatusPacketCompactor: Sendable {
         var withoutDetail = withoutCounts
         withoutDetail.detail = nil
 
+        let fewerTaskCandidates: [StatusPacket]
+        if withoutDetail.usage?.codex7dRemainingPercent != nil, tasks.count > 1 {
+            fewerTaskCandidates = stride(from: tasks.count - 1, through: 1, by: -1).map { taskCount in
+                var candidate = withoutDetail
+                candidate.tasks = Array((withoutDetail.tasks ?? []).prefix(taskCount))
+                return candidate
+            }
+        } else {
+            fewerTaskCandidates = []
+        }
+
         var withoutUsageOrDetail = withoutDetail
         withoutUsageOrDetail.usage = nil
 
@@ -109,6 +120,7 @@ struct StatusPacketCompactor: Sendable {
             withoutTaskDetailOrContext,
             withoutCounts,
             withoutDetail,
+        ] + fewerTaskCandidates + [
             withoutUsageButWithDetail,
             withoutUsageOrDetail,
         ]

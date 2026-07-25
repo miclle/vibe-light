@@ -147,21 +147,21 @@ static void test_v2_usage_packet(void)
     assert(packet.tasks[0].context_window_tokens == 12000);
 
     vibe_display_format_usage_summary(&packet, &usage);
-    assert(strcmp(usage.five_hour, "5H 88%") == 0);
     assert(strcmp(usage.weekly, "7D 60%") == 0);
 
     vibe_display_format_task_row(&packet.tasks[0], 0, &row);
     assert(strcmp(row.trailing, "CTX 4.2K/12K") == 0);
 }
 
-static void test_v2_usage_packet_formats_low_remaining_reset_hint(void)
+static void test_v2_usage_packet_ignores_legacy_five_hour_limit(void)
 {
     const char *json =
         "{"
         "\"source\":\"codex\","
         "\"state\":\"busy\","
         "\"ts\":1780300800000,"
-        "\"usage\":{\"codex5hRemainingPercent\":15,\"codex5hResetAt\":1780303500000,\"codex7dRemainingPercent\":60},"
+        "\"usage\":{\"codex5hRemainingPercent\":15,\"codex5hResetAt\":1780303500000,"
+        "\"codex7dRemainingPercent\":15,\"codex7dResetAt\":1780303500000},"
         "\"v\":2"
         "}";
 
@@ -176,14 +176,13 @@ static void test_v2_usage_packet_formats_low_remaining_reset_hint(void)
     assert(packet.codex_5h_reset_at_ms == 1780303500000LL);
 
     vibe_display_format_usage_summary(&packet, &usage);
-    assert(strcmp(usage.five_hour, "5H 15%") == 0);
-    assert(strcmp(usage.weekly, "7D 60%") == 0);
-    assert(strcmp(usage.reset_hint, "5H RESET 45m") == 0);
+    assert(strcmp(usage.weekly, "7D 15%") == 0);
+    assert(strcmp(usage.reset_hint, "7D RESET 45m") == 0);
 
     vibe_display_format_usage_line(&usage, usage_line, sizeof(usage_line));
     vibe_display_format_usage_reset_line(&usage, reset_line, sizeof(reset_line));
-    assert(strcmp(usage_line, "CODEX: 5H 15% 7D 60%") == 0);
-    assert(strcmp(reset_line, "5H RESET 45m") == 0);
+    assert(strcmp(usage_line, "CODEX: 7D 15%") == 0);
+    assert(strcmp(reset_line, "7D RESET 45m") == 0);
 }
 
 static void test_v2_usage_packet_accepts_legacy_context_remaining(void)
@@ -356,6 +355,10 @@ static void test_display_model_detects_duplicate_packets(void)
     packet.timestamp_ms += 60000;
     assert(!vibe_display_should_render(&signature, &packet));
 
+    packet.codex_5h_remaining_percent = 42;
+    packet.codex_5h_reset_at_ms = 1780304400000LL;
+    assert(!vibe_display_should_render(&signature, &packet));
+
     packet.tasks[0].updated_at_ms += 60000;
     assert(vibe_display_should_render(&signature, &packet));
 }
@@ -389,6 +392,10 @@ static void test_display_model_classifies_count_only_refresh(void)
     assert(vibe_display_render_change(&signature, &packet) == VIBE_DISPLAY_RENDER_MAZE);
 
     packet.timestamp_ms += 60000;
+    assert(vibe_display_render_change(&signature, &packet) == VIBE_DISPLAY_RENDER_NONE);
+
+    packet.codex_5h_remaining_percent = 42;
+    packet.codex_5h_reset_at_ms = 1780304400000LL;
     assert(vibe_display_render_change(&signature, &packet) == VIBE_DISPLAY_RENDER_NONE);
 
     packet.tasks[0].updated_at_ms += 60000;
@@ -1546,7 +1553,7 @@ int main(void)
     test_v2_task_list_packet();
     test_v2_alert_flags_ignore_unknown_values();
     test_v2_usage_packet();
-    test_v2_usage_packet_formats_low_remaining_reset_hint();
+    test_v2_usage_packet_ignores_legacy_five_hour_limit();
     test_v2_usage_packet_accepts_legacy_context_remaining();
     test_health_payload_reports_backlight_and_last_parse_error();
     test_unknown_states_fall_back_to_idle();

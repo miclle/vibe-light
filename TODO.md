@@ -6,7 +6,7 @@
 
 - macOS SwiftPM app 已有通用、智能体安装、硬件设备、固件烧录和事件五个主要界面。
 - Hook CLI 会把 Codex / Claude 事件写入本地 `events.jsonl`，桌面端轮询事件并通过 `TaskTracker` 聚合多任务状态。
-- BLE 协议当前以 `v: 2` 多任务状态包为主，保留 `v: 1` 降级路径；Codex 用量摘要会从 transcript 最新 `token_count` 事件提取，并提供 5h / 7d 剩余百分比、低余量 reset 提示和每条 Codex 任务的上下文已用百分比 / token 摘要。
+- BLE 协议当前以 `v: 2` 多任务状态包为主，保留 `v: 1` 降级路径；Codex 用量摘要会从 transcript 最新 `token_count` 事件提取。LCD 当前只展示 7d 剩余百分比和低余量 reset 提示，并继续展示每条 Codex 任务的上下文已用百分比 / token 摘要；旧包中的 5h 字段仅保留解析兼容。
 - `StatusPacket v2` 已增加可选 `alerts`：任务错误产生 `taskError`，Codex 7D 剩余不高于通用偏好中的阈值时产生 `codex7dLow`；阈值默认 10%，未知用量不告警。
 - macOS BLE 管理已改为每台 Peripheral 独立保存连接、GATT 特征和 health packet；扫描不会因第一台设备连接而停止，同一状态会广播到全部已就绪设备。
 - `projects/esp32-led` 已实现 `ESP32-S3-DevKitC-1 N16R8` 三色灯固件：GPIO4 / 5 / 6 分别独立驱动红 / 黄 / 绿 LED，告警、执行中、等待人工或最近完成条件可让对应灯以 1 秒周期同步慢闪；协议 parser / health formatter 已抽到 `projects/esp32-common/vibe_protocol` 供 LCD 与 LED 共用。

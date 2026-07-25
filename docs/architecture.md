@@ -94,7 +94,7 @@ sequenceDiagram
 | 模块 | 职责 |
 | --- | --- |
 | SwiftUI UI | 展示连接状态、当前硬件显示状态和手动控制入口。 |
-| Hook CLI | 供 Codex / Claude hook 调用，读取 stdin JSON 并追加到本地事件日志。 |
+| Hook CLI | 供 Codex / Claude hook 调用，读取 stdin JSON 并追加到本地事件日志；应用启动时会把已安装的托管 hook 更新为当前应用包内版本。 |
 | Event Log Bridge | 使用 Application Support 下的 `events.jsonl` 作为 fail-open 事件桥，应用轮询最近事件。 |
 | 状态归一化 | 把不同工具的 hook 事件映射成统一状态。 |
 | Task Tracker | 根据 task id、workspace 或 source 聚合同步到达的多任务事件，生成整体状态、Codex 用量摘要和最多 5 条屏幕任务摘要；Codex memory-writing 辅助事件会被过滤，避免干扰真实工作状态。 |
@@ -140,7 +140,7 @@ Codex / Claude 可能同时运行多个任务，事件到达顺序也可能穿�
 2. 否则任一任务处于 `busy` 时，整体显示 `busy`。
 3. 没有活跃任务时，整体显示 `idle`，但最近的 `error` / `success` 任务仍可作为任务行和 `LAST ERR` / `LAST OK` 摘要展示。
 
-当前 BLE 状态包使用 `v: 2`，除了整体 `source` / `state` / `detail` 外，还包含任务计数、Codex 用量摘要、`alerts` 和最多 5 个任务行。`alerts` 由 macOS 端基于完整任务语义和用户偏好产生，无条件时发送空数组：存在错误时加入 `taskError`；Codex 7D 剩余百分比不高于用户配置阈值时加入 `codex7dLow`；完整任务集合中存在执行、等待或最近 60 秒完成时，分别加入 `taskBusy`、`taskWaiting`、`taskSuccess`。这些轻量标记不受 5 行任务列表截断影响。ESP32-S3 屏幕继续显示完整任务视图；LED 固件消费同一包并独立判断三路提示，只有缺少 `alerts` 字段的旧包才使用固件本地阈值兜底。固件仍兼容旧的 `v: 1` 单状态包；macOS 端如果发现完整 `v: 2` JSON 超过某台设备的 BLE 单次写入长度，会针对该设备自动降级为保留 `alerts` 的紧凑 `v: 1` 包，因此混合灯态仍可完整表达。
+当前 BLE 状态包使用 `v: 2`，除了整体 `source` / `state` / `detail` 外，还包含任务计数、Codex 用量摘要、`alerts` 和最多 5 个任务行。`alerts` 由 macOS 端基于完整任务语义和用户偏好产生，无条件时发送空数组：存在错误时加入 `taskError`；Codex 7D 剩余百分比不高于用户配置阈值时加入 `codex7dLow`；完整任务集合中存在执行、等待或最近 60 秒完成时，分别加入 `taskBusy`、`taskWaiting`、`taskSuccess`。这些轻量标记不受 5 行任务列表截断影响。ESP32-S3 屏幕继续显示完整任务视图；LED 固件消费同一包并独立判断三路提示，只有缺少 `alerts` 字段的旧包才使用固件本地阈值兜底。固件仍兼容旧的 `v: 1` 单状态包；macOS 端如果发现完整 `v: 2` JSON 超过某台设备的 BLE 单次写入长度，会先移除任务上下文和 detail，再从列表尾部减少低优先级任务行以保留 7D 用量；仍无法满足写入长度时才会移除用量或降级为保留 `alerts` 的紧凑 `v: 1` 包。
 
 ### 设计原则
 
@@ -189,8 +189,6 @@ macOS 应用向状态写入特征写入 UTF-8 JSON。
   "errorCount": 0,
   "alerts": ["codex7dLow"],
   "usage": {
-    "codex5hRemainingPercent": 88,
-    "codex5hResetAt": 1780303500000,
     "codex7dRemainingPercent": 60,
     "codex7dResetAt": 1781445567000
   },
@@ -227,12 +225,12 @@ macOS 应用向状态写入特征写入 UTF-8 JSON。
 | `waitingCount` | number | 否 | 当前等待用户处理的任务数量。 |
 | `errorCount` | number | 否 | 最近聚合窗口内的错误任务数量。 |
 | `alerts` | array | 兼容旧包时可缺省 | 硬件条件标记。当前桌面端始终发送该字段，无条件时为 `[]`；当前值为 `taskError`、`codex7dLow`、`taskBusy`、`taskWaiting` 和 `taskSuccess`，未知值必须忽略。`taskSuccess` 只在完成后 60 秒内发送；7D 阈值由 macOS 偏好决定，默认 10%。这些标记在任务行截断和紧凑 `v: 1` 降级时仍会保留。 |
-| `usage` | object | 否 | Codex 用量摘要；当前包含 `codex5hRemainingPercent` 和 `codex7dRemainingPercent`，均为 0-100 的剩余百分比；可选 `codex5hResetAt` 和 `codex7dResetAt` 是对应窗口 reset 的 Unix 毫秒时间戳。 |
+| `usage` | object | 否 | Codex 用量摘要；`codex7dRemainingPercent` 是当前 0-100 的 7D 剩余百分比，可选 `codex7dResetAt` 是对应窗口 reset 的 Unix 毫秒时间戳。桌面端和共享 parser 暂时保留 `codex5hRemainingPercent` / `codex5hResetAt` 作为旧包兼容字段，LCD 不再展示或据此重绘。 |
 | `tasks` | array | 否 | ESP32-S3 屏幕列表行，最多发送 5 条；每条包含 `title`、`source`、`state`、可选 `detail`、可选 `updatedAt`、可选 `contextUsedPercent`、可选 `contextUsedTokens` 和可选 `contextWindowTokens`。`updatedAt` 是任务最近事件的 Unix 毫秒时间戳，固件用顶层 `ts` 减去它来显示 `RUN 03:12`、`WAIT 01:08` 或 `2m ago`；缺少或无效时回退显示 context。`contextUsedPercent` 是当前 Codex 会话上下文窗口已用百分比，固件兼容旧包的 `contextRemainingPercent` 并转换为已用百分比显示；当 `contextUsedTokens` 和 `contextWindowTokens` 同时存在时，固件优先显示 `CTX 4.2K/12K` 这类紧凑 token 摘要。任务标题限制为 32 个 UTF-8 字节，任务详情限制为 40 个 UTF-8 字节。 |
 
 状态写入包必须保持小而可预期。macOS 端会截断 detail 和任务文本，只发送已经归一化的短文本，不把完整 hook payload 写入硬件；工具动作会压缩成 `Bash / TEST make quick`、`Bash / FLASH make esp32-flash`、`Bash / BUILD idf.py`、`Bash / SERIAL read_serial.py`、`Bash / APP quit`、`Bash / SEARCH StatusPacket`、`Edit / README.md` 或 `APPROVE Bash TEST make verify` 这类短摘要。ESP32-S3 固件当前拒绝 1024 字节及以上的状态写入。
 
-`v: 2` 状态包表示 macOS 聚合后的整体显示状态和屏幕列表，不表示单个 hook 事件的原始 payload。Codex 用量来自 hook payload 内联数据或本地 transcript 尾部最新 `token_count` 事件：5h / 7d rate-limit 使用率会转换成剩余百分比，`resets_at` 会转换成 Unix 毫秒时间戳；context 优先使用 `last_token_usage.input_tokens` 和 `model_context_window` 生成 token 摘要及百分比，缺失时回退到 `total_token_usage.total_tokens`。`tasks[]` 是展示用摘要，不是硬件侧会话生命周期模型。
+`v: 2` 状态包表示 macOS 聚合后的整体显示状态和屏幕列表，不表示单个 hook 事件的原始 payload。Codex 用量来自 hook payload 内联数据或本地 transcript 尾部最新 `token_count` 事件；事件仍保留 transcript 路径时，桌面端优先重新读取最新 transcript，以修正旧 hook 已写入日志的过时内联用量。macOS 按 `window_minutes` 而不是 `primary` / `secondary` 位置识别 rate-limit 窗口，`10080` 分钟窗口会转换成 7d 剩余百分比，`resets_at` 会转换成 Unix 毫秒时间戳；旧数据中的 300 分钟 / 5h 字段只做协议兼容。context 优先使用 `last_token_usage.input_tokens` 和 `model_context_window` 生成 token 摘要及百分比，缺失时回退到 `total_token_usage.total_tokens`。`tasks[]` 是展示用摘要，不是硬件侧会话生命周期模型。
 
 `v1` / `v2` 是 BLE 状态包 schema 版本，不是用户可理解的产品状态。保留版本字段是为了让 macOS 端和固件能够逐步演进：新桌面端可以向新固件发送 `v: 2` 多任务包；当包太大或遇到旧固件链路时，桌面端仍可降级发送 `v: 1` 单状态包。固件用版本字段选择解析路径和显示能力，但主屏 footer 只把旧协议映射成 `LEGACY`，避免把内部实现细节直接展示给用户。
 
@@ -302,7 +300,7 @@ ESP32-S3 硬件层负责把通讯协议转换为可见输出。当前有两个�
 - 使用 ST7701 RGB LCD 初始化序列，分辨率为 320 x 820。
 - 使用 PSRAM framebuffer 和 RGB565 基础绘制，不依赖 LVGL。
 - 背光 PWM 为主动低电平，当前默认 full brightness。
-- 屏幕顶部用状态色居中显示 `VIBE LIGHT`，并在有 Codex 用量时常驻显示 `CODEX: 5H ... 7D ...` 剩余百分比；低余量且带 reset 时间时，在同一顶部状态区额外显示短 reset 提示。
+- 屏幕顶部用状态色居中显示 `VIBE LIGHT`，并在有 Codex 用量时常驻显示 `CODEX: 7D ...` 剩余百分比；低余量且带 reset 时间时，在同一顶部状态区额外显示短 reset 提示。旧包中的 5H 用量仍可解析，但不会展示或触发重绘。
 - 中间区域显示 320px 参考迷宫任务舞台，不再重复显示来源或 `x running` 等调试文字；迷宫顶部显示随已吃豆子累计增长的 `SCORE`、保存在 ESP32 NVS 中的 `HIGH SCORE` 和随完整吃豆轮数递增的 `LEVEL`；底部贴边区域显示紧凑任务计数、最多 5 条任务摘要、任务右侧尾标和左对齐短状态页脚。活跃任务尾标在运行 / 等待时长和 `CTX` 上下文已用百分比之间低频轮播，80% 及以上高上下文占用时提高 `CTX` 出现频率并用黄色显示，90% 及以上用红色显示；完成或失败任务显示新鲜度，缺少时间时回退为 `CTX`。
 - 当前实机运行时锁定竖屏，优先保证屏幕稳定；横屏不改变 `StatusPacket` 或 BLE 协议，整屏截图样式 RLE 数据和 host-side 预览仍保留，但 QMI8658 自动横竖屏切换暂不在固件启动路径启用。
 - 重复状态包通过显示签名去重；只有状态、计数、用量或任务文本变化时才重绘静态内容。

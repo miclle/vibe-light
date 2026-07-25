@@ -645,6 +645,22 @@ import Testing
     #expect(event.codexUsage?.contextWindowTokens == 10000)
 }
 
+@Test func codexUsageReaderMapsSingleWeeklyPrimaryWindowByDuration() throws {
+    let directory = temporaryDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let transcriptURL = directory.appendingPathComponent("session.jsonl")
+    try """
+    {"type":"event_msg","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":32,"window_minutes":10080,"resets_at":1785284212},"secondary":null}}}
+    """.write(to: transcriptURL, atomically: true, encoding: .utf8)
+
+    let usage = try #require(CodexUsageReader().readLatest(from: transcriptURL))
+
+    #expect(usage.fiveHourRemainingPercent == nil)
+    #expect(usage.fiveHourResetAtMilliseconds == nil)
+    #expect(usage.weeklyRemainingPercent == 68)
+    #expect(usage.weeklyResetAtMilliseconds == 1_785_284_212_000)
+}
+
 @Test func codexUsageReaderFindsLatestTokenCountNearTranscriptTail() throws {
     let directory = temporaryDirectory()
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -738,6 +754,40 @@ import Testing
     #expect(usage["codex5hRemainingPercent"] as? Int == 95)
     #expect(usage["codex7dRemainingPercent"] as? Int == 79)
     #expect(tasks.first?["contextUsedPercent"] as? Int == 25)
+}
+
+@Test func displaySnapshotRefreshesLegacyInlineUsageFromTranscript() throws {
+    let directory = temporaryDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let transcriptURL = directory.appendingPathComponent("session.jsonl")
+    try """
+    {"type":"event_msg","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":32,"window_minutes":10080,"resets_at":1785284212},"secondary":null}}}
+    """.write(to: transcriptURL, atomically: true, encoding: .utf8)
+
+    let rawPayload = """
+    {"session_id":"session-123","transcript_path":"\(transcriptURL.path)","cwd":"/Users/miclle/github/miclle/vibe-light","hook_event_name":"UserPromptSubmit"}
+    """
+    let event = VibeHookEvent(
+        taskID: "codex:session-123",
+        source: .codex,
+        kind: .userPromptSubmit,
+        timestamp: Date(timeIntervalSince1970: 1_780_300_800),
+        summary: "implement usage",
+        workspace: "vibe-light",
+        rawPayload: rawPayload,
+        codexUsage: CodexUsage(fiveHourRemainingPercent: 68)
+    )
+
+    let packet = TaskTracker().snapshot(
+        from: [event],
+        now: Date(timeIntervalSince1970: 1_780_300_801)
+    ).statusPacket
+    let data = try packet.encodedJSON()
+    let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let usage = try #require(object["usage"] as? [String: Any])
+
+    #expect(usage["codex5hRemainingPercent"] == nil)
+    #expect(usage["codex7dRemainingPercent"] as? Int == 68)
 }
 
 @Test func codexUsageDecodesLegacyContextRemainingPercentAsUsedPercent() throws {
@@ -958,6 +1008,90 @@ import Testing
     #expect(usage["codex7dRemainingPercent"] as? Int == 68)
     #expect(tasks.count == 3)
     #expect(tasks.compactMap { $0["detail"] as? String }.isEmpty)
+}
+
+@Test func statusPacketTrimsLowestPriorityTasksBeforeDroppingWeeklyUsage() throws {
+    let packet = StatusPacket(
+        v: 2,
+        source: .codex,
+        state: .busy,
+        timestamp: Date(timeIntervalSince1970: 1_780_300_800),
+        tasks: [
+            StatusTask(
+                title: "vibe-light",
+                state: .busy,
+                source: .codex,
+                updatedAt: Date(timeIntervalSince1970: 1_780_300_790)
+            ),
+            StatusTask(
+                title: "lang.cards",
+                state: .busy,
+                source: .codex,
+                updatedAt: Date(timeIntervalSince1970: 1_780_300_780)
+            ),
+            StatusTask(
+                title: "slideo.cloud",
+                state: .success,
+                source: .codex,
+                updatedAt: Date(timeIntervalSince1970: 1_780_300_770)
+            ),
+            StatusTask(
+                title: "EvoMobility",
+                state: .success,
+                source: .codex,
+                updatedAt: Date(timeIntervalSince1970: 1_780_300_760)
+            ),
+            StatusTask(
+                title: "gitwikitree",
+                state: .success,
+                source: .codex,
+                updatedAt: Date(timeIntervalSince1970: 1_780_300_750)
+            ),
+        ],
+        usage: StatusUsage(codex7dRemainingPercent: 68),
+        alerts: [.taskBusy]
+    )
+
+    let fullData = try packet.encodedJSON()
+    let constrainedData = try packet.encodedJSON(maximumWriteLength: 512)
+    let object = try #require(JSONSerialization.jsonObject(with: constrainedData) as? [String: Any])
+    let tasks = try #require(object["tasks"] as? [[String: Any]])
+    let usage = try #require(object["usage"] as? [String: Any])
+
+    #expect(fullData.count > 512)
+    #expect(constrainedData.count <= 512)
+    #expect(object["v"] as? Int == 2)
+    #expect(usage["codex7dRemainingPercent"] as? Int == 68)
+    #expect(tasks.count < 5)
+    let firstTitle = tasks.first?["title"] as? String
+    #expect(firstTitle == "vibe-light")
+}
+
+@Test func statusPacketDoesNotTrimTasksToPreserveLegacyFiveHourUsage() throws {
+    let packet = StatusPacket(
+        v: 2,
+        source: .codex,
+        state: .busy,
+        timestamp: Date(timeIntervalSince1970: 1_780_300_800),
+        tasks: [
+            StatusTask(title: "vibe-light", state: .busy, source: .codex, updatedAt: Date(timeIntervalSince1970: 1_780_300_790)),
+            StatusTask(title: "lang.cards", state: .busy, source: .codex, updatedAt: Date(timeIntervalSince1970: 1_780_300_780)),
+            StatusTask(title: "slideo.cloud", state: .success, source: .codex, updatedAt: Date(timeIntervalSince1970: 1_780_300_770)),
+            StatusTask(title: "EvoMobility", state: .success, source: .codex, updatedAt: Date(timeIntervalSince1970: 1_780_300_760)),
+            StatusTask(title: "gitwikitree", state: .success, source: .codex, updatedAt: Date(timeIntervalSince1970: 1_780_300_750)),
+        ],
+        usage: StatusUsage(codex5hRemainingPercent: 68),
+        alerts: [.taskBusy]
+    )
+
+    let constrainedData = try packet.encodedJSON(maximumWriteLength: 512)
+    let object = try #require(JSONSerialization.jsonObject(with: constrainedData) as? [String: Any])
+    let tasks = try #require(object["tasks"] as? [[String: Any]])
+
+    #expect(constrainedData.count <= 512)
+    #expect(object["v"] as? Int == 2)
+    #expect(object["usage"] == nil)
+    #expect(tasks.count == 5)
 }
 
 @Test func hardwareDemoPacketsProvideBoundedV2TaskScenarios() throws {
@@ -1241,6 +1375,30 @@ import Testing
     #expect(usage.weeklyRemainingPercent == 100)
 }
 
+@Test func eventLogRefreshesLegacyInlineUsageFromTranscript() throws {
+    let directory = temporaryDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let transcriptURL = directory.appendingPathComponent("session.jsonl")
+    try """
+    {"type":"event_msg","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":32,"window_minutes":10080,"resets_at":1785284212},"secondary":null}}}
+    """.write(to: transcriptURL, atomically: true, encoding: .utf8)
+    let rawPayload = """
+    {"session_id":"session-123","transcript_path":"\(transcriptURL.path)","cwd":"/Users/miclle/github/miclle/vibe-light","hook_event_name":"UserPromptSubmit"}
+    """
+    let log = EventLog(directory: directory)
+    try log.append(.init(
+        source: .codex,
+        kind: .userPromptSubmit,
+        rawPayload: rawPayload,
+        codexUsage: CodexUsage(fiveHourRemainingPercent: 68)
+    ))
+
+    let usage = try #require(try log.readLatestCodexUsage())
+
+    #expect(usage.fiveHourRemainingPercent == nil)
+    #expect(usage.weeklyRemainingPercent == 68)
+}
+
 @Test func eventLogSerializesConcurrentAppends() async throws {
     let directory = URL(fileURLWithPath: NSTemporaryDirectory())
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -1392,6 +1550,27 @@ import Testing
 
     #expect(command.contains(installedURL.path))
     #expect(!command.contains(sourceURL.path))
+}
+
+@Test func agentInstallerRefreshesInstalledHookFromNewBundle() throws {
+    let home = temporaryDirectory()
+    let sourceDirectory = home.appendingPathComponent("build", isDirectory: true)
+    try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
+    let oldSourceURL = sourceDirectory.appendingPathComponent("old-vibe-light-hook")
+    let newSourceURL = sourceDirectory.appendingPathComponent("new-vibe-light-hook")
+    try Data("old hook".utf8).write(to: oldSourceURL)
+    try Data("new hook".utf8).write(to: newSourceURL)
+
+    let installer = AgentInstaller(homeDirectory: home)
+    let installedURL = try installer.prepareHookExecutable(from: oldSourceURL)
+    try installer.install(.codex, hookExecutableURL: installedURL)
+
+    let didRefresh = try installer.refreshManagedHookExecutable(from: newSourceURL)
+    let installedData = try Data(contentsOf: installedURL)
+
+    #expect(didRefresh)
+    #expect(installedData == Data("new hook".utf8))
+    #expect(try !installer.refreshManagedHookExecutable(from: newSourceURL))
 }
 
 @Test func agentInstallerPreservesLegacyCodexHooksFeatureKey() throws {
