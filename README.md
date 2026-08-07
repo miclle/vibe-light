@@ -96,7 +96,7 @@ LCD 固件位于 [projects/esp32](projects/esp32)，三色灯固件位于 [proje
 - 返回包含 uptime、连接状态、最近显示状态、heap、render tick、背光状态和最近解析错误的 health packet。
 - 使用轻量 framebuffer renderer 直接驱动 Waveshare LCD。
 - 同时兼容当前 `v: 2` 多任务状态包和旧的 `v: 1` 单状态包。
-- 三色灯固件以 `VibeLight-LED` 广播，红灯独立表示告警，黄灯独立表示执行中，绿灯独立表示等待人工或最近完成；对应条件存在时以 1 秒周期慢闪，多个条件同时存在时同步闪烁。
+- 三色灯固件以 `VibeLight-LED` 广播；没有 Agent 状态时按红 5 秒、绿 5 秒、黄 2 秒循环模拟交通信号灯，Agent 状态出现后优先用红灯表示告警、黄灯表示执行中、绿灯表示等待人工或最近完成，状态结束后继续当前交通灯相位。对应 Agent 条件存在时以 1 秒周期慢闪，多个条件同时存在时同步闪烁。
 
 协议、状态模型和跨端职责见 [docs/architecture.md](docs/architecture.md)。固件细节见 [projects/esp32/README.md](projects/esp32/README.md)。
 

@@ -20,6 +20,7 @@ The LCD firmware lives in `projects/esp32` and targets Waveshare `ESP32-S3-LCD-3
 
 - Keep BLE callbacks and parser paths non-blocking.
 - LED output channels are independent and active-high by default: red GPIO4, yellow GPIO5, green GPIO6, each through its own 330 ohm resistor. Derive each channel separately so error, busy, and waiting/recent-success signals can blink together; keep the shared slow-blink cadence at 500 ms on and 500 ms off unless the product behavior changes explicitly.
+- When no Agent LED condition is active, run the firmware-local traffic-light cycle as red 5000 ms, green 5000 ms and yellow 2000 ms. Start its monotonic timeline after the startup self-test. Agent output fully overrides it, including the off half of blinking; resume from that timeline when Agent output ends, and keep the traffic light active while BLE is disconnected.
 - Keep status writes under the current firmware limit; packets at 1024 bytes or larger are rejected.
 - Unknown top-level or task states should degrade to `idle`; malformed packets should be rejected without mutating the previous packet.
 - Keep display-model logic testable in `vibe_display_model.*` when it does not require hardware handles.
@@ -27,7 +28,7 @@ The LCD firmware lives in `projects/esp32` and targets Waveshare `ESP32-S3-LCD-3
 - Avoid introducing LVGL until the lightweight framebuffer path is insufficient for a concrete feature such as fonts, complex layout or richer animation.
 - `busy` animation should stay firmware-local. The desktop app sends state and counts, not animation frames.
 - Keep task trailing-label behavior testable: task-level `updatedAt` plus top-level `ts` maps to `RUN`, `WAIT` or freshness labels; active tasks rotate between timing and task-level `contextUsedPercent` as the `CTX` label, with 80%+ context usage shown more often in warning color and 90%+ shown in critical color; missing or invalid timing falls back to `CTX`; legacy `contextRemainingPercent` remains accepted as a compatibility input.
-- Preserve the current connection affordance unless product direction changes: Central connect shows `idle / desktop connected`; disconnect shows `offline / desktop disconnected`.
+- Preserve the LCD connection affordance unless product direction changes: Central connect shows `idle / desktop connected`; disconnect shows `offline / desktop disconnected`. The LED firmware uses the traffic-light fallback instead of a separate disconnected output.
 - Preserve active-low backlight behavior for the current board unless hardware evidence says otherwise.
 - Keep `projects/esp32/tools/render_maze_preview.py` aligned with display model constants when changing the maze, task panel or previewable layout.
 

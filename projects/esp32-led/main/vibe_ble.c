@@ -35,6 +35,7 @@ static uint16_t current_connection_handle = BLE_HS_CONN_HANDLE_NONE;
 static uint8_t own_address_type;
 static vibe_status_packet_t current_status;
 static int64_t received_at_uptime_ms;
+static int64_t traffic_cycle_started_at_uptime_ms;
 static char last_parse_error[64];
 static portMUX_TYPE status_lock = portMUX_INITIALIZER_UNLOCKED;
 
@@ -67,11 +68,25 @@ static void apply_current_status(void)
         if (now > 0 && received_at_uptime_ms > 0) {
             now += current_uptime_ms - received_at_uptime_ms;
         }
-        led_state = vibe_led_state_for_status(&current_status, now, &POLICY);
+        led_state = vibe_led_state_for_output(
+            &current_status,
+            now,
+            current_uptime_ms,
+            traffic_cycle_started_at_uptime_ms,
+            &POLICY
+        );
+    } else {
+        led_state = vibe_led_state_for_output(
+            NULL,
+            0,
+            current_uptime_ms,
+            traffic_cycle_started_at_uptime_ms,
+            &POLICY
+        );
     }
     portEXIT_CRITICAL(&status_lock);
 
-    vibe_led_output_set(vibe_led_state_apply_slow_blink(led_state, current_uptime_ms));
+    vibe_led_output_set(led_state);
 }
 
 static void refresh_timer_callback(void *arg)
@@ -205,7 +220,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
         portENTER_CRITICAL(&status_lock);
         current_connection_handle = BLE_HS_CONN_HANDLE_NONE;
         portEXIT_CRITICAL(&status_lock);
-        vibe_led_output_set((vibe_led_state_t){0});
+        apply_current_status();
         advertise();
         return 0;
     case BLE_GAP_EVENT_ADV_COMPLETE:
@@ -284,9 +299,11 @@ void vibe_ble_start(void)
         .callback = refresh_timer_callback,
         .name = "vibe_led_refresh",
     };
+    traffic_cycle_started_at_uptime_ms = uptime_ms();
     esp_timer_handle_t timer;
     ESP_ERROR_CHECK(esp_timer_create(&timer_args, &timer));
     ESP_ERROR_CHECK(esp_timer_start_periodic(timer, VIBE_LED_SLOW_BLINK_HALF_PERIOD_MS * 1000));
+    apply_current_status();
 
     nimble_port_freertos_init(host_task);
 }

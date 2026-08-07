@@ -32,10 +32,10 @@ Desktop packet text is intentionally bounded before BLE writes: overall `detail`
 
 Firmware should display the rows it receives. It should not infer Codex or Claude lifecycle semantics.
 
-Firmware may update its own connection affordance: connected Central shows `idle / desktop connected`, disconnected Central shows `offline / desktop disconnected`. It should not otherwise invent Codex or Claude task lifecycle transitions.
+LCD firmware may update its own connection affordance: connected Central shows `idle / desktop connected`, disconnected Central shows `offline / desktop disconnected`. LED firmware runs its local red 5s, green 5s, yellow 2s traffic-light cycle whenever no Agent LED condition is active, including while disconnected. Neither firmware should invent Codex or Claude task lifecycle transitions.
 
 ## Animation Direction
 
-The Codex Pac-Man style animation is firmware-local display behavior. `activeCount`, `waitingCount` and `errorCount` can tune visual emphasis, but they must not change protocol meaning. Animation ticks must be non-blocking and must not block BLE callbacks, JSON parsing or health reads.
+The Codex Pac-Man style animation and the LED traffic-light cycle are firmware-local display behaviors. `activeCount`, `waitingCount` and `errorCount` can tune visual emphasis, but they must not change protocol meaning. Start the traffic-light monotonic timeline after the startup self-test. Any Agent LED condition fully overrides the traffic light, including the off half of slow blinking; after the condition ends, the cycle resumes from that timeline rather than restarting. Animation ticks must be non-blocking and must not block BLE callbacks, JSON parsing or health reads.
 
 The current firmware uses a 320px reference maze stage, a bottom task panel and a 240ms animation timer. Actor count comes from `tasks[]` first, then falls back to `activeCount`, and remains capped at 5.
