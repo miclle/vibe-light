@@ -213,15 +213,17 @@ static void assert_all_off(vibe_led_state_t state)
     assert(!state.green_on);
 }
 
-static void test_traffic_cycle_uses_red_green_yellow_phase_boundaries(void)
+static void test_traffic_cycle_uses_green_yellow_red_yellow_phase_boundaries(void)
 {
-    assert_only_red(vibe_led_state_for_traffic_cycle(0));
-    assert_only_red(vibe_led_state_for_traffic_cycle(4999));
-    assert_only_green(vibe_led_state_for_traffic_cycle(5000));
-    assert_only_green(vibe_led_state_for_traffic_cycle(9999));
-    assert_only_yellow(vibe_led_state_for_traffic_cycle(10000));
-    assert_only_yellow(vibe_led_state_for_traffic_cycle(11999));
-    assert_only_red(vibe_led_state_for_traffic_cycle(12000));
+    assert_only_green(vibe_led_state_for_traffic_cycle(0));
+    assert_only_green(vibe_led_state_for_traffic_cycle(4999));
+    assert_only_yellow(vibe_led_state_for_traffic_cycle(5000));
+    assert_only_yellow(vibe_led_state_for_traffic_cycle(6999));
+    assert_only_red(vibe_led_state_for_traffic_cycle(7000));
+    assert_only_red(vibe_led_state_for_traffic_cycle(11999));
+    assert_only_yellow(vibe_led_state_for_traffic_cycle(12000));
+    assert_only_yellow(vibe_led_state_for_traffic_cycle(13999));
+    assert_only_green(vibe_led_state_for_traffic_cycle(14000));
 }
 
 static void test_agent_status_overrides_traffic_during_both_blink_halves(void)
@@ -232,14 +234,14 @@ static void test_agent_status_overrides_traffic_during_both_blink_halves(void)
     assert_only_yellow(vibe_led_state_for_output(
         &packet,
         packet.timestamp_ms,
-        6000,
+        7000,
         0,
         &POLICY
     ));
     assert_all_off(vibe_led_state_for_output(
         &packet,
         packet.timestamp_ms,
-        6500,
+        7500,
         0,
         &POLICY
     ));
@@ -250,14 +252,14 @@ static void test_traffic_cycle_uses_explicit_start_epoch(void)
     vibe_status_packet_t idle = packet_with_state(VIBE_DISPLAY_IDLE);
     idle.codex_7d_remaining_percent = -1;
 
-    assert_only_red(vibe_led_state_for_output(
+    assert_only_green(vibe_led_state_for_output(
         &idle,
         idle.timestamp_ms,
         5000,
         900,
         &POLICY
     ));
-    assert_only_green(vibe_led_state_for_output(
+    assert_only_yellow(vibe_led_state_for_output(
         &idle,
         idle.timestamp_ms,
         5900,
@@ -280,14 +282,16 @@ static void test_traffic_cycle_continues_after_agent_status_ends(void)
         0,
         &POLICY
     ));
-    assert_only_green(vibe_led_state_for_output(
+    assert_only_yellow(vibe_led_state_for_output(
         &idle,
         idle.timestamp_ms,
         6000,
         0,
         &POLICY
     ));
-    assert_only_yellow(vibe_led_state_for_output(NULL, 0, 10500, 0, &POLICY));
+    assert_only_red(vibe_led_state_for_output(NULL, 0, 10500, 0, &POLICY));
+    assert_only_yellow(vibe_led_state_for_output(NULL, 0, 12500, 0, &POLICY));
+    assert_only_green(vibe_led_state_for_output(NULL, 0, 14500, 0, &POLICY));
 }
 
 int main(void)
@@ -303,7 +307,7 @@ int main(void)
     test_compact_alert_signals_keep_busy_waiting_and_success_independent();
     test_idle_and_unknown_quota_are_off();
     test_active_leds_blink_on_for_500ms_then_off_for_500ms();
-    test_traffic_cycle_uses_red_green_yellow_phase_boundaries();
+    test_traffic_cycle_uses_green_yellow_red_yellow_phase_boundaries();
     test_agent_status_overrides_traffic_during_both_blink_halves();
     test_traffic_cycle_uses_explicit_start_epoch();
     test_traffic_cycle_continues_after_agent_status_ends();

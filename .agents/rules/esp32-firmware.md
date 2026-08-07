@@ -20,7 +20,7 @@ The LCD firmware lives in `projects/esp32` and targets Waveshare `ESP32-S3-LCD-3
 
 - Keep BLE callbacks and parser paths non-blocking.
 - LED output channels are independent and active-high by default: red GPIO4, yellow GPIO5, green GPIO6, each through its own 330 ohm resistor. Derive each channel separately so error, busy, and waiting/recent-success signals can blink together; keep the shared slow-blink cadence at 500 ms on and 500 ms off unless the product behavior changes explicitly.
-- When no Agent LED condition is active, run the firmware-local traffic-light cycle as red 5000 ms, green 5000 ms and yellow 2000 ms. Start its monotonic timeline after the startup self-test. Agent output fully overrides it, including the off half of blinking; resume from that timeline when Agent output ends, and keep the traffic light active while BLE is disconnected.
+- When no Agent LED condition is active, run the firmware-local traffic-light cycle as green 5000 ms, yellow 2000 ms, red 5000 ms and yellow 2000 ms. Start its monotonic timeline after the startup self-test. Agent output fully overrides it, including the off half of blinking; resume from that timeline when Agent output ends, and keep the traffic light active while BLE is disconnected.
 - Keep status writes under the current firmware limit; packets at 1024 bytes or larger are rejected.
 - Unknown top-level or task states should degrade to `idle`; malformed packets should be rejected without mutating the previous packet.
 - Keep display-model logic testable in `vibe_display_model.*` when it does not require hardware handles.

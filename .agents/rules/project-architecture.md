@@ -32,7 +32,7 @@ Desktop packet text is intentionally bounded before BLE writes: overall `detail`
 
 Firmware should display the rows it receives. It should not infer Codex or Claude lifecycle semantics.
 
-LCD firmware may update its own connection affordance: connected Central shows `idle / desktop connected`, disconnected Central shows `offline / desktop disconnected`. LED firmware runs its local red 5s, green 5s, yellow 2s traffic-light cycle whenever no Agent LED condition is active, including while disconnected. Neither firmware should invent Codex or Claude task lifecycle transitions.
+LCD firmware may update its own connection affordance: connected Central shows `idle / desktop connected`, disconnected Central shows `offline / desktop disconnected`. LED firmware runs its local green 5s, yellow 2s, red 5s, yellow 2s traffic-light cycle whenever no Agent LED condition is active, including while disconnected. Neither firmware should invent Codex or Claude task lifecycle transitions.
 
 ## Animation Direction
 

@@ -91,16 +91,20 @@ vibe_led_state_t vibe_led_state_apply_slow_blink(vibe_led_state_t active, int64_
 
 vibe_led_state_t vibe_led_state_for_traffic_cycle(int64_t uptime_ms)
 {
-    const int64_t green_start_ms = VIBE_LED_TRAFFIC_RED_DURATION_MS;
-    const int64_t yellow_start_ms = green_start_ms + VIBE_LED_TRAFFIC_GREEN_DURATION_MS;
-    const int64_t cycle_duration_ms = yellow_start_ms + VIBE_LED_TRAFFIC_YELLOW_DURATION_MS;
+    const int64_t yellow_after_green_start_ms = VIBE_LED_TRAFFIC_GREEN_DURATION_MS;
+    const int64_t red_start_ms = yellow_after_green_start_ms + VIBE_LED_TRAFFIC_YELLOW_DURATION_MS;
+    const int64_t yellow_after_red_start_ms = red_start_ms + VIBE_LED_TRAFFIC_RED_DURATION_MS;
+    const int64_t cycle_duration_ms = yellow_after_red_start_ms + VIBE_LED_TRAFFIC_YELLOW_DURATION_MS;
     int64_t phase_ms = uptime_ms < 0 ? 0 : uptime_ms % cycle_duration_ms;
 
-    if (phase_ms < green_start_ms) {
-        return (vibe_led_state_t){.red_on = true};
-    }
-    if (phase_ms < yellow_start_ms) {
+    if (phase_ms < yellow_after_green_start_ms) {
         return (vibe_led_state_t){.green_on = true};
+    }
+    if (phase_ms < red_start_ms) {
+        return (vibe_led_state_t){.yellow_on = true};
+    }
+    if (phase_ms < yellow_after_red_start_ms) {
+        return (vibe_led_state_t){.red_on = true};
     }
     return (vibe_led_state_t){.yellow_on = true};
 }

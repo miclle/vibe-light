@@ -35,7 +35,7 @@ vibe_led_state_t vibe_led_state_for_status(
 );
 bool vibe_led_state_any_on(vibe_led_state_t state);
 vibe_led_state_t vibe_led_state_apply_slow_blink(vibe_led_state_t active, int64_t now_ms);
-// vibe_led_state_for_traffic_cycle returns one active traffic light for monotonic uptime.
+// vibe_led_state_for_traffic_cycle returns the green-yellow-red-yellow phase for monotonic uptime.
 vibe_led_state_t vibe_led_state_for_traffic_cycle(int64_t uptime_ms);
 // vibe_led_state_for_output gives Agent blinking priority, then falls back to the traffic cycle.
 vibe_led_state_t vibe_led_state_for_output(

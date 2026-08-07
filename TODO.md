@@ -9,7 +9,7 @@
 - BLE 协议当前以 `v: 2` 多任务状态包为主，保留 `v: 1` 降级路径；Codex 用量摘要会从 transcript 最新 `token_count` 事件提取。LCD 当前只展示 7d 剩余百分比和低余量 reset 提示，并继续展示每条 Codex 任务的上下文已用百分比 / token 摘要；旧包中的 5h 字段仅保留解析兼容。
 - `StatusPacket v2` 已增加可选 `alerts`：任务错误产生 `taskError`，Codex 7D 剩余不高于通用偏好中的阈值时产生 `codex7dLow`；阈值默认 10%，未知用量不告警。
 - macOS BLE 管理已改为每台 Peripheral 独立保存连接、GATT 特征和 health packet；扫描不会因第一台设备连接而停止，同一状态会广播到全部已就绪设备。
-- `projects/esp32-led` 已实现 `ESP32-S3-DevKitC-1 N16R8` 三色灯固件：GPIO4 / 5 / 6 分别独立驱动红 / 黄 / 绿 LED；没有 Agent 条件时按红 5 秒、绿 5 秒、黄 2 秒循环，告警、执行中、等待人工或最近完成条件优先以 1 秒周期同步慢闪，结束后继续当前交通灯相位；协议 parser / health formatter 已抽到 `projects/esp32-common/vibe_protocol` 供 LCD 与 LED 共用。
+- `projects/esp32-led` 已实现 `ESP32-S3-DevKitC-1 N16R8` 三色灯固件：GPIO4 / 5 / 6 分别独立驱动红 / 黄 / 绿 LED；没有 Agent 条件时按绿 5 秒、黄 2 秒、红 5 秒、黄 2 秒循环，告警、执行中、等待人工或最近完成条件优先以 1 秒周期同步慢闪，结束后继续当前交通灯相位；协议 parser / health formatter 已抽到 `projects/esp32-common/vibe_protocol` 供 LCD 与 LED 共用。
 - ESP32-S3 固件已接入 BLE Peripheral、状态解析、健康读取特征、ST7701 LCD 初始化、RGB565 framebuffer 绘制和 Codex 吃豆人 `busy` 迷宫动画；实机运行时当前锁定竖屏，优先保证显示稳定。
 - 显示模型已从“简单任务列表”推进到 320px 竖屏参考迷宫舞台、横屏整屏截图样式吃豆人 RLE host-side 预览、213 个豆子、4 个能量豆、最多 5 个错相主角、底部贴边任务面板、任务时长 / 新鲜度尾标和渲染签名去重。
 - 屏幕任务详情会优先展示当前工具动作，例如 `Bash / TEST make quick`、`Bash / BUILD idf.py`、`Bash / SERIAL read_serial.py`、`Bash / APP quit`、`Bash / SEARCH StatusPacket` 或 `Edit / README.md`，避免只显示泛化任务摘要或完整 shell 命令。
@@ -166,7 +166,7 @@
 
 1. **三色灯设备需要完成灯色实机验收**
    - `ESP32-S3-DevKitC-1 N16R8` 已完成固件烧录、BLE 连续状态写入和重启循环修复；包含 2 个 `busy` 和 1 个最近 `success` 的真实状态包已确认固件以约 500 ms 间隔交替输出 `yellow=1 green=1` 和全灭，黄绿两路同步慢闪，红黄绿 LED 的剩余业务组合仍需逐项肉眼验证。
-   - 实机验收需覆盖上电自检、红 → 绿 → 黄交通灯相位和时长、LCD + LED 同时连接、黄灯执行中、绿灯等待 / 完成 60 秒、错误红灯、7D 阈值边界、Agent 覆盖期间不漏出交通灯、状态结束后继续当前相位、断连继续循环和长时间稳定性。
+   - 实机验收需覆盖上电自检、绿 → 黄 → 红 → 黄交通灯相位和时长、LCD + LED 同时连接、黄灯执行中、绿灯等待 / 完成 60 秒、错误红灯、7D 阈值边界、Agent 覆盖期间不漏出交通灯、状态结束后继续当前相位、断连继续循环和长时间稳定性。
 
 2. **横屏 runtime 恢复需要单独设计和实机验证**
    - 当前取舍：实机运行时锁定竖屏，横屏 RLE 数据、布局模型和 host-side preview 保留，但 QMI8658 自动横竖屏切换不在启动路径启用。
