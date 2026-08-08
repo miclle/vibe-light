@@ -11,6 +11,8 @@ Vibe Light is a local status bridge for AI coding tools. The macOS app collects 
 - ESP32-S3 owns packet parsing, health reporting, LCD drawing/local animation or independent synchronized red/yellow/green output.
 - Do not push full hook payloads, session history or frame-by-frame animation data into the hardware protocol.
 
+BLE OTA is a separate protocol plane from `StatusPacket`: desktop owns target selection, signed bundle validation, bounded file reads and reconnect orchestration; the shared OTA contract owns session/offset/status encoding; the ESP32 OTA worker alone owns Flash writes, digest/signature/identity validation and boot-slot selection. Normal status packets may continue to other peripherals, but must pause for the single selected OTA target. OTA completion is proven only by post-reboot health identity with rollback state `valid`.
+
 ## Status Contract
 
 The stable display states are `idle`, `busy`, `waiting`, `success`, `error` and `offline`.

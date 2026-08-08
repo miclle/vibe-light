@@ -211,7 +211,7 @@ static void test_v2_usage_packet_accepts_legacy_context_remaining(void)
 
 static void test_health_payload_reports_backlight_and_last_parse_error(void)
 {
-    char payload[256];
+    char payload[512];
     vibe_health_snapshot_t snapshot = {
         .animation_tick = 42,
         .has_animation_tick = true,
@@ -220,9 +220,15 @@ static void test_health_payload_reports_backlight_and_last_parse_error(void)
         .connected = true,
         .device = "VibeLight-S3",
         .free_heap_bytes = 4218880,
+        .firmware_version = "v0.1.3-1-g1234567",
         .last_parse_error = "invalid JSON",
         .last_state = "busy",
         .min_free_heap_bytes = 3981312,
+        .ota_capable = true,
+        .project_name = "vibe_light_led",
+        .rollback_state = "valid",
+        .running_slot = "ota_0",
+        .signed_updates_required = true,
         .uptime_ms = 12000,
     };
 
@@ -232,6 +238,12 @@ static void test_health_payload_reports_backlight_and_last_parse_error(void)
     assert(strstr(payload, "\"backlightOn\":true") != NULL);
     assert(strstr(payload, "\"lastParseError\":\"invalid JSON\"") != NULL);
     assert(strstr(payload, "\"lastState\":\"busy\"") != NULL);
+    assert(strstr(payload, "\"firmwareVersion\":\"v0.1.3-1-g1234567\"") != NULL);
+    assert(strstr(payload, "\"projectName\":\"vibe_light_led\"") != NULL);
+    assert(strstr(payload, "\"otaCapable\":true") != NULL);
+    assert(strstr(payload, "\"runningSlot\":\"ota_0\"") != NULL);
+    assert(strstr(payload, "\"rollbackState\":\"valid\"") != NULL);
+    assert(strstr(payload, "\"signedUpdatesRequired\":true") != NULL);
 
     snapshot.last_parse_error = "";
     written = vibe_health_format_json(payload, sizeof(payload), &snapshot);

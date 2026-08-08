@@ -24,6 +24,9 @@ The desktop app lives in `projects/macos/desktop` and is a SwiftPM app using Swi
 - For task timing, keep top-level `StatusPacket.ts` as packet generation time and task-level `updatedAt` as the task's last event time; firmware derives `RUN`, `WAIT` and freshness labels from the difference.
 - Keep Codex usage extraction aligned between `HookPayloadDecoder`, `CodexUsageReader`, `TaskTracker`, Swift tests and the protocol docs.
 - Keep one CoreBluetooth context per peripheral. Scanning and connecting a second device must not discard the first device's characteristics or health state; status writes fan out to every ready device.
+- BLE OTA is strictly single-target even while normal status packets continue to fan out. Require an exact connected device selection, signed bundle, protocol/project match and `otaCapable` health before beginning.
+- OTA UI progress must use the ESP32 `committedOffset`; CoreBluetooth write completion or local file reads are not Flash commit evidence. Keep file reads bounded to one BLE frame and preserve the same session ID/SHA when reconnecting within the firmware grace period.
+- Do not report OTA success at `rebooting`. Wait for the selected peripheral to reconnect and return matching `firmwareVersion`, `projectName` and `rollbackState == "valid"`.
 - When changing packet shape, update Swift tests, ESP32 parser tests and `docs/architecture.md` together.
 - When changing hardware UI affordances, keep the "硬件设备" page useful for manual packet sending and demo packets.
 

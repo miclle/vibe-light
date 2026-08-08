@@ -19,6 +19,10 @@ The LCD firmware lives in `projects/esp32` and targets Waveshare `ESP32-S3-LCD-3
 ## Rules
 
 - Keep BLE callbacks and parser paths non-blocking.
+- Keep OTA Flash operations out of NimBLE callbacks. Callbacks may validate/copy a bounded frame and use a zero-wait queue only; `esp_ota_*`, SHA-256, signature/identity checks and reboot belong to the OTA worker.
+- Preserve the LED A/B partition contract in `projects/esp32-common/partitions_ota_16mb.csv`. Existing single-app boards require one full USB migration; application OTA must never claim it can repair a bootloader or partition table.
+- OTA progress means bytes committed by `esp_ota_write`, not bytes accepted by CoreBluetooth or queued in RAM. Resume only the same session ID and SHA within the 60-second same-boot grace period.
+- Keep production OTA signing keys external with mode `0600`; never add a key, generated signing defaults file or key content to the repository or firmware bundle.
 - LED output channels are independent and active-high by default: red GPIO4, yellow GPIO5, green GPIO6, each through its own 330 ohm resistor. Derive each channel separately so error, busy, and waiting/recent-success signals can blink together; keep the shared slow-blink cadence at 500 ms on and 500 ms off unless the product behavior changes explicitly.
 - When no Agent LED condition is active, run the firmware-local traffic-light cycle as green 5000 ms, yellow 2000 ms, red 5000 ms and yellow 2000 ms. Start its monotonic timeline after the startup self-test. Agent output fully overrides it, including the off half of blinking; resume from that timeline when Agent output ends, and keep the traffic light active while BLE is disconnected.
 - Keep status writes under the current firmware limit; packets at 1024 bytes or larger are rejected.

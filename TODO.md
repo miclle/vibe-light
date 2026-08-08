@@ -20,6 +20,7 @@
 - 健康状态包已经包含运行时长、BLE 连接状态、最近显示状态、heap 余量、启动后 heap 低水位、渲染 tick、背光状态和最近解析错误；macOS 硬件页会展示这些诊断信息。
 - 最新 ESP32 显示路径已拆分竖屏 / 横屏渲染模块；实机运行路径已回退到 `7d4442c8` 同类稳定架构：应用侧 PSRAM framebuffer 绘制完整竖屏画面，再交给 RGB driver 双 framebuffer 提交，不再直接轮转 driver 内部 framebuffer。用户已确认这版不再闪屏，吃豆动画也较流畅。横屏自动切换暂不启用，后续恢复前必须先解决 VSYNC / frame-done 协调问题。
 - macOS app 已有独立“固件烧录”页，可枚举常见 ESP32 USB 串口、从 `FirmwareBundles/display` 与 `FirmwareBundles/led` 选择并校验目标固件、调用 helper 执行 `write_flash`，成功后启动 BLE 扫描；发布准备脚本会构建并打包 LCD / LED 两套固件，`package_firmware_tools.py` 继续负责 bundled `esptool` 和 GPL source 材料。
+- LED 已实现 BLE A/B OTA 软件闭环：16MB `otadata + ota_0 + ota_1` 分区、共享 OTA 协议与 committed offset、非阻塞 GATT 入队/独立 Flash worker、60 秒同次开机断线恢复、SHA-256/项目名/版本/ESP-IDF 签名校验、设备端 `signedUpdatesRequired` 门禁、启动失败回滚、health 版本确认，以及 macOS 单设备选择、确认、进度、取消和重连 UI。2026-08-08 已用仓库外持久化 RSA-3072 开发密钥完成 LED 实机 signed A/B USB 迁移；四段写入均通过 hash 校验，板上分区表回读正确，启动日志确认从 `ota_0 @ 0x20000` 加载、LED 自检与 BLE 状态写入正常。
 - Vibe Light 自有源码已经切换为 source-available 非商用许可：个人、学习、研究和其他非商业用途可免费使用；商业使用、商业分发或作为商业产品 / 服务的一部分使用，需要原作者单独书面授权；fork、复制、修改和再分发必须保留原作者署名、非商用限制和商业授权要求。
 - 当前公开 latest release 为 `v0.1.2`，tag 指向 `ffe505e76e0da0f5b7abcd6c8a22cbb48e7852c6`；release asset 包含 `VibeLightApp-0.1.2-arm64-notarized.zip`、`VibeLightApp-0.1.2-x86_64-notarized.zip`、`desktop-firmware-release-0.1.2-arm64.md`、`desktop-firmware-release-0.1.2-x86_64.md`、`appcast.xml` 和 `appcast-x86_64.xml`。`v0.1.2` 已完成双架构 CI notarized release、latest appcast 匿名下载、下载包签名 / notarization / 架构扫描验证；`v0.1.1` 已完成默认 stable feed Sparkle 更新、下载包启动、USB 固件烧录和 BLE 重连验证。
 - 仓库级快速验证会运行 Swift 测试、ESP32 host-side C 测试、校验迷宫预览脚本读取显示模型布局常量、生成竖屏迷宫 / 竖屏全屏 / 横屏全屏 PNG 预览并执行 Git whitespace 检查；ESP32 显示闭环已完成一次实机烧录和屏幕确认。
@@ -164,11 +165,16 @@
 
 ## 未完成事项
 
-1. **三色灯设备需要完成灯色实机验收**
+1. **BLE OTA 需要完成 LED 实机故障矩阵**
+   - signed A/B USB 迁移已经在 DevKit MAC `74:4d:bd:73:8f:08` 完成：bootloader、A/B 分区表、`ota_data_initial.bin` 和 signed app 四段写入均通过 hash 校验；板上回读为 `otadata + ota_0 + ota_1`，启动日志确认运行 `ota_0` 并恢复 BLE 状态写入。
+   - 依次验证正常无线更新、传输中主动断开并在 60 秒内续传、超过 60 秒从零重试、损坏包/SHA 拒绝、错误项目拒绝、传输中断电仍启动旧固件、启动失败自动回滚、重连后 health 的版本/槽位/`valid` 状态，以及 bootloader/分区表仍只能 USB 恢复。
+   - 当前自动化与编译证据不能替代上述目标板验收；LCD 仍保持 USB-only，待 LED 闭环稳定后再复用共享组件。
+
+2. **三色灯设备需要完成灯色实机验收**
    - `ESP32-S3-DevKitC-1 N16R8` 已完成固件烧录、BLE 连续状态写入和重启循环修复；包含 2 个 `busy` 和 1 个最近 `success` 的真实状态包已确认固件以约 500 ms 间隔交替输出 `yellow=1 green=1` 和全灭，黄绿两路同步慢闪，红黄绿 LED 的剩余业务组合仍需逐项肉眼验证。
    - 实机验收需覆盖上电自检、绿 → 黄 → 红 → 黄交通灯相位和时长、LCD + LED 同时连接、黄灯执行中、绿灯等待 / 完成 60 秒、错误红灯、7D 阈值边界、Agent 覆盖期间不漏出交通灯、状态结束后继续当前相位、断连继续循环和长时间稳定性。
 
-2. **横屏 runtime 恢复需要单独设计和实机验证**
+3. **横屏 runtime 恢复需要单独设计和实机验证**
    - 当前取舍：实机运行时锁定竖屏，横屏 RLE 数据、布局模型和 host-side preview 保留，但 QMI8658 自动横竖屏切换不在启动路径启用。
    - 背景：直接轮转 RGB driver 内部 framebuffer 会在目标板上造成轻微闪烁；竖屏稳定路径已经回退到应用侧 PSRAM framebuffer + RGB driver 双 framebuffer 提交。
    - 下一步建议先设计 VSYNC / frame-done 协调方案，再逐步恢复横屏 runtime；恢复过程中必须保持竖屏路径不变，并用目标板确认横放方向、旋转方向、整屏截图样式画面清晰度和长时间无闪屏。

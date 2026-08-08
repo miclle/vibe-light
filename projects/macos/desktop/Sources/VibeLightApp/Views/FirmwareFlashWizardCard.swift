@@ -4,12 +4,15 @@ import VibeLightCore
 struct FirmwareFlashWizardCard: View {
     @ObservedObject var model: VibeLightAppModel
     @State private var showsDetailedLog = true
+    @State private var confirmedWirelessTarget = false
 
     private let logBottomID = "firmware-flash-log-bottom"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             wizardHeader
+
+            wirelessUpdatePanel
 
             HStack(alignment: .top, spacing: 22) {
                 stepRail
@@ -29,6 +32,113 @@ struct FirmwareFlashWizardCard: View {
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
+    @ViewBuilder
+    private var wirelessUpdatePanel: some View {
+        if let bundle = model.firmwareBundle, let ota = bundle.manifest.ota {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Label("无线更新", systemImage: "antenna.radiowaves.left.and.right")
+                        .font(.headline)
+                    Spacer()
+                    Label(ota.secureSigned ? "已签名" : "未签名", systemImage: ota.secureSigned ? "checkmark.shield.fill" : "exclamationmark.shield")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(ota.secureSigned ? .green : .orange)
+                }
+
+                if model.firmwareOTADeviceCandidates.isEmpty {
+                    Text("未找到已连接且匹配的 \(bundle.manifest.bleDeviceName)。现有 single-app 设备需要先在下方向导中通过 USB 初始化一次 A/B 分区。")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Picker("目标设备", selection: $model.selectedFirmwareOTADeviceID) {
+                        ForEach(model.firmwareOTADeviceCandidates) { device in
+                            Text("\(device.name) · \(device.id.prefix(8))")
+                                .tag(Optional(device.id))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .disabled(model.isFirmwareOTAUpdating)
+
+                    if let deviceID = model.selectedFirmwareOTADeviceID {
+                        let health = model.hardwareHealthPackets[deviceID]
+                        VStack(alignment: .leading, spacing: 5) {
+                            FirmwareFactRow(title: "当前版本", value: health?.firmwareVersion ?? "未知")
+                            FirmwareFactRow(title: "目标版本", value: ota.appVersion)
+                            FirmwareFactRow(title: "运行槽位", value: health?.runningSlot ?? "未知")
+                            FirmwareFactRow(
+                                title: "设备验签",
+                                value: health?.signedUpdatesRequired == true ? "强制" : "未启用"
+                            )
+                        }
+                    }
+
+                    Toggle("我确认更新的是上述设备，并会在更新与重启期间保持供电。", isOn: $confirmedWirelessTarget)
+                        .toggleStyle(.checkbox)
+                        .disabled(model.isFirmwareOTAUpdating)
+
+                    if let progress = model.firmwareOTAProgress {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(wirelessStageText(progress.stage))
+                                    .font(.callout.weight(.semibold))
+                                Spacer()
+                                Text("\(progress.committedBytes) / \(progress.totalBytes) 字节")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                            ProgressView(value: progress.fraction)
+                                .progressViewStyle(.linear)
+                        }
+                    }
+
+                    HStack(spacing: 10) {
+                        Button {
+                            model.startFirmwareOTA()
+                        } label: {
+                            Label("开始无线更新", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(
+                            !confirmedWirelessTarget ||
+                                !ota.secureSigned ||
+                                model.isFirmwareOTAUpdating ||
+                                model.isFirmwareChipProbing ||
+                                model.isFirmwareFlashing
+                        )
+
+                        if model.isFirmwareOTAUpdating {
+                            Button("取消") {
+                                model.cancelFirmwareOTA()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
+            }
+            .padding(14)
+            .background(Color.accentColor.opacity(0.07), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.accentColor.opacity(0.25))
+            )
+            .onChange(of: model.selectedFirmwareOTADeviceID) {
+                confirmedWirelessTarget = false
+            }
+        }
+    }
+
+    private func wirelessStageText(_ stage: FirmwareOTAProgressStage) -> String {
+        switch stage {
+        case .preparing: "准备会话"
+        case .transferring: "传输固件"
+        case .verifying: "验证固件"
+        case .rebooting: "重启确认"
+        case .complete: "更新完成"
+        case .failed: "更新失败"
+        case .cancelled: "已取消"
+        }
+    }
+
     private var wizardHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("固件烧录向导")
@@ -42,7 +152,7 @@ struct FirmwareFlashWizardCard: View {
                     }
                 }
                 .pickerStyle(.menu)
-                .disabled(model.isFirmwareChipProbing || model.isFirmwareFlashing)
+                .disabled(model.isFirmwareChipProbing || model.isFirmwareFlashing || model.isFirmwareOTAUpdating)
             }
 
             if let bundle = model.firmwareBundle {
@@ -194,7 +304,7 @@ struct FirmwareFlashWizardCard: View {
                 Label(model.isFirmwareChipProbing ? "读取中" : "读取芯片", systemImage: "checkmark.shield")
             }
             .buttonStyle(.borderedProminent)
-            .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing || model.firmwareBundle == nil || model.selectedFirmwareSerialPort == nil)
+            .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing || model.isFirmwareOTAUpdating || model.firmwareBundle == nil || model.selectedFirmwareSerialPort == nil)
 
             Text("这一步只读取芯片型号和 MAC，不写入 flash。确认是 ESP32-S3 后才会启用烧录。")
                 .font(.callout)
@@ -217,7 +327,7 @@ struct FirmwareFlashWizardCard: View {
                 Label(model.isFirmwareChipProbing ? "重新读取中" : "我已完成，重新读取", systemImage: "arrow.clockwise.circle")
             }
             .buttonStyle(.borderedProminent)
-            .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing || model.firmwareBundle == nil || model.selectedFirmwareSerialPort == nil)
+            .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing || model.isFirmwareOTAUpdating || model.firmwareBundle == nil || model.selectedFirmwareSerialPort == nil)
         }
     }
 
@@ -242,7 +352,7 @@ struct FirmwareFlashWizardCard: View {
                 Label("烧录固件", systemImage: "bolt.horizontal.circle")
             }
             .buttonStyle(.borderedProminent)
-            .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing || model.firmwareBundle == nil || model.selectedFirmwareSerialPort == nil || model.firmwareChipProbeResult == nil)
+            .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing || model.isFirmwareOTAUpdating || model.firmwareBundle == nil || model.selectedFirmwareSerialPort == nil || model.firmwareChipProbeResult == nil)
         }
     }
 
@@ -413,7 +523,7 @@ struct FirmwareFlashWizardCard: View {
                 }
             }
             .frame(minWidth: 280, maxWidth: 420)
-            .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing)
+            .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing || model.isFirmwareOTAUpdating)
 
             Button {
                 model.refreshFirmwareFlashing()
@@ -421,7 +531,7 @@ struct FirmwareFlashWizardCard: View {
                 Label("刷新", systemImage: "arrow.clockwise")
             }
             .buttonStyle(.bordered)
-            .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing)
+            .disabled(model.isFirmwareFlashing || model.isFirmwareChipProbing || model.isFirmwareOTAUpdating)
         }
     }
 

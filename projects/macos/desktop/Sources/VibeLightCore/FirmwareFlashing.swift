@@ -19,6 +19,34 @@ public struct FirmwareBundleManifest: Codable, Equatable {
         }
     }
 
+    public struct OTAApplication: Codable, Equatable, Sendable {
+        public let protocolVersion: Int
+        public let application: String
+        public let projectName: String
+        public let appVersion: String
+        public let size: Int
+        public let sha256: String
+        public let secureSigned: Bool
+
+        public init(
+            protocolVersion: Int,
+            application: String,
+            projectName: String,
+            appVersion: String,
+            size: Int,
+            sha256: String,
+            secureSigned: Bool
+        ) {
+            self.protocolVersion = protocolVersion
+            self.application = application
+            self.projectName = projectName
+            self.appVersion = appVersion
+            self.size = size
+            self.sha256 = sha256
+            self.secureSigned = secureSigned
+        }
+    }
+
     public let version: String
     public let buildCommit: String
     public let targetChip: String
@@ -28,6 +56,7 @@ public struct FirmwareBundleManifest: Codable, Equatable {
     public let flashSize: String
     public let minimumDesktopVersion: String
     public let files: [FlashFile]
+    public let ota: OTAApplication?
 
     public init(
         version: String,
@@ -38,7 +67,8 @@ public struct FirmwareBundleManifest: Codable, Equatable {
         flashFreq: String,
         flashSize: String,
         minimumDesktopVersion: String,
-        files: [FlashFile]
+        files: [FlashFile],
+        ota: OTAApplication? = nil
     ) {
         self.version = version
         self.buildCommit = buildCommit
@@ -49,6 +79,7 @@ public struct FirmwareBundleManifest: Codable, Equatable {
         self.flashSize = flashSize
         self.minimumDesktopVersion = minimumDesktopVersion
         self.files = files
+        self.ota = ota
     }
 
     public var flashFiles: [FlashFile] {
@@ -85,6 +116,14 @@ public struct FirmwareBundle: Equatable {
 
     public func fileURL(for file: FirmwareBundleManifest.FlashFile) -> URL {
         url.appendingPathComponent(file.path)
+    }
+
+    public var otaApplicationURL: URL? {
+        guard let ota = manifest.ota,
+              manifest.files.contains(where: { $0.path == ota.application }) else {
+            return nil
+        }
+        return url.appendingPathComponent(ota.application)
     }
 }
 

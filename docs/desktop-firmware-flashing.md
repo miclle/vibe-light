@@ -32,6 +32,20 @@
 
 如果读取芯片失败且 app 判断需要进入下载模式，按住 `BOOT`，点按 `RST`，继续按住约 1 秒后松开 `BOOT`，再重新读取芯片。
 
+## LED 无线更新流程
+
+`VibeLight-LED` 完成一次 signed USB A/B 初始化后，后续 application 固件可走同一页面顶部的“无线更新”：
+
+1. 保持 LED 板供电，并在“硬件设备”页连接 `VibeLight-LED`。
+2. 选择带 `ota.secureSigned: true` 的 LED 固件包和一个已连接设备。
+3. 核对 health 中的当前版本、项目名 `vibe_light_led`、运行槽位、`signedUpdatesRequired: true` 与目标版本。
+4. 勾选目标设备/持续供电确认，再开始更新。
+5. App 以 BLE 带响应写入分块发送 application 镜像，进度只采用设备的 `committedOffset`。
+6. 设备完成 ESP-IDF 签名、SHA-256、项目名和版本校验后切换非运行槽并重启。
+7. App 自动重连；只有 health 返回目标版本、目标项目、`signedUpdatesRequired: true` 和 `rollbackState: valid` 才显示完成。
+
+断线后设备在同一次开机内保留会话 60 秒，App 会从设备已提交偏移继续。传输中断电会丢弃未完成会话并继续启动旧固件。bootloader、分区表、彻底无法启动或尚未完成 A/B 初始化的设备仍必须使用 USB。
+
 ## 资源结构
 
 发布包内 app resource 需要包含：
@@ -67,24 +81,38 @@ FirmwareTools/
 - flash mode、freq、size。
 - 每个 bin 文件的 offset、文件名和 SHA-256。
 - 最低兼容 desktop app 版本。
+- 可选 `ota` application 元数据：协议版本、项目名、`esp_app_desc` 版本、大小、SHA-256 和 `secureSigned`。只有 signed LED bundle 可用于无线更新。
 
-每套写入项来自对应工程的 `build/flasher_args.json`，当前 offset 均为：
+每套写入项来自对应工程的 `build/flasher_args.json`。LCD 当前写入项为：
 
 - `bootloader/bootloader.bin` at `0x0`
 - `partition_table/partition-table.bin` at `0x8000`
 - `vibe_light_esp32.bin` at `0x10000`
+
+LED A/B 初始化写入项为：
+
+- `bootloader/bootloader.bin` at `0x0`
+- `partition_table/partition-table.bin` at `0x8000`
+- `ota_data_initial.bin` at `0x10000`
+- `vibe_light_led.bin` at `0x20000`
 
 ## 本地准备固件资源
 
 准备 release 资源的推荐入口是：
 
 ```bash
-script/prepare_desktop_firmware_release.sh \
+VIBE_OTA_SIGNING_KEY=/absolute/path/ota-signing-key.pem \
+  script/prepare_desktop_firmware_release.sh \
+  --signed-led-ota \
   --version <release-version> \
   --minimum-desktop-version <desktop-version> \
   --python-runtime /path/to/python-runtime \
   --require-bundled-python
 ```
+
+`--signed-led-ota` 要求环境变量 `VIBE_OTA_SIGNING_KEY` 指向仓库外的 RSA-3072 ESP-IDF signing key，且私钥不能是 symlink、group/world 权限必须为 0（通常 `chmod 600`）。脚本只在系统临时目录写入包含绝对 key path 的 `sdkconfig.defaults` 片段，使用独立 `projects/esp32-led/build-signed` 构建，并在退出时删除自己的临时片段；私钥内容不会进入仓库或 app bundle。
+
+首次迁移也必须使用这套 signed build 完整 USB 烧录，因为验证后续签名更新所需的公钥和配置位于新 bootloader/app 中。运行固件会在 health 上报 `signedUpdatesRequired`，App 同时要求 bundle 的 `secureSigned` 与设备端的 `signedUpdatesRequired` 均为 `true`。普通 `make esp32-led-build` 和未传 `--signed-led-ota` 的资源准备保持无密钥，生成的 `ota.secureSigned` 和设备 health 门禁都为 `false`，只能用于开发或 USB 恢复。
 
 如果只想复用现有 `projects/esp32/build` 和 `projects/esp32-led/build` 产物：
 

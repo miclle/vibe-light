@@ -10,5 +10,6 @@ idf_component_register(
         driver
         esp_timer
         nvs_flash
+        vibe_ota
         vibe_protocol
 )

@@ -18,9 +18,15 @@ typedef struct {
     bool connected;
     const char *device;
     unsigned free_heap_bytes;
+    const char *firmware_version;
     const char *last_parse_error;
     const char *last_state;
     unsigned min_free_heap_bytes;
+    bool ota_capable;
+    const char *project_name;
+    const char *rollback_state;
+    const char *running_slot;
+    bool signed_updates_required;
     int64_t uptime_ms;
 } vibe_health_snapshot_t;
 

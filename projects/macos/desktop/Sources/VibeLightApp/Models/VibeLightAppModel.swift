@@ -25,6 +25,7 @@ final class VibeLightAppModel: ObservableObject {
     @Published private(set) var firmwareFlashProgress: FirmwareFlashProgressSnapshot?
     @Published private(set) var firmwareChipProbeResult: FirmwareChipProbeResult?
     @Published private(set) var firmwareFlashFailureKind: FirmwareFlashFailureKind?
+    @Published private(set) var firmwareOTAProgress: FirmwareOTAProgress?
     @Published private(set) var didCompleteFirmwareFlash = false
     @Published private(set) var isFirmwareAwaitingReconnect = false
     @Published private(set) var isFirmwareChipProbing = false
@@ -36,12 +37,14 @@ final class VibeLightAppModel: ObservableObject {
             }
         }
     }
+    @Published var selectedFirmwareOTADeviceID: String?
     @Published var selectedFirmwareHardware: String? {
         didSet {
             guard oldValue != selectedFirmwareHardware else { return }
             firmwareBundle = firmwareBundles.first {
                 $0.manifest.targetHardware == selectedFirmwareHardware
             }
+            selectedFirmwareOTADeviceID = firmwareOTADeviceCandidates.first?.id
             clearFirmwareChipProbeConfirmation()
             if let firmwareBundle {
                 firmwareFlashMessage = "已选择 \(firmwareBundle.manifest.targetHardware) 固件。"
@@ -76,6 +79,22 @@ final class VibeLightAppModel: ObservableObject {
         firmwareBundle?.manifest.bleDeviceName ?? "VibeLight"
     }
 
+    var firmwareOTADeviceCandidates: [HardwareDevice] {
+        hardwareDevices.filter { device in
+            device.connectionState == .connected && device.name == selectedFirmwareBLEDeviceName
+        }
+    }
+
+    var isFirmwareOTAUpdating: Bool {
+        guard let firmwareOTAProgress else { return false }
+        switch firmwareOTAProgress.stage {
+        case .preparing, .transferring, .verifying, .rebooting:
+            return true
+        case .complete, .failed, .cancelled:
+            return false
+        }
+    }
+
     private let eventLog: EventLog
     private let agentInstaller: AgentInstaller
     private let preferences: VibeLightPreferences
@@ -108,7 +127,11 @@ final class VibeLightAppModel: ObservableObject {
         refreshAgentStatuses()
         bluetoothManager = BluetoothHardwareManager(
             onDevicesChanged: { [weak self] devices in
-                self?.hardwareDevices = devices
+                guard let self else { return }
+                hardwareDevices = devices
+                if !firmwareOTADeviceCandidates.contains(where: { $0.id == selectedFirmwareOTADeviceID }) {
+                    selectedFirmwareOTADeviceID = firmwareOTADeviceCandidates.first?.id
+                }
             },
             onStateChanged: { [weak self] state, isScanning, message in
                 self?.hardwareConnectionState = state
@@ -125,6 +148,27 @@ final class VibeLightAppModel: ObservableObject {
                 } else {
                     hardwareHealthPackets.removeValue(forKey: deviceID)
                     hardwareHealthPacket = hardwareHealthPackets.values.first
+                }
+            },
+            onOTAProgress: { [weak self] progress in
+                guard let self else { return }
+                firmwareOTAProgress = progress
+                guard let progress else { return }
+                switch progress.stage {
+                case .preparing:
+                    firmwareFlashMessage = "正在建立安全的 BLE OTA 会话..."
+                case .transferring:
+                    firmwareFlashMessage = "无线传输中：\(progress.committedBytes) / \(progress.totalBytes) 字节。"
+                case .verifying:
+                    firmwareFlashMessage = "固件已传完，设备正在验证签名、SHA-256 和目标身份。"
+                case .rebooting:
+                    firmwareFlashMessage = "验证通过，设备正在重启并执行回滚确认。"
+                case .complete:
+                    firmwareFlashMessage = "无线更新完成，设备已运行 \(progress.targetVersion)。"
+                case .failed(let message):
+                    firmwareFlashMessage = "无线更新失败：\(message)"
+                case .cancelled:
+                    firmwareFlashMessage = "已取消无线更新，当前固件保持不变。"
                 }
             },
             latestPacketData: { [weak self] maximumWriteLength in
@@ -278,6 +322,65 @@ final class VibeLightAppModel: ObservableObject {
         bluetoothManager?.readHealthPacket()
     }
 
+    func startFirmwareOTA() {
+        guard !isFirmwareOTAUpdating, !isFirmwareChipProbing, !isFirmwareFlashing else { return }
+        guard let bundle = firmwareBundle,
+              let metadata = bundle.manifest.ota,
+              let applicationURL = bundle.otaApplicationURL else {
+            firmwareFlashMessage = "当前固件包不包含可无线更新的 application 镜像。"
+            return
+        }
+        guard let deviceID = selectedFirmwareOTADeviceID,
+              firmwareOTADeviceCandidates.contains(where: { $0.id == deviceID }) else {
+            firmwareFlashMessage = "请先选择一个已连接的目标设备。"
+            return
+        }
+        switch FirmwareOTAEligibility.evaluate(
+            protocolVersion: metadata.protocolVersion,
+            secureSigned: metadata.secureSigned,
+            bundleProjectName: metadata.projectName,
+            health: hardwareHealthPackets[deviceID]
+        ) {
+        case .ready:
+            break
+        case .unsupportedProtocol:
+            firmwareFlashMessage = "当前 App 不支持固件包的 OTA 协议版本。"
+            return
+        case .unsignedBundle:
+            firmwareFlashMessage = "此固件没有安全签名，只能通过 USB 烧录。"
+            return
+        case .usbInitializationRequired:
+            firmwareFlashMessage = "目标设备尚未完成一次性 USB OTA 初始化。"
+            return
+        case .signedInitializationRequired:
+            firmwareFlashMessage = "目标设备未强制验证签名更新，请先通过 USB 写入 signed A/B 固件。"
+            return
+        case .wrongProject:
+            firmwareFlashMessage = "所选固件与目标设备不匹配。"
+            return
+        }
+        guard bluetoothManager?.canStartFirmwareOTA(deviceID: deviceID) == true else {
+            firmwareFlashMessage = "目标设备的 OTA 服务尚未就绪，请刷新健康状态后重试。"
+            return
+        }
+
+        var sessionID = UInt32.random(in: 1 ... UInt32.max)
+        if sessionID == 0 { sessionID = 1 }
+        bluetoothManager?.startFirmwareOTA(FirmwareOTARequest(
+            deviceID: deviceID,
+            applicationURL: applicationURL,
+            sessionID: sessionID,
+            imageSize: metadata.size,
+            projectName: metadata.projectName,
+            appVersion: metadata.appVersion,
+            sha256: metadata.sha256
+        ))
+    }
+
+    func cancelFirmwareOTA() {
+        bluetoothManager?.cancelFirmwareOTA()
+    }
+
     func openBluetoothPrivacySettings() {
         guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth") else {
             return
@@ -317,7 +420,7 @@ final class VibeLightAppModel: ObservableObject {
     }
 
     func startNewFirmwareFlash() {
-        guard !isFirmwareChipProbing, !isFirmwareFlashing else {
+        guard !isFirmwareChipProbing, !isFirmwareFlashing, !isFirmwareOTAUpdating else {
             return
         }
 
@@ -330,7 +433,7 @@ final class VibeLightAppModel: ObservableObject {
     }
 
     func probeFirmwareChip() {
-        guard !isFirmwareChipProbing, !isFirmwareFlashing else {
+        guard !isFirmwareChipProbing, !isFirmwareFlashing, !isFirmwareOTAUpdating else {
             return
         }
         guard let firmwareBundle else {
@@ -390,7 +493,7 @@ final class VibeLightAppModel: ObservableObject {
     }
 
     func flashFirmware() {
-        guard !isFirmwareFlashing else {
+        guard !isFirmwareFlashing, !isFirmwareOTAUpdating else {
             return
         }
         guard let firmwareBundle else {

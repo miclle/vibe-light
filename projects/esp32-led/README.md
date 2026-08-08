@@ -31,6 +31,12 @@ macOS “通用”页的“7D 红灯阈值”默认是 10%，范围 0%–100%；
 
 macOS 可同时连接 `VibeLight-S3` LCD 与 `VibeLight-LED`，并将同一状态包广播到两台设备；任一设备断开不会清除另一台的连接上下文。
 
+## BLE 无线更新
+
+LED 固件使用 16MB Flash 的 A/B 布局：`otadata`、4MB `ota_0` 和 4MB `ota_1`。已有 single-app 设备需要先通过 USB 完整烧录一次 signed bootloader、分区表、`ota_data_initial.bin` 和 signed app；只有 health 上报 `signedUpdatesRequired: true` 后，macOS“固件烧录”页才允许无线更新。
+
+无线更新只接受项目名为 `vibe_light_led`、清单 SHA-256 正确且通过 ESP-IDF 签名验证的 application 镜像。BLE 回调只入队，Flash 写入由独立 worker 执行；同次开机断线后会保留已提交偏移 60 秒。新固件成功启动 LED、BLE GATT 和广播后才标记有效，否则下一次重启自动回滚。bootloader、分区表损坏或设备完全无法启动时仍需 USB 恢复。
+
 ## 构建和测试
 
 ```bash
@@ -38,6 +44,18 @@ make esp32-led-test
 make esp32-led-build
 make esp32-led-flash-only ESP32_PORT=/dev/cu.usbmodemXXXX
 ```
+
+发布用签名构建要求外部私钥权限不宽于 `0600`，私钥不能放入仓库：
+
+```bash
+VIBE_OTA_SIGNING_KEY=/absolute/path/ota-signing-key.pem \
+  script/prepare_desktop_firmware_release.sh \
+  --signed-led-ota \
+  --version <release-version> \
+  --minimum-desktop-version <desktop-version>
+```
+
+普通 `make esp32-led-build` 仍是无密钥开发构建；其 bundle 会标记 `secureSigned: false`，设备 health 也会返回 `signedUpdatesRequired: false`，macOS App 不允许用它执行无线更新。
 
 LED 固件将 NimBLE host task 栈固定为 8192 字节。完整验证会同时检查最终 `sdkconfig` 和 BLE 回调的静态栈帧，避免较大的 `StatusPacket v2` 在 GATT 写入路径再次触发栈溢出重启。
 

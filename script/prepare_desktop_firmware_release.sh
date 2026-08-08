@@ -7,6 +7,16 @@ MINIMUM_DESKTOP_VERSION="dev"
 SKIP_ESP32_BUILD=0
 PYTHON_RUNTIME=""
 REQUIRE_BUNDLED_PYTHON=0
+SIGNED_LED_OTA=0
+LED_BUILD_DIR="projects/esp32-led/build"
+SIGNING_DEFAULTS=""
+
+cleanup() {
+  if [[ -n "$SIGNING_DEFAULTS" && -f "$SIGNING_DEFAULTS" ]]; then
+    rm -f "$SIGNING_DEFAULTS"
+  fi
+}
+trap cleanup EXIT
 
 usage() {
   cat <<'EOF'
@@ -24,6 +34,7 @@ Options:
   --python-runtime PATH             Copy a standalone Python runtime into FirmwareTools/python
   --require-bundled-python          Fail unless FirmwareTools/python/bin/python3 exists
   --skip-esp32-build                Reuse existing projects/esp32/build outputs
+  --signed-led-ota                  Build LED firmware with external OTA signing key
   -h, --help                        Show this help
 EOF
 }
@@ -50,6 +61,11 @@ while [[ $# -gt 0 ]]; do
       SKIP_ESP32_BUILD=1
       shift
       ;;
+    --signed-led-ota)
+      SIGNED_LED_OTA=1
+      LED_BUILD_DIR="projects/esp32-led/build-signed"
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -66,7 +82,38 @@ cd "$ROOT_DIR"
 
 if [[ "$SKIP_ESP32_BUILD" -eq 0 ]]; then
   make esp32-build
-  make esp32-led-build
+  if [[ "$SIGNED_LED_OTA" -eq 1 ]]; then
+    SIGNING_DEFAULTS="$(mktemp "${TMPDIR:-/tmp}/vibe-ota-signing.XXXXXX")"
+    script/prepare_ota_signing_config.sh "$SIGNING_DEFAULTS" "$LED_BUILD_DIR/sdkconfig"
+    IDF_PATH="${IDF_PATH:-/Users/miclle/esp/esp-idf}"
+    export IDF_PATH
+    (
+      source "$IDF_PATH/export.sh" >/tmp/vibe-idf-export.log
+      cd projects/esp32-led
+      idf.py -B build-signed \
+        -D SDKCONFIG=build-signed/sdkconfig \
+        -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;$SIGNING_DEFAULTS" \
+        build
+    )
+  else
+    make esp32-led-build
+  fi
+elif [[ "$SIGNED_LED_OTA" -eq 1 && ! -f "$LED_BUILD_DIR/flasher_args.json" ]]; then
+  echo "signed LED build is missing: $LED_BUILD_DIR" >&2
+  exit 1
+fi
+
+if [[ "$SIGNED_LED_OTA" -eq 1 ]]; then
+  for setting in \
+    CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y \
+    CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT=y \
+    CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=y \
+    CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y; do
+    if ! grep -Fqx "$setting" "$LED_BUILD_DIR/sdkconfig"; then
+      echo "signed LED build is missing required setting: $setting" >&2
+      exit 1
+    fi
+  done
 fi
 
 projects/esp32/tools/package_firmware_bundle.py \
@@ -76,12 +123,18 @@ projects/esp32/tools/package_firmware_bundle.py \
   --version "$VERSION" \
   --minimum-desktop-version "$MINIMUM_DESKTOP_VERSION"
 
-projects/esp32/tools/package_firmware_bundle.py \
-  --build-dir projects/esp32-led/build \
+led_package_args=(
+  --build-dir "$LED_BUILD_DIR"
+  --ota-capable
   --output-dir projects/macos/desktop/Sources/VibeLightApp/Resources/FirmwareBundles/led \
   --target-hardware "ESP32-S3-DevKitC-1 N16R8 三色灯" \
   --version "$VERSION" \
   --minimum-desktop-version "$MINIMUM_DESKTOP_VERSION"
+)
+if [[ "$SIGNED_LED_OTA" -eq 1 ]]; then
+  led_package_args+=(--secure-signed)
+fi
+projects/esp32/tools/package_firmware_bundle.py "${led_package_args[@]}"
 
 tool_args=(--clean)
 if [[ -n "$PYTHON_RUNTIME" ]]; then

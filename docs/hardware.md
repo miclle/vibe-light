@@ -39,6 +39,8 @@
 
 N16R8 使用 Octal Flash / PSRAM 时不要改用 GPIO35、GPIO36、GPIO37。GPIO4、GPIO5、GPIO6 也避开了 BOOT strap 和 USB Serial/JTAG 默认引脚。若使用高功率灯、灯带或多个并联 LED，不能直接由 GPIO 供电，应增加晶体管或 MOSFET 驱动。
 
+LED 固件现使用 16MB A/B OTA 分区：`otadata` 位于 `0x10000`，`ota_0` 位于 `0x20000`、大小 4MB，`ota_1` 位于 `0x420000`、大小 4MB。旧 single-app 布局不能原地无线迁移，必须先确认 DevKit 的 USB 串口并完整写入 signed bootloader、分区表、`ota_data_initial.bin` 和 app。此操作不能误用 LCD 板端口；只读 `chip_id` 只能确认 ESP32-S3，不能区分两种目标硬件。
+
 上电自检依次点亮红、黄、绿各 300ms。运行时三个灯独立判断：错误或 7D 低额度触发红灯，存在执行中任务触发黄灯，等待人工处理或最近 60 秒完成触发绿灯；活动灯统一按 1 秒周期同步慢闪（亮 500 ms、灭 500 ms）。任一 Agent 条件存在时完整覆盖本地交通灯；空闲、断连或状态超时后按绿 5 秒、黄 2 秒、红 5 秒、黄 2 秒的持续时间线显示交通灯。2026-07-18 已将包含独立 `taskBusy`、`taskWaiting`、`taskSuccess` 紧凑信号的当前 dirty build（ELF SHA-256 前缀 `7ab7a24d5`）通过 `/dev/cu.usbmodem5C4E0035341` 烧录到 DevKitC-1，三段写入均完成 hash 校验；修复 NimBLE host 4096 字节栈溢出并提高到 8192 字节后，串口连续 30 秒接受 18 个 `v: 2` 状态包，未再出现 stack overflow、panic 或重启，随后独立 30 秒蓝牙观察也没有新的连接状态变化。独立输出版本已在包含 2 个 `busy` 和 1 个最近 `success` 的真实 BLE 状态包下交替输出 `red=0 yellow=1 green=1` 与三灯全灭，间隔约 500 ms，确认黄绿两路可同步慢闪；外接 LED 的剩余业务组合仍需继续逐项肉眼验收。
 
 ## 与项目架构的关系

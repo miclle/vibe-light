@@ -32,7 +32,10 @@ run_step() {
 
 run_step "Swift tests" swift test --package-path "$ROOT_DIR/projects/macos/desktop"
 run_step "Desktop update release tests" "$ROOT_DIR/script/test_desktop_update_release.sh"
+run_step "Firmware bundle tests" python3 -m unittest "$ROOT_DIR/projects/esp32/tools/test_package_firmware_bundle.py"
+run_step "OTA signing configuration tests" "$ROOT_DIR/script/test_ota_signing_config.sh"
 run_step "ESP32 status parser tests" "$ROOT_DIR/projects/esp32/tests/run_status_parser_tests.sh"
+run_step "ESP32 OTA protocol tests" "$ROOT_DIR/projects/esp32-common/vibe_ota/tests/run_tests.sh"
 run_step "ESP32 LED model tests" "$ROOT_DIR/projects/esp32-led/tests/run_tests.sh"
 run_step "ESP32 display previews" "$ROOT_DIR/projects/esp32/tools/render_maze_preview.py" /tmp/vibe-maze-preview.png
 run_step "ESP32 full-screen preview" "$ROOT_DIR/projects/esp32/tools/render_maze_preview.py" --full-screen /tmp/vibe-screen-preview.png

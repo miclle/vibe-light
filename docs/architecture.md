@@ -173,6 +173,19 @@ Codex / Claude 可能同时运行多个任务，事件到达顺序也可能穿�
 
 LCD 固件广播名为 `VibeLight-S3`，LED 固件广播名为 `VibeLight-LED`。macOS 端扫描广播 Vibe Light service 的设备，可以同时连接两者，并在每条连接上独立发现状态写入特征和健康读取特征。
 
+LED 固件还暴露独立的 BLE OTA service；LCD 暂不声明 OTA 能力：
+
+| 项 | UUID / 行为 |
+| --- | --- |
+| OTA Service | `7d8f0101-7b9a-4f0b-9e8a-8b4c2c7f1000` |
+| Control | `7d8f0102-7b9a-4f0b-9e8a-8b4c2c7f1000`，带响应写入 `begin` / `finish` / `abort` JSON |
+| Data | `7d8f0103-7b9a-4f0b-9e8a-8b4c2c7f1000`，8 字节小端 session/offset 头加最多 504 字节固件数据 |
+| Status | `7d8f0104-7b9a-4f0b-9e8a-8b4c2c7f1000`，read/notify 返回设备已提交偏移、镜像大小、队列 credit 和错误 |
+
+NimBLE 回调只校验帧并零等待入队；独立 FreeRTOS worker 执行 `esp_ota_begin/write/end`、SHA-256、签名和镜像身份校验。设备只接受 `projectName == "vibe_light_led"`，断线后在同一次开机内保留会话 60 秒；macOS 始终从设备报告的 `committedOffset` 恢复，不把仅在本机排队的数据算作完成。
+
+LED 使用 `otadata + ota_0 + ota_1` A/B 分区。首次必须通过 USB 同时写入 signed bootloader、分区表、`ota_data_initial.bin` 和 signed app；以后只无线写入非运行 app 槽。health 只有在运行固件实际启用 ESP-IDF 更新签名验证时才返回 `signedUpdatesRequired: true`，macOS 把它作为 OTA 硬门禁，不能只相信 bundle 的 `secureSigned`。新镜像启动后，只有 LED 初始化、NimBLE GATT 注册和广播均成功才调用 `esp_ota_mark_app_valid_cancel_rollback()`；此前重启会由 bootloader 回滚。bootloader、分区表或无法启动的设备仍使用 USB 恢复。
+
 ### 状态包
 
 macOS 应用向状态写入特征写入 UTF-8 JSON。
@@ -241,10 +254,16 @@ ESP32-S3 通过健康状态特征返回设备状态。
 ```json
 {
   "v": 1,
-  "device": "VibeLight-S3",
+  "device": "VibeLight-LED",
   "uptimeMs": 12000,
   "connected": true,
   "lastState": "busy",
+  "firmwareVersion": "v0.1.3",
+  "projectName": "vibe_light_led",
+  "otaCapable": true,
+  "runningSlot": "ota_0",
+  "rollbackState": "valid",
+  "signedUpdatesRequired": true,
   "freeHeapBytes": 4218880,
   "minFreeHeapBytes": 3981312,
   "animationTick": 42,
@@ -266,6 +285,12 @@ ESP32-S3 通过健康状态特征返回设备状态。
 | `backlightOn` | boolean | 可选，当前背光是否处于开启状态。 |
 | `indicatorOn` | boolean | 可选，LED 设备当前是否有任一状态灯点亮。 |
 | `lastParseError` | string | 可选，最近一次状态写入解析或读取失败的短错误原因；没有错误时省略。 |
+| `firmwareVersion` | string | 可选，运行中 `esp_app_desc` 的版本；用于 OTA 重启确认。 |
+| `projectName` | string | 可选，运行中固件项目名；desktop 据此拒绝跨硬件更新。 |
+| `otaCapable` | boolean | 可选，当前固件和分区是否支持 BLE A/B OTA。 |
+| `runningSlot` | string | 可选，当前运行分区标签，例如 `ota_0`。 |
+| `rollbackState` | string | 可选，当前 OTA 镜像状态，例如 `pendingVerify` 或 `valid`。 |
+| `signedUpdatesRequired` | boolean | 可选，运行固件是否强制执行 ESP-IDF application 签名验证；desktop 只允许值为 `true` 的设备无线更新。 |
 
 macOS 应用在每台设备发现健康状态特征后会读取一次；后续每次状态写入响应成功后再读取对应设备，也可以由“硬件设备”页同时刷新全部设备。LCD 返回 heap、渲染 tick 和 `backlightOn`；LED 设备返回 `indicatorOn`，不伪造 LCD 背光字段。
 
@@ -288,6 +313,7 @@ ESP32-S3 硬件层负责把通讯协议转换为可见输出。当前有两个�
 | 模块 | 职责 |
 | --- | --- |
 | BLE Server | 初始化 BLE，广播设备，暴露 GATT 服务和特征。 |
+| OTA Protocol / Worker | 共享 control/data/status 协议；LED 的专用 worker 负责 A/B 写入、提交偏移、签名与身份校验和断线恢复。 |
 | Status Parser | 解析状态 JSON，校验协议版本和状态值。 |
 | Display Model / Format | 计算渲染签名、参考迷宫坐标、本轮已吃豆子隐藏、角色数量和角色嘴型，并格式化任务行、紧凑计数、Codex 用量、页脚和固件版本文案，让核心显示规则可以在 host-side 测试里验证。 |
 | Display Controller | 根据聚合状态驱动 ST7701 RGB LCD：顶部显示状态色，中间显示参考迷宫舞台，底部在 v2 包有 `tasks[]` 时显示任务列表，否则显示空任务状态或最近结果摘要；竖屏 `busy` 时启动非阻塞吃豆动画，`waiting` 随状态包重绘尾标。 |

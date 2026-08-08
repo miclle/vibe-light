@@ -498,6 +498,12 @@ public struct HealthPacket: Codable, Equatable, Sendable {
     public var backlightOn: Bool?
     public var indicatorOn: Bool?
     public var lastParseError: String?
+    public var firmwareVersion: String?
+    public var projectName: String?
+    public var otaCapable: Bool?
+    public var runningSlot: String?
+    public var rollbackState: String?
+    public var signedUpdatesRequired: Bool?
 
     public init(
         v: Int = 1,
@@ -510,7 +516,13 @@ public struct HealthPacket: Codable, Equatable, Sendable {
         animationTick: Int? = nil,
         backlightOn: Bool? = nil,
         indicatorOn: Bool? = nil,
-        lastParseError: String? = nil
+        lastParseError: String? = nil,
+        firmwareVersion: String? = nil,
+        projectName: String? = nil,
+        otaCapable: Bool? = nil,
+        runningSlot: String? = nil,
+        rollbackState: String? = nil,
+        signedUpdatesRequired: Bool? = nil
     ) {
         self.v = v
         self.device = device
@@ -523,5 +535,11 @@ public struct HealthPacket: Codable, Equatable, Sendable {
         self.backlightOn = backlightOn
         self.indicatorOn = indicatorOn
         self.lastParseError = lastParseError
+        self.firmwareVersion = firmwareVersion
+        self.projectName = projectName
+        self.otaCapable = otaCapable
+        self.runningSlot = runningSlot
+        self.rollbackState = rollbackState
+        self.signedUpdatesRequired = signedUpdatesRequired
     }
 }

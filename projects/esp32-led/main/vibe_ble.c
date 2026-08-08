@@ -6,6 +6,8 @@
 #include <string.h>
 
 #include "esp_log.h"
+#include "esp_app_desc.h"
+#include "esp_ota_ops.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -19,6 +21,8 @@
 #include "vibe_health.h"
 #include "vibe_led_model.h"
 #include "vibe_led_output.h"
+#include "vibe_ota_protocol.h"
+#include "vibe_ota_service.h"
 #include "vibe_status.h"
 
 static const char *TAG = "vibe_led_ble";
@@ -30,22 +34,82 @@ static const ble_uuid128_t VIBE_STATUS_UUID =
     BLE_UUID128_INIT(0x00, 0x10, 0x7f, 0x2c, 0x4c, 0x8b, 0x8a, 0x9e, 0x0b, 0x4f, 0x9a, 0x7b, 0x02, 0x00, 0x8f, 0x7d);
 static const ble_uuid128_t VIBE_HEALTH_UUID =
     BLE_UUID128_INIT(0x00, 0x10, 0x7f, 0x2c, 0x4c, 0x8b, 0x8a, 0x9e, 0x0b, 0x4f, 0x9a, 0x7b, 0x03, 0x00, 0x8f, 0x7d);
+static const ble_uuid128_t VIBE_OTA_SERVICE_UUID =
+    BLE_UUID128_INIT(0x00, 0x10, 0x7f, 0x2c, 0x4c, 0x8b, 0x8a, 0x9e, 0x0b, 0x4f, 0x9a, 0x7b, 0x01, 0x01, 0x8f, 0x7d);
+static const ble_uuid128_t VIBE_OTA_CONTROL_UUID =
+    BLE_UUID128_INIT(0x00, 0x10, 0x7f, 0x2c, 0x4c, 0x8b, 0x8a, 0x9e, 0x0b, 0x4f, 0x9a, 0x7b, 0x02, 0x01, 0x8f, 0x7d);
+static const ble_uuid128_t VIBE_OTA_DATA_UUID =
+    BLE_UUID128_INIT(0x00, 0x10, 0x7f, 0x2c, 0x4c, 0x8b, 0x8a, 0x9e, 0x0b, 0x4f, 0x9a, 0x7b, 0x03, 0x01, 0x8f, 0x7d);
+static const ble_uuid128_t VIBE_OTA_STATUS_UUID =
+    BLE_UUID128_INIT(0x00, 0x10, 0x7f, 0x2c, 0x4c, 0x8b, 0x8a, 0x9e, 0x0b, 0x4f, 0x9a, 0x7b, 0x04, 0x01, 0x8f, 0x7d);
 
 static uint16_t current_connection_handle = BLE_HS_CONN_HANDLE_NONE;
+static uint16_t ota_status_value_handle;
 static uint8_t own_address_type;
 static vibe_status_packet_t current_status;
 static int64_t received_at_uptime_ms;
 static int64_t traffic_cycle_started_at_uptime_ms;
 static char last_parse_error[64];
 static portMUX_TYPE status_lock = portMUX_INITIALIZER_UNLOCKED;
+static bool running_image_validated;
 
 static const vibe_led_policy_t POLICY = {
     .codex_7d_red_threshold_percent = CONFIG_VIBE_LED_CODEX_7D_RED_THRESHOLD_PERCENT,
     .success_hold_ms = CONFIG_VIBE_LED_SUCCESS_HOLD_SECONDS * 1000LL,
 };
 
-static void advertise(void);
+static bool advertise(void);
 static void apply_current_status(void);
+
+static const char *rollback_state_name(const esp_partition_t *partition)
+{
+    esp_ota_img_states_t state;
+    if (partition == NULL || esp_ota_get_state_partition(partition, &state) != ESP_OK) {
+        return "unknown";
+    }
+    switch (state) {
+    case ESP_OTA_IMG_NEW:
+        return "new";
+    case ESP_OTA_IMG_PENDING_VERIFY:
+        return "pendingVerify";
+    case ESP_OTA_IMG_VALID:
+        return "valid";
+    case ESP_OTA_IMG_INVALID:
+        return "invalid";
+    case ESP_OTA_IMG_ABORTED:
+        return "aborted";
+    case ESP_OTA_IMG_UNDEFINED:
+    default:
+        return "undefined";
+    }
+}
+
+static void validate_running_image_after_ble_ready(void)
+{
+    if (running_image_validated) {
+        return;
+    }
+    const esp_partition_t *partition = esp_ota_get_running_partition();
+    esp_ota_img_states_t state;
+    if (partition != NULL && esp_ota_get_state_partition(partition, &state) == ESP_OK &&
+        state == ESP_OTA_IMG_PENDING_VERIFY) {
+        esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "failed to validate OTA image: %s", esp_err_to_name(err));
+            return;
+        }
+        ESP_LOGI(TAG, "OTA image marked valid after BLE became ready");
+    }
+    running_image_validated = true;
+}
+
+static void ota_status_changed(void *context)
+{
+    (void)context;
+    if (ota_status_value_handle != 0) {
+        ble_gatts_chr_updated(ota_status_value_handle);
+    }
+}
 
 static int64_t uptime_ms(void)
 {
@@ -159,7 +223,9 @@ static int handle_health_read(uint16_t conn_handle, uint16_t attr_handle, struct
     connected = current_connection_handle != BLE_HS_CONN_HANDLE_NONE;
     portEXIT_CRITICAL(&status_lock);
 
-    char payload[320];
+    char payload[512];
+    const esp_app_desc_t *app = esp_app_get_description();
+    const esp_partition_t *running = esp_ota_get_running_partition();
     vibe_health_snapshot_t snapshot = {
         .animation_tick = 0,
         .has_indicator_on = true,
@@ -167,13 +233,79 @@ static int handle_health_read(uint16_t conn_handle, uint16_t attr_handle, struct
         .connected = connected,
         .device = DEVICE_NAME,
         .free_heap_bytes = (unsigned)esp_get_free_heap_size(),
+        .firmware_version = app == NULL ? "" : app->version,
         .last_parse_error = last_parse_error,
         .last_state = vibe_display_state_to_string(state),
         .min_free_heap_bytes = (unsigned)esp_get_minimum_free_heap_size(),
+        .ota_capable = true,
+        .project_name = app == NULL ? "" : app->project_name,
+        .rollback_state = rollback_state_name(running),
+        .running_slot = running == NULL ? "" : running->label,
+#ifdef CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT
+        .signed_updates_required = true,
+#else
+        .signed_updates_required = false,
+#endif
         .uptime_ms = uptime_ms(),
     };
     if (vibe_health_format_json(payload, sizeof(payload), &snapshot) < 0) {
         return BLE_ATT_ERR_INSUFFICIENT_RES;
+    }
+    return os_mbuf_append(ctxt->om, payload, strlen(payload)) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+}
+
+static int handle_ota_control_write(uint16_t conn_handle,
+                                    uint16_t attr_handle,
+                                    struct ble_gatt_access_ctxt *ctxt,
+                                    void *arg)
+{
+    (void)conn_handle;
+    (void)attr_handle;
+    (void)arg;
+
+    uint16_t length = OS_MBUF_PKTLEN(ctxt->om);
+    if (length == 0 || length > VIBE_OTA_CONTROL_JSON_MAX) {
+        return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    }
+    uint8_t buffer[VIBE_OTA_CONTROL_JSON_MAX];
+    if (ble_hs_mbuf_to_flat(ctxt->om, buffer, length, &length) != 0) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+    return vibe_ota_service_enqueue_control(buffer, length) ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+}
+
+static int handle_ota_data_write(uint16_t conn_handle,
+                                 uint16_t attr_handle,
+                                 struct ble_gatt_access_ctxt *ctxt,
+                                 void *arg)
+{
+    (void)conn_handle;
+    (void)attr_handle;
+    (void)arg;
+
+    uint16_t length = OS_MBUF_PKTLEN(ctxt->om);
+    if (length <= VIBE_OTA_DATA_HEADER_SIZE || length > VIBE_OTA_DATA_FRAME_MAX) {
+        return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    }
+    uint8_t buffer[VIBE_OTA_DATA_FRAME_MAX];
+    if (ble_hs_mbuf_to_flat(ctxt->om, buffer, length, &length) != 0) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+    return vibe_ota_service_enqueue_data(buffer, length) ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+}
+
+static int handle_ota_status_read(uint16_t conn_handle,
+                                  uint16_t attr_handle,
+                                  struct ble_gatt_access_ctxt *ctxt,
+                                  void *arg)
+{
+    (void)conn_handle;
+    (void)attr_handle;
+    (void)arg;
+
+    char payload[VIBE_OTA_STATUS_JSON_MAX];
+    if (!vibe_ota_service_format_status(payload, sizeof(payload))) {
+        return BLE_ATT_ERR_UNLIKELY;
     }
     return os_mbuf_append(ctxt->om, payload, strlen(payload)) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 }
@@ -196,6 +328,29 @@ static const struct ble_gatt_svc_def gatt_services[] = {
             {0},
         },
     },
+    {
+        .type = BLE_GATT_SVC_TYPE_PRIMARY,
+        .uuid = &VIBE_OTA_SERVICE_UUID.u,
+        .characteristics = (struct ble_gatt_chr_def[]) {
+            {
+                .uuid = &VIBE_OTA_CONTROL_UUID.u,
+                .access_cb = handle_ota_control_write,
+                .flags = BLE_GATT_CHR_F_WRITE,
+            },
+            {
+                .uuid = &VIBE_OTA_DATA_UUID.u,
+                .access_cb = handle_ota_data_write,
+                .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP,
+            },
+            {
+                .uuid = &VIBE_OTA_STATUS_UUID.u,
+                .access_cb = handle_ota_status_read,
+                .val_handle = &ota_status_value_handle,
+                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
+            },
+            {0},
+        },
+    },
     {0},
 };
 
@@ -211,6 +366,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
             current_status.state = VIBE_DISPLAY_IDLE;
             received_at_uptime_ms = uptime_ms();
             portEXIT_CRITICAL(&status_lock);
+            vibe_ota_service_on_connected();
             apply_current_status();
         } else {
             advertise();
@@ -220,6 +376,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
         portENTER_CRITICAL(&status_lock);
         current_connection_handle = BLE_HS_CONN_HANDLE_NONE;
         portEXIT_CRITICAL(&status_lock);
+        vibe_ota_service_on_disconnected();
         apply_current_status();
         advertise();
         return 0;
@@ -231,7 +388,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
     }
 }
 
-static void advertise(void)
+static bool advertise(void)
 {
     struct ble_hs_adv_fields fields = {0};
     fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
@@ -241,7 +398,7 @@ static void advertise(void)
     int rc = ble_gap_adv_set_fields(&fields);
     if (rc != 0) {
         ESP_LOGE(TAG, "failed to set advertisement fields: %d", rc);
-        return;
+        return false;
     }
 
     struct ble_hs_adv_fields response_fields = {0};
@@ -251,7 +408,7 @@ static void advertise(void)
     rc = ble_gap_adv_rsp_set_fields(&response_fields);
     if (rc != 0) {
         ESP_LOGE(TAG, "failed to set scan response fields: %d", rc);
-        return;
+        return false;
     }
 
     struct ble_gap_adv_params params = {0};
@@ -260,14 +417,18 @@ static void advertise(void)
     rc = ble_gap_adv_start(own_address_type, NULL, BLE_HS_FOREVER, &params, gap_event, NULL);
     if (rc != 0) {
         ESP_LOGE(TAG, "failed to start advertising: %d", rc);
+        return false;
     }
+    return true;
 }
 
 static void on_sync(void)
 {
     int rc = ble_hs_id_infer_auto(0, &own_address_type);
     if (rc == 0) {
-        advertise();
+        if (advertise()) {
+            validate_running_image_after_ble_ready();
+        }
     } else {
         ESP_LOGE(TAG, "failed to infer BLE address type: %d", rc);
     }
@@ -283,6 +444,7 @@ static void host_task(void *param)
 void vibe_ble_start(void)
 {
     vibe_status_default(&current_status);
+    ESP_ERROR_CHECK(vibe_ota_service_init("vibe_light_led", ota_status_changed, NULL));
     ESP_ERROR_CHECK(nimble_port_init());
     ble_svc_gap_init();
     ble_svc_gatt_init();
